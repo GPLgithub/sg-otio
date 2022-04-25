@@ -295,13 +295,12 @@ class SGCutTest(unittest.TestCase):
         shot_name, cut_items = list(cut._cut_items_by_shot.items())[0]
         sg_shot = cut_items[0].sg_shot
         sg_shot.pop("id")
-        sequence = sg_shot.pop("sg_sequence")
-        self.assertEqual(sequence["id"], self.mock_sequence["id"])
         self.assertEqual(shot_name, "shot_001")
         shot_data = {
             "type": "Shot",
             "code": "shot_001",
             "project": {"id": 1, "type": "Project"},
+            "sg_sequence": {"type": "Sequence", "id": 2},
             "sg_cut_order": 1,
             "sg_cut_in": head_in + head_in_duration,
             "sg_cut_out": head_in + head_in_duration + clip_1.duration().to_frames() - 1,
@@ -349,13 +348,12 @@ class SGCutTest(unittest.TestCase):
         shot_name, cut_items = list(cut._cut_items_by_shot.items())[0]
         sg_shot = cut_items[0].sg_shot
         sg_shot.pop("id")
-        sequence = sg_shot.pop("sg_sequence")
-        self.assertEqual(sequence["id"], self.mock_sequence["id"])
         self.assertEqual(shot_name, "shot_001")
         shot_data = {
             "type": "Shot",
             "code": "shot_001",
             "project": {"id": 1, "type": "Project"},
+            "sg_sequence": {"type": "Sequence", "id": 2},
             "sg_cut_order": 1,
             "head_in": head_in,
             "head_out": head_in + head_in_duration - 1,
@@ -415,8 +413,6 @@ class SGCutTest(unittest.TestCase):
         clip_1 = list(track.each_clip())[0]
         shot_name, cut_items = list(cut._cut_items_by_shot.items())[0]
         sg_shot = cut_items[0].sg_shot
-        from pprint import pprint
-        # sg_shot.pop("id")
         sequence = sg_shot.pop("sg_sequence")
         self.assertEqual(sequence["id"], self.mock_sequence["id"])
         self.assertEqual(shot_name, "shot_001")
@@ -429,6 +425,72 @@ class SGCutTest(unittest.TestCase):
             "sg_my_precious_cut_duration": clip_1.duration().to_frames(),
             "sg_my_precious_head_in": head_in,
             "sg_my_precious_tail_out": head_in + head_in_duration + clip_1.duration().to_frames() + tail_out_duration - 1,
+            "sg_effects": False,
+            "sg_respeed": False,
+        }
+        self.assertEqual(sg_shot, shot_data)
+
+    def test_shot_creation_repeated_shots(self):
+        """
+        Test that Shot values are correct on creation when there are multiple clips for the same Shot.
+        """
+        # 3 clips for the same shot
+        # The smallest source in is 01:00:00:00
+        # The largest source out is 01:00:10:00
+        edl = """
+            TITLE:   CUT_CREATE_TEST
+
+            001  ABC0100 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: shot_001
+            002  ABC0200 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: shot_001
+            003  ABC0200 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: shot_001
+        """
+        # Test with non default fps, to make sure it's taken into account
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=24)
+        track = timeline.tracks[0]
+        # Set the track name as the timeline name, if not it's simply "V"
+        track.name = timeline.name
+        # Set non default values to see them reflected in the shot data
+        head_in = 1001
+        head_in_duration = 8
+        tail_out_duration = 8
+
+        cut = SGCut(
+            track=track,
+            sg=self.mock_sg,
+            entity_type="Cut",
+            project=self.mock_project,
+            linked_entity=self.mock_sequence,
+            head_in=head_in,
+            head_in_duration=head_in_duration,
+            tail_out_duration=tail_out_duration
+        )
+        cut._create_or_update_sg_shots()
+        # clip_1 is the one with the biggest source out
+        # clip_3 is the one with the smallest source in
+        clip_1 = list(track.each_clip())[0]
+        clip_3 = list(track.each_clip())[2]
+        shot_duration = (clip_1.source_range.end_time_exclusive() - clip_3.source_range.start_time).to_frames()
+        shot_name, cut_items = list(cut._cut_items_by_shot.items())[0]
+        sg_shot = cut_items[0].sg_shot
+        sg_shot.pop("id")
+        self.assertEqual(shot_name, "shot_001")
+        shot_data = {
+            "type": "Shot",
+            "code": "shot_001",
+            "project": {"id": 1, "type": "Project"},
+            "sg_sequence": {"id": 2, "type": "Sequence"},
+            "sg_cut_order": 1,
+            "sg_cut_in": head_in + head_in_duration,
+            "sg_cut_out": head_in + head_in_duration + shot_duration - 1,
+            "sg_cut_duration": shot_duration,
+            "sg_head_in": head_in,
+            "sg_tail_out": head_in + head_in_duration + shot_duration + tail_out_duration - 1,
             "sg_effects": False,
             "sg_respeed": False,
         }
