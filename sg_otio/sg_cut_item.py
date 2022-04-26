@@ -6,6 +6,7 @@
 #
 import logging
 import re
+import six
 
 import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
@@ -159,7 +160,8 @@ class SGCutItem(object):
 
         :param value: A str or ``None``.
         """
-        self._shot_name = value
+        # Make sure the shot name is not unicode.
+        self._shot_name = six.ensure_str(value)
 
     @property
     def sg_cut(self):
