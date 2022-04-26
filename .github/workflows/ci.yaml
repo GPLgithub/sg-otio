@@ -2,14 +2,14 @@ name: Run tests
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths-ignore:
       - "*.md"
       - "*.in"
       - "*.txt"
 
   pull_request:
-    branches: [main]
+    branches: [master]
     paths-ignore:
       - "*.md"
       - "*.in"

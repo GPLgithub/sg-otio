@@ -209,7 +209,7 @@ class SGCutItemTest(unittest.TestCase):
         Test that a cut item from a clip that has retime effects takes them into account.
         """
         edl = """
-        005  foo V     C        00:00:43:09 00:00:45:22 01:08:10:07 01:08:11:14 
+        005  foo V     C        00:00:43:09 00:00:45:22 01:08:10:07 01:08:11:14
         M2   foo       048.0                00:00:43:09
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")

@@ -148,11 +148,11 @@ class SGCutTest(unittest.TestCase):
         """
         edl = """
             TITLE:   CUT_CREATE_TEST
-        
+
             001  ABC0100 V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: shot_001
-            
+
             002  ABC0200 V     C        00:00:01:00 00:00:02:00 01:00:01:00 01:00:02:00
             * FROM CLIP NAME: shot_002_v001
             * COMMENT: shot_002
@@ -265,7 +265,7 @@ class SGCutTest(unittest.TestCase):
         # This test is very simple, with one shot only.
         edl = """
             TITLE:   CUT_CREATE_TEST
-            
+
             001  ABC0100 V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: shot_001
