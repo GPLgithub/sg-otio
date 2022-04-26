@@ -240,7 +240,7 @@ class SGCutTest(unittest.TestCase):
                 "local_storage": {
                     "id": self.mock_local_storage["id"],
                     "type": "LocalStorage",
-                    "mac_path": self.mock_local_storage[self.path_field],
+                    self.path_field: self.mock_local_storage[self.path_field],
                     "path": self.mock_local_storage[self.path_field],
                 },
                 "relative_path": "/test.mov"
@@ -305,6 +305,7 @@ class SGCutTest(unittest.TestCase):
             "sg_cut_in": head_in + head_in_duration,
             "sg_cut_out": head_in + head_in_duration + clip_1.duration().to_frames() - 1,
             "sg_cut_duration": clip_1.duration().to_frames(),
+            "sg_working_duration": clip_1.duration().to_frames() + head_in_duration + tail_out_duration - 1,
             "sg_head_in": head_in,
             "sg_tail_out": head_in + head_in_duration + clip_1.duration().to_frames() + tail_out_duration - 1,
             "sg_effects": False,
@@ -423,6 +424,7 @@ class SGCutTest(unittest.TestCase):
             "sg_my_precious_cut_in": head_in + head_in_duration,
             "sg_my_precious_cut_out": head_in + head_in_duration + clip_1.duration().to_frames() - 1,
             "sg_my_precious_cut_duration": clip_1.duration().to_frames(),
+            "sg_my_precious_working_duration": clip_1.duration().to_frames() + head_in_duration + tail_out_duration - 1,
             "sg_my_precious_head_in": head_in,
             "sg_my_precious_tail_out": head_in + head_in_duration + clip_1.duration().to_frames() + tail_out_duration - 1,
             "sg_effects": False,
@@ -489,6 +491,7 @@ class SGCutTest(unittest.TestCase):
             "sg_cut_in": head_in + head_in_duration,
             "sg_cut_out": head_in + head_in_duration + shot_duration - 1,
             "sg_cut_duration": shot_duration,
+            "sg_working_duration": shot_duration + head_in_duration + tail_out_duration - 1,
             "sg_head_in": head_in,
             "sg_tail_out": head_in + head_in_duration + shot_duration + tail_out_duration - 1,
             "sg_effects": False,
