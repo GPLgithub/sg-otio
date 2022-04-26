@@ -389,7 +389,7 @@ class SGCut(object):
                 cut_items[clip_index].transition_after = track_elt
 
         # Check if SGCutItems have duplicate names, and if they have, make sure their names are unique.
-        cut_item_names = [cut_item.name for cut_item in cut_items]
+        cut_item_names = [ci.name for ci in cut_items]
         seen_names = set()
         duplicate_names = [x for x in cut_item_names if x in seen_names or seen_names.add(x)]
         if duplicate_names:
