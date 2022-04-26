@@ -464,7 +464,7 @@ class SGCut(object):
                 head_out_frames = cut_in.to_frames() - 1
                 tail_in_frames = cut_out.to_frames() + 1
                 if sfg.working_duration:
-                    shot_payload[sfg.working_duration]: (tail_out - head_in).to_frames()
+                    shot_payload[sfg.working_duration] = (tail_out - head_in).to_frames()
                 if sfg.head_out:
                     shot_payload[sfg.head_out] = head_out_frames
                 if sfg.head_duration:
