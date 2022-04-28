@@ -13,7 +13,7 @@ with io.open("README.md", "r", encoding="utf-8") as f:
 setuptools.setup(
     name="sg-otio",
     author="GPL Technologies",
-    author_email="kevin.sallee@gpltech.com",
+    author_email="pipelinesupport@gpltech.com",
     version="0.0.1",
     description="A library for OpenTimelineIO integration with ShotGrid",
     long_description=long_description,
