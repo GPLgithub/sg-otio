@@ -5,11 +5,14 @@
 # accompanies this software in either electronic or hard copy form.
 #
 import copy
+import logging
 from collections import defaultdict
 
 import opentimelineio as otio
 from .extended_clip import ExtendedClip
 from .shot import Shot
+
+logger = logging.getLogger(__name__)
 
 
 class ExtendedTrack(otio.schema.Track):
@@ -17,8 +20,9 @@ class ExtendedTrack(otio.schema.Track):
     A track where :class:`otio.schema.Clip` objects are replaced with :class:`ExtendedClip` objects,
     and with knowledge about shots, and clips in each shot.
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, log_level=logging.INFO, *args, **kwargs):
         super(ExtendedTrack, self).__init__(*args, **kwargs)
+        logger.setLevel(log_level)
         # Check if Clips have duplicate names and if they have, make sure their names are unique.
         clip_names = [clip.name for clip in self.each_clip()]
         seen_names = set()
@@ -66,6 +70,7 @@ class ExtendedTrack(otio.schema.Track):
             tail_out_duration=8,
             use_clip_names_for_shot_names=False,
             clip_name_shot_regexp=None,
+            log_level=logging.INFO,
     ):
         """
         Convenience method to create a :class:`ExtendedTrack` from a :class:`otio.schema.Track`
@@ -77,6 +82,7 @@ class ExtendedTrack(otio.schema.Track):
         :param bool use_clip_names_for_shot_names: If ``True``, clip names can be used as shot names.
         :param clip_name_shot_regexp: If given, and use_clip_names_for_shot_names is ``True``,
                                       use this regexp to find the shot name from the clip name.
+        :param log_level: The log level to use.
         :returns: A :class:`ExtendedTrack` instance.
         """
         if not isinstance(track, otio.schema.Track) and not track.kind == otio.schema.TrackKind.Video:
@@ -96,7 +102,8 @@ class ExtendedTrack(otio.schema.Track):
                     head_in_duration=head_in_duration,
                     tail_out_duration=tail_out_duration,
                     use_clip_names_for_shot_names=use_clip_names_for_shot_names,
-                    clip_name_shot_regexp=clip_name_shot_regexp
+                    clip_name_shot_regexp=clip_name_shot_regexp,
+                    log_level=log_level,
                 )
                 clip_index += 1
                 children.append(clip)
@@ -108,6 +115,7 @@ class ExtendedTrack(otio.schema.Track):
             metadata=track.metadata,
             children=children,
             source_range=track.source_range,
+            log_level=log_level,
         )
 
     @property
@@ -116,7 +124,7 @@ class ExtendedTrack(otio.schema.Track):
         Returns the :class:`Shot` instances of the track.
 
         ..note:: some clips might not have information to be able to link them to a shot,
-        in which case the shot is ``None``.
+        in which case the shot name is ``None``.
 
         :returns: A list of :class:`Shot` instances.
         """

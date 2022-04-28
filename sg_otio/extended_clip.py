@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ExtendedClip(otio.schema.Clip):
     """
+    A class that extends the Clip class with additional fields.
     """
     # The CutItem schema in ShotGrid. Make it a class variable to get it only once.
     _cut_item_schema = None
@@ -39,13 +40,21 @@ class ExtendedClip(otio.schema.Clip):
         """
         Construct a :class:`SGCutItem` instance.
 
+        :param str name: The name of the clip.
+        :param source_range: A :class:`otio.opentime.TimeRange` instance,
+                             the source range of the clip.
         :param int index: The index of the clip in the track.
-        :param track_start: A :class:`otio.opentime.RationalTime` instance,
-                            the start time of the track.
-        :param shot_fields_config: A :class:`SGShotFieldsConfig` instance.
-        :param int head_in: A :class:`RationalTime` instance, default head in.
-        :param int head_in_duration: A :class:`RationalTime` instance, head in duration.
-        :param int tail_out_duration: A :class:`RationalTime` instance, tail out duration.
+        :param media_reference: A :class:`otio.schema.MediaReference` instance.
+        :param metadata: A dictionary of metadata.
+        :param effects: A list of :class:`otio.schema.Effect` instances.
+        :param markers: A list of :class:`otio.schema.Marker` instances.
+        :param int head_in: The head in point of the clip.
+        :param int head_in_duration: The duration of the head in.
+        :param int tail_out_duration: The duration of the tail out.
+        :param bool use_clip_names_for_shot_names: If True, and a shot name was not found,
+                                                   use the clip name as the shot name.
+        :param str clip_name_shot_regexp: A regular expression to use to find the shot name.
+        :param int log_level: The logging level to use.
         """
         super(ExtendedClip, self).__init__(
             name=name,
@@ -79,7 +88,23 @@ class ExtendedClip(otio.schema.Clip):
             tail_out_duration=8,
             use_clip_names_for_shot_names=False,
             clip_name_shot_regexp=None,
+            log_level=logging.INFO,
     ):
+        """
+        Convenience method to create a :class:`ExtendedClip` instance from a
+        :class:`otio.schema.Clip` instance.
+
+        :param clip: A :class:`otio.schema.Clip` instance.
+        :param int index: The index of the clip in the track.
+        :param int head_in: The head in point of the clip.
+        :param int head_in_duration: The duration of the head in.
+        :param int tail_out_duration: The duration of the tail out.
+        :param bool use_clip_names_for_shot_names: If True, and a shot name was not found,
+                                                   use the clip name as the shot name.
+        :param str clip_name_shot_regexp: A regular expression to use to find the shot name.
+        :param int log_level: The logging level to use.
+        :returns: A :class:`ExtendedClip` instance.
+        """
         return ExtendedClip(
             name=clip.name,
             source_range=clip.source_range,
@@ -93,12 +118,14 @@ class ExtendedClip(otio.schema.Clip):
             tail_out_duration=tail_out_duration,
             use_clip_names_for_shot_names=use_clip_names_for_shot_names,
             clip_name_shot_regexp=clip_name_shot_regexp,
+            log_level=log_level,
         )
 
     @property
     def effect(self):
         """
-        Return the effect.
+        Return the effect. We only support one effect per clip, and it must be either a
+        :class:`otio.schema.LinearTimeWarp` or a :class:`otio.schema.FreezeFrame`.
         """
         return self._effect
 
@@ -134,8 +161,8 @@ class ExtendedClip(otio.schema.Clip):
     def _relevant_timing_effect(effects):
         """
         Return the relevant timing effects for the given clip.
-        :param clip:
-        :return:
+        :param effects: A list of :class:`otio.schema.Effect` instances.
+        :returns: An effect or ``None``.
         """
         # check to see if there is more than one timing effect
         effects = ExtendedClip._supported_timing_effects(effects)
@@ -195,7 +222,10 @@ class ExtendedClip(otio.schema.Clip):
         """
         duration = self.visible_range().duration
         if self.effect:
-            duration_value = duration.value * self.effect.time_scalar
+            if isinstance(self.effect, otio.schema.LinearTimeWarp):
+                duration_value = duration.value * self.effect.time_scalar
+            elif isinstance(self.effect, otio.schema.FreezeFrame):
+                duration_value = duration.value + RationalTime(1, self._frame_rate)
             duration = RationalTime(duration_value, self._frame_rate)
         return duration
 
@@ -210,10 +240,20 @@ class ExtendedClip(otio.schema.Clip):
 
     @property
     def source_in(self):
+        """
+        Return the source in of the clip.
+
+        :returns: A :class:`RationalTime` instance.
+        """
         return self.visible_range().start_time
 
     @property
     def source_out(self):
+        """
+        Return the source out of the clip.
+
+        :returns: A :class:`RationalTime` instance.
+        """
         return self.source_in + self.visible_duration
 
     @property
@@ -221,7 +261,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return the cut in time of the clip.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         cut_in = RationalTime(0, self._frame_rate) + self._head_in + self._head_in_duration
         return cut_in
@@ -231,7 +271,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return the cut out time of the clip. It's exclusive.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         return self.cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
 
@@ -240,7 +280,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return the record in time of the clip.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         transformed_time_range = self.transformed_time_range(
             self.visible_range(), self.parent().parent()
@@ -252,7 +292,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return the record out time of the clip.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         # Does not take into account retime effects like self.visible_duration does.
         return self.record_in + self.visible_range().duration
@@ -261,7 +301,7 @@ class ExtendedClip(otio.schema.Clip):
     def edit_in(self):
         """
         Return the edit in time of the clip.
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         edit_in = self.transformed_time_range(self.visible_range(), self.parent()).start_time
         # We add one frame here
@@ -273,7 +313,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return the edit out time of the clip.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         return self.transformed_time_range(self.visible_range(), self.parent()).end_time_exclusive()
 
@@ -282,7 +322,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return head in value, from the Shot or from the clip information.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         return self.cut_in - self._head_in_duration
 
@@ -291,7 +331,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Return tail out value.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         return self.cut_out + self._tail_out_duration
 
@@ -300,7 +340,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Returns the head in duration.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         return self._head_in_duration
 
@@ -309,7 +349,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Sets the head in duration.
 
-        :param value: A :class:`otio.opentime.RationalTime` instance.
+        :param value: A :class:`RationalTime` instance.
         """
         self._head_in_duration = value
 
@@ -318,7 +358,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Returns the tail out duration.
 
-        :returns: A :class:`otio.opentime.RationalTime` instance.
+        :returns: A :class:`RationalTime` instance.
         """
         return self._tail_out_duration
 
@@ -327,7 +367,7 @@ class ExtendedClip(otio.schema.Clip):
         """
         Sets the tail out duration.
 
-        :param value: A :class:`otio.opentime.RationalTime` instance.
+        :param value: A :class:`RationalTime` instance.
         """
         self._tail_out_duration = value
 

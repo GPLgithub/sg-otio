@@ -20,6 +20,7 @@ def from_timeline(
         tail_out_duration=8,
         use_clip_names_for_shot_names=False,
         clip_name_shot_regexp=None,
+        log_level=otio.logging.LogLevel.INFO,
         *args,
         **kwargs
 ):
@@ -34,6 +35,7 @@ def from_timeline(
     :param bool use_clip_names_for_shot_names: If ``True``, clip names can be used as shot names.
     :param clip_name_shot_regexp: If given, and use_clip_names_for_shot_names is ``True``,
                                   use this regexp to find the shot name from the clip name.
+    :param log_level: The log level to use.
     :returns: A :class:`otio.schema.Timeline` instance.
     """
     tracks = timeline.audio_tracks()
@@ -46,7 +48,8 @@ def from_timeline(
                 head_in_duration=head_in_duration,
                 tail_out_duration=tail_out_duration,
                 use_clip_names_for_shot_names=use_clip_names_for_shot_names,
-                clip_name_shot_regexp=clip_name_shot_regexp
+                clip_name_shot_regexp=clip_name_shot_regexp,
+                log_level=log_level,
             )
         )
     return otio.schema.Timeline(
