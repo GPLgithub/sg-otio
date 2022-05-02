@@ -4,31 +4,32 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import logging
 
 import opentimelineio as otio
 
+from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_OUT_DURATION
 from .extended_track import ExtendedTrack
 from .extended_clip import ExtendedClip
 
 
-def from_timeline(
-        timeline,
-        track_class=ExtendedTrack,
-        clip_class=ExtendedClip,
-        head_in=1001,
-        head_in_duration=8,
-        tail_out_duration=8,
-        use_clip_names_for_shot_names=False,
-        clip_name_shot_regexp=None,
-        log_level=otio.logging.LogLevel.INFO,
-        *args,
-        **kwargs
+def extended_timeline(
+    timeline,
+    track_class=ExtendedTrack,
+    clip_class=ExtendedClip,
+    head_in=DEFAULT_HEAD_IN,
+    head_in_duration=DEFAULT_HEAD_IN_DURATION,
+    tail_out_duration=DEFAULT_TAIL_OUT_DURATION,
+    use_clip_names_for_shot_names=False,
+    clip_name_shot_regexp=None,
+    log_level=logging.INFO,
 ):
     """
     Copy a Timeline and convert its video tracks from :class:`otio.schema.Track` to
     :class:`sg_otio.ExtendedTrack`.
 
     :param timeline: The :class:`otio.schema.Timeline` to convert.
+    :param track_class: The class to use for the tracks, e.g. :class:`sg_otio.ExtendedTrack`.
     :param int head_in: The default head in time of clips.
     :param int head_in_duration: The default head in duration of clips.
     :param int tail_out_duration: The default tail out duration of clips.

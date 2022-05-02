@@ -1,3 +1,10 @@
+# Copyright 2022 GPL Solutions, LLC.  All rights reserved.
+#
+# Use of this software is subject to the terms of the GPL Solutions license
+# agreement provided at the time of installation or download, or which otherwise
+# accompanies this software in either electronic or hard copy form.
+#
+
 name: Run tests
 
 on:
@@ -23,11 +30,6 @@ jobs:
       matrix:
         python-version: [2.7, 3.7, 3.8]
         os: [ubuntu-latest, macos-latest] # windows-latest when wheel is in place
-    env:
-      SG_TEST_SITE: https://gpltechdemos.shotgunstudio.com
-      SG_TEST_SCRIPT_NAME: otio_tests
-      # Set as a secret on the repository
-      SG_TEST_SCRIPT_KEY: ${{ secrets.SG_TEST_SCRIPT_KEY }}
 
     runs-on: ${{ matrix.os }}
 

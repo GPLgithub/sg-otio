@@ -14,7 +14,7 @@ from sg_otio import extended_timeline
 from sg_otio.extended_clip import ExtendedClip
 
 
-class TestOtioClip(unittest.TestCase):
+class TestExtendedClip(unittest.TestCase):
     def test_clip_name(self):
         """
         Test that the name does come from the reel name if available,
@@ -28,11 +28,12 @@ class TestOtioClip(unittest.TestCase):
             )
         )
         self.assertEqual(clip.name, "test_clip")
-        edl = """TITLE:   OTIO_TEST
-         FCM: NON-DROP FRAME
+        edl = """
+            TITLE:   OTIO_TEST
+            FCM: NON-DROP FRAME
 
-         001  clip_reel_name V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
-         * FROM CLIP NAME: clip_name
+            001  clip_reel_name V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
+            * FROM CLIP NAME: clip_name
          """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
@@ -44,12 +45,12 @@ class TestOtioClip(unittest.TestCase):
         Test that the shot name is properly extracted in different scenarios.
         """
         edl = """
-                001  reel_name V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
-                * LOC: 01:00:00:12 YELLOW  shot_001
-                * FROM CLIP NAME: clip_1
-                * COMMENT: shot_002
-                * shot_003
-                """
+            001  reel_name V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
+            * LOC: 01:00:00:12 YELLOW  shot_001
+            * FROM CLIP NAME: clip_1
+            * COMMENT: shot_002
+            * shot_003
+        """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
         # Set use reel names to True to see it does not affect the outcome.
@@ -91,17 +92,17 @@ class TestOtioClip(unittest.TestCase):
         Test that the clip values are correct.
         """
         edl = """
-        TITLE:   OTIO_TEST
-        FCM: NON-DROP FRAME
+            TITLE:   OTIO_TEST
+            FCM: NON-DROP FRAME
 
-        001  reel_1 V     C        01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00
-        M2   reel_1       048.0    01:00:00:00
-        * FROM CLIP NAME: clip_1
-        * COMMENT: shot_001
+            001  reel_1 V     C        01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00
+            M2   reel_1       048.0    01:00:00:00
+            * FROM CLIP NAME: clip_1
+            * COMMENT: shot_001
 
-        002  reel_2 V     C        00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00
-        * FROM CLIP NAME: clip_1
-        * COMMENT: shot_002
+            002  reel_2 V     C        00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00
+            * FROM CLIP NAME: clip_1
+            * COMMENT: shot_002
         """
         # set non_default head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
@@ -109,7 +110,7 @@ class TestOtioClip(unittest.TestCase):
         head_in_duration = 10
         tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = extended_timeline.from_timeline(
+        timeline = extended_timeline.extended_timeline(
             edl_timeline,
             head_in=head_in,
             head_in_duration=head_in_duration,
@@ -181,7 +182,7 @@ class TestOtioClip(unittest.TestCase):
         head_in_duration = 10
         tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = extended_timeline.from_timeline(
+        timeline = extended_timeline.extended_timeline(
             edl_timeline,
             head_in=head_in,
             head_in_duration=head_in_duration,
@@ -204,7 +205,7 @@ class TestOtioClip(unittest.TestCase):
         self.assertEqual(clip_1.edit_in.to_frames(), 1)
         self.assertEqual(clip_1.edit_out.to_frames(), 48)
         self.assertTrue(clip_1.has_effects)
-        self.assertEqual(clip_1.effects_str, "After: SMPTE_Dissolve (12 frames)\n")
+        self.assertEqual(clip_1.effects_str, "After: SMPTE_Dissolve (12 frames)")
 
         # This is the transition clip. It has a duration of 1 second.
         clip_2 = clips[1]
@@ -222,7 +223,7 @@ class TestOtioClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_in.to_frames(), 25)
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(clip_2.has_effects)
-        self.assertEqual(clip_2.effects_str, "Before: SMPTE_Dissolve (12 frames)\n")
+        self.assertEqual(clip_2.effects_str, "Before: SMPTE_Dissolve (12 frames)")
 
     def test_repeated_shots(self):
         """
@@ -250,8 +251,8 @@ class TestOtioClip(unittest.TestCase):
             [666, 25, 50],
         ]
         for head_in, head_in_duration, tail_out_duration in values:
-            edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-            timeline = extended_timeline.from_timeline(
+            edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
+            timeline = extended_timeline.extended_timeline(
                 edl_timeline,
                 head_in=head_in,
                 head_in_duration=head_in_duration,
@@ -262,7 +263,7 @@ class TestOtioClip(unittest.TestCase):
             # a way that cut_in - head_in_duration = head_in and cut_out + tail_out_duration = tail_out
             # The rest of the values are already tested in the other tests.
             # The duration of the source used is 10 seconds.
-            tail_out = RationalTime(head_in + head_in_duration + 10 * 24 + tail_out_duration - 1, 24)
+            tail_out = RationalTime(head_in + head_in_duration + 10 * 30 + tail_out_duration - 1, 30)
             for clip in track.shot_clips("shot_001"):
                 self.assertEqual(
                     clip.cut_in - clip.head_in_duration,

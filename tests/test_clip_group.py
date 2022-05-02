@@ -11,7 +11,7 @@ import opentimelineio as otio
 from sg_otio import extended_timeline
 
 
-class TestShot(unittest.TestCase):
+class TestClipGroup(unittest.TestCase):
     def test_shot_clips(self):
         """
         Test that when loading a timeline, it detects the shots belonging to the tracks,
@@ -38,7 +38,7 @@ class TestShot(unittest.TestCase):
         """
 
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = extended_timeline.from_timeline(
+        timeline = extended_timeline.extended_timeline(
             edl_timeline
         )
         track = timeline.tracks[0]
@@ -50,9 +50,9 @@ class TestShot(unittest.TestCase):
         shot_003_clips = track.shot_clips("shot_003")
         self.assertEqual({clip.name for clip in shot_003_clips}, {"clip_5"})
 
-    def test_shot_values(self):
+    def test_group_values(self):
         """
-        Test that the shot values provided are correct.
+        Test that the group values provided are correct.
         """
         edl = """
             TITLE:   CUT_CREATE_TEST
@@ -76,7 +76,7 @@ class TestShot(unittest.TestCase):
         ]
         for head_in, head_in_duration, tail_out_duration in values:
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-            timeline = extended_timeline.from_timeline(
+            timeline = extended_timeline.extended_timeline(
                 edl_timeline,
                 head_in=head_in,
                 head_in_duration=head_in_duration,
