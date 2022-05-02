@@ -38,7 +38,7 @@ class ExtendedClip(otio.schema.Clip):
         log_level=logging.INFO,
     ):
         """
-        Construct a :class:`SGCutItem` instance.
+        Construct a :class:`ExtendedClip` instance.
 
         :param str name: The name of the clip.
         :param source_range: A :class:`otio.opentime.TimeRange` instance,
