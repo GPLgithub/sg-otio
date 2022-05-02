@@ -10,6 +10,7 @@ from opentimelineio.opentime import RationalTime
 class Shot(object):
     """
     A class representing a shot in an OTIO timeline.
+
     All the clips that have the same shot name are considered to be part of the same shot.
 
     It allows to access the clips that are part of the shot, and to compute some values representative of the shot.

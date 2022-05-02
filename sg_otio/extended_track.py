@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 class ExtendedTrack(otio.schema.Track):
     """
-    A track where :class:`otio.schema.Clip` objects are replaced with :class:`ExtendedClip` objects,
-    and with knowledge about shots, and clips in each shot.
+    An extended :class:`otio.schema.Track` handling clips with :class:`ExtendedClip` instances.
     """
     def __init__(self, log_level=logging.INFO, *args, **kwargs):
         super(ExtendedTrack, self).__init__(*args, **kwargs)

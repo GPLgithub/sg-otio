@@ -28,7 +28,7 @@ def from_timeline(
     Copy a Timeline and convert its video tracks from :class:`otio.schema.Track` to
     :class:`sg_otio.ExtendedTrack`.
 
-    :param timeline: The :class:`otio.schema.Timeline` to modify.
+    :param timeline: The :class:`otio.schema.Timeline` to convert.
     :param int head_in: The default head in time of clips.
     :param int head_in_duration: The default head in duration of clips.
     :param int tail_out_duration: The default tail out duration of clips.
