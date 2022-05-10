@@ -4,6 +4,7 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import copy
 from opentimelineio.opentime import RationalTime
 
 
@@ -50,7 +51,8 @@ class ClipGroup(object):
 
         :returns: A list of :class:`otio.schema.Clip` instances.
         """
-        return self._clips
+        # Don't return the original list, because it might be modified.
+        return list(self._clips)
 
     def add_clip(self, clip):
         """
