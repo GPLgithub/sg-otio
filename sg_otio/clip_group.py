@@ -4,6 +4,7 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import copy
 from opentimelineio.opentime import RationalTime
 
 
@@ -25,7 +26,7 @@ class ClipGroup(object):
         :param clips: A list of :class:`otio.schema.Clip` instances.
         """
         self.name = name
-        self._clips = clips
+        self._clips = clips or []
         self._index = None
         self._source_in = None
         self._source_out = None
@@ -37,8 +38,10 @@ class ClipGroup(object):
         self._tail_out = None
         self._has_effects = False
         self._has_retime = False
-        # All clips should have the same frame rate.
-        self._frame_rate = clips[0].duration().rate
+        self._frame_rate = None
+        # All clips must have the same frame rate.
+        if self._clips:
+            self._frame_rate = clips[0].duration().rate
         self._compute_group_values(clips)
 
     @property
@@ -46,9 +49,9 @@ class ClipGroup(object):
         """
         Returns the clips that are part of the group.
 
-        :returns: A list of :class:`ExtendedClip` instances.
+        :returns: A list of :class:`otio.schema.Clip` instances.
         """
-        return self._clips
+        return copy.deepcopy(self._clips)
 
     def add_clip(self, clip):
         """
@@ -59,8 +62,29 @@ class ClipGroup(object):
 
         :param clip: A :class:`otio.schema.Clip` instance.
         """
-        self._clips.append(clip)
-        self._compute_group_values([clip])
+        self.add_clips([clip])
+
+    def add_clips(self, clips):
+        """
+        Adds clips to the group.
+
+        Recompute the clip group values, since they might have changed,
+        because the group values cover the range of all clips in the group.
+
+        :param clips: A list of :class:`otio.schema.Clip` instances.
+        :raises ValueError: If the clips do not have the same frame rate
+        """
+        if not self._frame_rate:
+            self._frame_rate = clips[0].duration().rate
+        for clip in clips:
+            if clip.duration().rate != self._frame_rate:
+                raise ValueError(
+                    "Clips must have the same frame rate. Clip: %s frame rate %s, group frame rate: %s" % (
+                        clip.name, clip.duration().rate, self._frame_rate
+                    )
+                )
+        self._clips.extend(clips)
+        self._compute_group_values(clips)
 
     def _compute_group_values(self, clips):
         """
@@ -108,7 +132,7 @@ class ClipGroup(object):
     @property
     def index(self):
         """
-        Returns the index of the group.
+        Returns the index of the group, i.e. the smallest index of all clips in the Track.
 
         Since the group values cover the range of all clips,
         the index of the group is the smallest index of the group's clips.

@@ -213,7 +213,7 @@ class ExtendedClip(otio.schema.Clip):
     @property
     def visible_duration(self):
         """
-        Return the duration of the cut item, taking into account the transitions
+        Return the duration of the clip, taking into account the transitions
         and the effects.
 
         :returns: A :class:`RationalTime` instance.
