@@ -51,7 +51,7 @@ class ClipGroup(object):
 
         :returns: A list of :class:`otio.schema.Clip` instances.
         """
-        return copy.deepcopy(self._clips)
+        return self._clips
 
     def add_clip(self, clip):
         """
