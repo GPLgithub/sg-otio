@@ -5,6 +5,7 @@
 # accompanies this software in either electronic or hard copy form.
 #
 import logging
+import six
 from six.moves.urllib import parse
 
 import opentimelineio as otio
@@ -175,10 +176,13 @@ def write_to_file(input_otio, filepath):
             continue
         if isinstance(v, otio._otio.AnyDictionary):
             sg_cut_data[k] = dict(v)
-        elif isinstance(v, long):
-            sg_cut_data[k] = int(v)
         else:
-            sg_cut_data[k] = v
+            for integer_type in six.integer_types:
+                if isinstance(v, integer_type):
+                    sg_cut_data[k] = int(v)
+                    break
+            else:
+                sg_cut_data[k] = v
         if k == "fps":
             sg_cut_data[k] = float(v)
 
@@ -209,10 +213,13 @@ def write_to_file(input_otio, filepath):
                 continue
             if isinstance(v, otio._otio.AnyDictionary):
                 sg_cut_item_data[k] = dict(v)
-            elif isinstance(v, long):
-                sg_cut_item_data[k] = int(v)
             else:
-                sg_cut_item_data[k] = v
+                for integer_type in six.integer_types:
+                    if isinstance(v, integer_type):
+                        sg_cut_data[k] = int(v)
+                        break
+                else:
+                    sg_cut_data[k] = v
             if k == "fps":
                 sg_cut_item_data[k] = float(v)
         if sg_cut_item.get("id"):
