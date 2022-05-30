@@ -20,6 +20,14 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/GPLgithub/sg-otio.git",
     packages=setuptools.find_packages(),
+    entry_points={
+        "opentimelineio.plugins": "sg_otio = sg_otio"
+    },
+    package_data={
+        "otio_shotgrid_adapter": [
+            "plugin_manifest.json",
+        ],
+    },
     install_requires=[
         "OpenTimelineIO >= 0.12.0",
         "shotgun_api3 @ git+https://github.com/shotgunsoftware/python-api.git",
