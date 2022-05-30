@@ -14,13 +14,6 @@ try:
 except ImportError:
     import mock
 
-try:
-    # For Python 3.4 or later
-    from pathlib import Path
-except ImportError:
-    # fallback to library in required packages
-    from pathlib2 import Path
-
 logger = logging.getLogger(__name__)
 
 
@@ -292,7 +285,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                         self.assertEqual(sg_data[k]["id"], v["id"])
                     else:
                         self.assertEqual(sg_data[k], v)
-            self.assertEqual(i+1, len(self.mock_cut_items))
+            self.assertEqual(i + 1, len(self.mock_cut_items))
             # Now write it back to SG
             otio.adapters.write_to_file(timeline, self._SG_CUT_URL, "ShotGrid")
             # Unset the Cut id on the track

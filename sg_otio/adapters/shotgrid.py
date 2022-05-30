@@ -156,7 +156,7 @@ def write_to_file(input_otio, filepath):
         raise ValueError("Invalid {} SG data for a {}".format(sg_data["type"], entity_type))
     sg_cut = sg_data
     sg_project = sg_cut["project"]
-    sg_cut_link = sg_cut.get("entity") or sg_project
+    # sg_cut_link = sg_cut.get("entity") or sg_project
     sg_cut_items = []
     for clip in video_track.each_clip():
         sg_data = clip.metadata.get("sg")
@@ -232,7 +232,7 @@ def write_to_file(input_otio, filepath):
         res = sg.batch(batch_data)
         # TODO: update the SG metadata
     # TODO: deal with CutItems, Versions, Shots, etc...
-
+    print(res)
 
 # def write_to_string(
 #     input_otio,
