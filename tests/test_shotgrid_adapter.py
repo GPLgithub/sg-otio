@@ -38,6 +38,8 @@ class ShotgridAdapterTest(unittest.TestCase):
 
         # setup mockgun, connect to Shotgun only once
         self.mock_sg = mockgun.Shotgun(self._SG_SITE, self._SCRIPT_NAME, self._SCRIPT_KEY)
+        self._SESSION_TOKEN = self.mock_sg.get_session_token()
+
         # Avoid NotImplementedError for mock_sg.upload
         self.mock_sg.upload = mock.MagicMock()
         project = {"type": "Project", "name": "project", "id": 1}
@@ -126,10 +128,9 @@ class ShotgridAdapterTest(unittest.TestCase):
                 }
             )
         self._add_to_sg_mock_db(self.mock_sg, self.mock_cut_items)
-        self._SG_CUT_URL = "{}/Cut?script={}&api_key={}&id={}".format(
+        self._SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
             self._SG_SITE,
-            self._SCRIPT_NAME,
-            self._SCRIPT_KEY,
+            self._SESSION_TOKEN,
             self.mock_cut_id
         )
 
@@ -248,6 +249,7 @@ class ShotgridAdapterTest(unittest.TestCase):
 
     def test_read_write_sg_cut(self):
         """
+        Test reading an SG Cut, saving it to otio and writing it to SG.
         """
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             timeline = otio.adapters.read_from_file(
@@ -294,29 +296,31 @@ class ShotgridAdapterTest(unittest.TestCase):
             sg_cuts = self.mock_sg.find("Cut", [], [])
             self.assertEqual(len(sg_cuts), 2)
 
-#     def test_read_write_to_edl(self):
-#         """
-#         Test reading from SG and writing to an EDL.
-#         """
-#         # Note: we need to use the single mocked sg instance created in setUp
-#         # for all tests.
-#         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-#             timeline = otio.adapters.read_from_file(
-#                 self._SG_CUT_URL,
-#                 "ShotGrid",
-#             )
-#         edl_text = otio.adapters.write_to_string(timeline, adapter_name="cmx_3600")
-#         expected_edl_text = """TITLE: Cut01
-#
-# 001  001_v001 V     C        00:00:00:00 00:01:00:00 01:04:00:00 01:05:00:00
-# * FROM CLIP NAME:  001_v001
-# 002  002_v001 V     C        00:00:00:00 00:01:00:00 01:05:00:00 01:06:00:00
-# * FROM CLIP NAME:  002_v001
-# 003  003_v001 V     C        00:00:00:00 00:01:00:00 01:06:00:00 01:07:00:00
-# * FROM CLIP NAME:  003_v001
-# """
-#         self.assertMultiLineEqual(edl_text, expected_edl_text)
-#
+    def test_read_write_to_edl(self):
+        """
+        Test reading from SG and writing to an EDL.
+        """
+        # Note: we need to use the single mocked sg instance created in setUp
+        # for all tests.
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            timeline = otio.adapters.read_from_file(
+                self._SG_CUT_URL,
+                "ShotGrid",
+            )
+        edl_text = otio.adapters.write_to_string(timeline, adapter_name="cmx_3600")
+        expected_edl_text = (
+            "TITLE: Cut01\n\n"
+            "001  001_v001 V     C        00:00:00:00 00:01:00:00 01:04:00:00 01:05:00:00\n"
+            "* FROM CLIP NAME:  001_v001\n"
+            "002  002_v001 V     C        00:00:00:00 00:01:00:00 01:05:00:00 01:06:00:00\n"
+            "* FROM CLIP NAME:  002_v001\n"
+            "003  003_v001 V     C        00:00:00:00 00:01:00:00 01:06:00:00 01:07:00:00\n"
+            "* FROM CLIP NAME:  003_v001\n"
+        )
+        self.assertMultiLineEqual(edl_text, expected_edl_text)
+        # TODO: Read back the EDL and write to SG
+        # timeline = otio.adapters.read_from_string(edl_text, adapter_name="cmx_3600")
+
 #     def test_write(self):
 #         """
 #         Test writing features.

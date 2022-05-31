@@ -23,20 +23,22 @@ def parse_sg_url(url):
     Parse a SG url, extract the SG site url, credentials and other informations.
 
     The url is a query url which must have the form:
-    `https://<SG site>/<SG Entity type>?script=<my script>&api_key=<script key>&id=<SG Entity id>`
+    `https://<SG site>/<SG Entity type>?session_token=<session token>&id=<SG Entity id>`
+
+    .. note:: A session token can be retrieved from a connected SG handle with the
+    :meth:`~shotgun_api3.Shotgun.get_session_token()` method.
 
     :param str url: A SG query url.
-    :returns: A SG site, SG Entity type, SG Entity id, script name, script key tuple.
+    :returns: A SG site, SG Entity type, SG Entity id, session_token tuple.
     """
     parsed = parse.urlparse(url)
     params = parse.parse_qs(parsed.query)
     sg_site = parsed._replace(path="", params="", query="", fragment="").geturl()
     # Todo: check for existence of params
-    script_name = params["script"][0]
-    api_key = params["api_key"][0]
+    session_token = params["session_token"][0]
     entity_type = parsed.path[1:]
     entity_id = int(params["id"][0])
-    return sg_site, entity_type, entity_id, script_name, api_key
+    return sg_site, entity_type, entity_id, session_token
 
 
 def read_from_file(filepath):
@@ -56,10 +58,10 @@ def read_from_file(filepath):
     :returns: A :class:`otio.schema.Timeline` instance.
     :raises ValueError: For unsupported SG Entity types.
     """
-    sg_site, entity_type, cut_id, script_name, api_key = parse_sg_url(filepath)
+    sg_site, entity_type, cut_id, session_token = parse_sg_url(filepath)
     if entity_type != "Cut":
         raise ValueError("Only Cut Entities are supported.")
-    sg = shotgun_api3.Shotgun(sg_site, script_name, api_key)
+    sg = shotgun_api3.Shotgun(sg_site, session_token=session_token)
 
     cut = sg.find_one(
         "Cut",
@@ -123,7 +125,7 @@ def write_to_file(input_otio, filepath):
     Write the given timeline to SG.
 
     The filepath is a query url which have the form:
-    `https://<SG site>/<SG Entity type>?script=<my script>&api_key=<script key>&id=<SG Entity id>`
+    `https://<SG site>/<SG Entity type>?session_token=<session token>&id=<SG Entity id>`
 
     :param input_otio: An :class:`otio.schema.Timeline` instance.
     :param str filepath: A query URL.
@@ -133,12 +135,12 @@ def write_to_file(input_otio, filepath):
         raise ValueError("Only OTIO Timelines and Video Tracks are supported.")
     if isinstance(input_otio, otio.schema.Track) and input_otio.kind != otio.schema.TrackKind.Video:
         raise ValueError("Only OTIO Video Tracks are supported.")
-    sg_site, entity_type, entity_id, script_name, api_key = parse_sg_url(filepath)
+    sg_site, entity_type, entity_id, session_token = parse_sg_url(filepath)
     if entity_type != "Cut":
         raise ValueError("Only the following entity types are supported: {}".format(
             ", ".join(["Cut"])
         ))
-    sg = shotgun_api3.Shotgun(sg_site, script_name, api_key)
+    sg = shotgun_api3.Shotgun(sg_site, session_token=session_token)
     # OTIO suppports multiple video tracks, but ShotGrid cuts can only represent one.
     if isinstance(input_otio, otio.schema.Timeline):
         if len(input_otio.video_tracks()) > 1:
@@ -240,102 +242,3 @@ def write_to_file(input_otio, filepath):
         # TODO: update the SG metadata
     # TODO: deal with CutItems, Versions, Shots, etc...
     print(res)
-
-# def write_to_string(
-#     input_otio,
-#     sg_url,
-#     script_name,
-#     api_key,
-#     entity_type,
-#     project,
-#     link,
-#     user=None,
-#     description=None,
-#     input_media=None,
-#     local_storage_name=None,
-#     shot_regexp=None,
-#     use_smart_fields=False,
-#     shot_cut_fields_prefix=None,
-#     head_in=1001,
-#     head_in_duration=8,
-#     tail_out_duration=8,
-#     flag_retimes_and_effects=True
-# ):
-#     """
-#     Writes information from a :class:`otio.schema.Timeline` instance to
-#     ShotGrid and returns a string.
-#
-#     This is the standard method for adapters to implement.
-#     .. seealso:: https://opentimelineio.readthedocs.io/en/latest/tutorials/write-an-adapter.html#required-functions
-#
-#     :param input_otio: An :class:`otio.schema.Timeline` instance.
-#     :param str sg_url: A SG site URL, e.g. "https://shotgrid.shotgunstudio.com".
-#     :param str script_name: A SG script name.
-#     :param str api_key: A SG API key.
-#     :param str entity_type: An Entity type, e.g. Cut.
-#     :param project: A SG Project entity.
-#     :param link: A SG dictionary of the Entity to link the Cut to.
-#     :param user: An optional SG User entity.
-#     :param description: An optional description.
-#     :param input_media: An optional path to a media file of the Timeline.
-#     :param local_storage_name: If provided, the local storage where files will be published to.
-#     :param shot_regexp: A regular expression to extract extra information from the
-#                         clip comments.
-#     :param bool use_smart_fields: Whether or not ShotGrid Shot cut smart fields
-#                                       should be used.
-#     :param str shot_cut_fields_prefix: If set, use custom Shot cut fields based
-#                                        on the given prefix.
-#     :param int head_in: Default head in frame number to use.
-#     :param int head_in_duration: Default head in number of frames to use.
-#     :param int tail_out_duration: Default tail out number of frames to use.
-#     :param bool flag_retimes_and_effects: Whether or not to flag retimes and effects.
-#     :returns: A string.
-#     """
-#     if not isinstance(input_otio, otio.schema.Timeline) and not isinstance(input_otio, otio.schema.Track):
-#         raise ValueError("Only OTIO Timelines and Video Tracks are supported.")
-#     if isinstance(input_otio, otio.schema.Track) and input_otio.kind != otio.schema.TrackKind.Video:
-#         raise ValueError("Only OTIO Video Tracks are supported.")
-#     if entity_type not in SG_SUPPORTED_ENTITY_TYPES:
-#         raise ValueError("Only the following entity types are supported: {}".format(
-#             ", ".join(SG_SUPPORTED_ENTITY_TYPES)
-#         ))
-#
-#     sg = shotgun_api3.Shotgun(sg_url, script_name, api_key)
-#     if entity_type == "Cut":
-#         # OTIO suppports multiple video tracks, but ShotGrid cuts can only represent one.
-#         if isinstance(input_otio, otio.schema.Timeline):
-#             if len(input_otio.video_tracks()) > 1:
-#                 logger.warning("Only one video track is supported, using the first one.")
-#             # We could flatten the timeline here by using otio.core.flatten_stack(input_otio.video_tracks())
-#             # But we lose information, for example the track source_range becomes ``None``
-#             video_track = input_otio.video_tracks()[0]
-#             # Change the track name to the timeline name.
-#             video_track.name = input_otio.name
-#         else:
-#             video_track = input_otio
-#         cut = SGCut(
-#             video_track,
-#             sg,
-#             entity_type,
-#             project,
-#             link,
-#             user,
-#             description,
-#             input_media,
-#             local_storage_name,
-#             shot_regexp,
-#             use_smart_fields,
-#             shot_cut_fields_prefix,
-#             head_in,
-#             head_in_duration,
-#             tail_out_duration,
-#             flag_retimes_and_effects
-#         )
-#         sg_cut = cut.create_sg_cut()
-#         cut_items_by_shot = cut.create_sg_cut_items()
-#         # TODO: Improve what's returned.
-#         result = {
-#             "sg_cut": sg_cut,
-#             "sg_cut_items": cut_items_by_shot
-#         }
-#         return json.dumps(result)

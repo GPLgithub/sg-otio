@@ -11,27 +11,27 @@ import opentimelineio as otio
 
 from .clip_group import ClipGroup
 from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_OUT_DURATION
-from .extended_clip import ExtendedClip
+from .cut_clip import CutClip
 
 logger = logging.getLogger(__name__)
 
 
-class ExtendedTrack(otio.schema.Track):
+class CutTrack(otio.schema.Track):
     """
-    An extended :class:`otio.schema.Track` handling clips with :class:`ExtendedClip` instances.
+    A :class:`otio.schema.Track` in the context of a Cut.
 
     It is a subclass of :class:`otio.schema.Track` with the following additions:
-    - :class:`ExtendedClip` instances are added to the track, which have more attributes.
+    - :class:`CutClip` instances are added to the track, which have more attributes.
     - Names of clips are unique.
     - Clips are grouped by their shot, using :class:`ClipGroup` instances.
     """
     def __init__(self, log_level=logging.INFO, *args, **kwargs):
         """
-        Initialize an :class:`ExtendedTrack` instance.
+        Initialize an :class:`CutTrack` instance.
 
         :param log_level: The log level to use.
         """
-        super(ExtendedTrack, self).__init__(*args, **kwargs)
+        super(CutTrack, self).__init__(*args, **kwargs)
         logger.setLevel(log_level)
         # Check if Clips have duplicate names and if they have, make sure their names are unique.
         clip_names = [clip.name for clip in self.each_clip()]
@@ -59,10 +59,10 @@ class ExtendedTrack(otio.schema.Track):
                 self._shots_by_name[clip.shot_name].add_clip(clip)
 
     @classmethod
-    def from_track(
+    def from_timeline(
         cls,
-        track,
-        clip_class=ExtendedClip,
+        timeline,
+        clip_class=CutClip,
         head_in=DEFAULT_HEAD_IN,
         head_in_duration=DEFAULT_HEAD_IN_DURATION,
         tail_out_duration=DEFAULT_TAIL_OUT_DURATION,
@@ -71,7 +71,58 @@ class ExtendedTrack(otio.schema.Track):
         log_level=logging.INFO,
     ):
         """
-        Convenience method to create a :class:`ExtendedTrack` from a :class:`otio.schema.Track`
+        Convenience method to Copy a Timeline and convert its video track
+        from :class:`otio.schema.Track` to a :class:`sg_otio.CutTrack`.
+
+        :param timeline: The :class:`otio.schema.Timeline` to convert.
+        :param track_class: The class to use for the tracks, e.g. :class:`sg_otio.CutTrack`.
+        :param int head_in: The default head in time of clips.
+        :param int head_in_duration: The default head in duration of clips.
+        :param int tail_out_duration: The default tail out duration of clips.
+        :param bool use_clip_names_for_shot_names: If ``True``, clip names can be used as shot names.
+        :param clip_name_shot_regexp: If given, and use_clip_names_for_shot_names is ``True``,
+                                      use this regexp to find the shot name from the clip name.
+        :param log_level: The log level to use.
+        :returns: A :class:`otio.schema.Timeline` instance.
+        """
+        audio_tracks = timeline.audio_tracks()
+        video_tracks = timeline.video_tracks()
+        if len(video_tracks) > 1:
+            logger.warning("Only one video track is supported, using the first one.")
+            # We could flatten the timeline here by using otio.core.flatten_stack(input_otio.video_tracks())
+            # But we lose information, for example the track source_range becomes ``None``
+        video_tracks[0] = cls.from_track(
+            video_tracks[0],
+            clip_class=clip_class,
+            head_in=head_in,
+            head_in_duration=head_in_duration,
+            tail_out_duration=tail_out_duration,
+            use_clip_names_for_shot_names=use_clip_names_for_shot_names,
+            clip_name_shot_regexp=clip_name_shot_regexp,
+            log_level=log_level,
+        )
+
+        return otio.schema.Timeline(
+            name=timeline.name,
+            tracks=audio_tracks + video_tracks,
+            metadata=timeline.metadata,
+            global_start_time=timeline.global_start_time,
+        )
+
+    @classmethod
+    def from_track(
+        cls,
+        track,
+        clip_class=CutClip,
+        head_in=DEFAULT_HEAD_IN,
+        head_in_duration=DEFAULT_HEAD_IN_DURATION,
+        tail_out_duration=DEFAULT_TAIL_OUT_DURATION,
+        use_clip_names_for_shot_names=False,
+        clip_name_shot_regexp=None,
+        log_level=logging.INFO,
+    ):
+        """
+        Convenience method to create a :class:`CutTrack` from a :class:`otio.schema.Track`
 
         :param track: The track to convert.
         :param int head_in: The default head in time of clips.
@@ -81,7 +132,7 @@ class ExtendedTrack(otio.schema.Track):
         :param clip_name_shot_regexp: If given, and use_clip_names_for_shot_names is ``True``,
                                       use this regexp to find the shot name from the clip name.
         :param log_level: The log level to use.
-        :returns: A :class:`ExtendedTrack` instance
+        :returns: A :class:`CutTrack` instance
         :raises ValueError: If the track is not a :class:`otio.schema.Track`
                             of kind :class:`otio.schema.TrackKind.Video`.
         """
@@ -154,7 +205,7 @@ class ExtendedTrack(otio.schema.Track):
         Return the clips that belong to a given shot.
 
         :param shot: A str, the shot name, or ``None``.
-        :returns: A list of :class:`ExtendedClip` instances.
+        :returns: A list of :class:`CutClip` instances.
         :raises ValueError: If the shot is unknown.
         """
         shot = self._shots_by_name.get(shot_name)

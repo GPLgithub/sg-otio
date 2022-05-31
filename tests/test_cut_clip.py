@@ -10,17 +10,17 @@ import unittest
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
 
-from sg_otio import extended_timeline
-from sg_otio.extended_clip import ExtendedClip
+from sg_otio.cut_clip import CutClip
+from sg_otio.cut_track import CutTrack
 
 
-class TestExtendedClip(unittest.TestCase):
+class TestCutClip(unittest.TestCase):
     def test_clip_name(self):
         """
         Test that the name does come from the reel name if available,
         otherwise it defaults to the clip name.
         """
-        clip = ExtendedClip(
+        clip = CutClip(
             name="test_clip",
             source_range=TimeRange(
                 RationalTime(0, 24),
@@ -37,7 +37,7 @@ class TestExtendedClip(unittest.TestCase):
          """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
-        clip = ExtendedClip.from_clip(edl_clip)
+        clip = CutClip.from_clip(edl_clip)
         self.assertEqual(clip.name, "clip_reel_name")
 
     def test_shot_name(self):
@@ -54,7 +54,7 @@ class TestExtendedClip(unittest.TestCase):
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
         # Set use reel names to True to see it does not affect the outcome.
-        clip = ExtendedClip.from_clip(
+        clip = CutClip.from_clip(
             edl_clip, use_clip_names_for_shot_names=True
         )
         # Locators and comments present, locator is used.
@@ -87,6 +87,15 @@ class TestExtendedClip(unittest.TestCase):
         clip._compute_shot_name()
         self.assertEqual(clip.shot_name, "reel")
 
+        # If there is some SG meta data and a Shot code it should be used
+        clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": 123456,
+            "shot.Shot.code": "shot_from_SG"
+        }
+        clip._compute_shot_name()
+        self.assertEqual(clip.shot_name, "shot_from_SG")
+
     def test_clip_values(self):
         """
         Test that the clip values are correct.
@@ -110,7 +119,7 @@ class TestExtendedClip(unittest.TestCase):
         head_in_duration = 10
         tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = extended_timeline.extended_timeline(
+        timeline = CutTrack.from_timeline(
             edl_timeline,
             head_in=head_in,
             head_in_duration=head_in_duration,
@@ -182,7 +191,7 @@ class TestExtendedClip(unittest.TestCase):
         head_in_duration = 10
         tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = extended_timeline.extended_timeline(
+        timeline = CutTrack.from_timeline(
             edl_timeline,
             head_in=head_in,
             head_in_duration=head_in_duration,
@@ -252,7 +261,7 @@ class TestExtendedClip(unittest.TestCase):
         ]
         for head_in, head_in_duration, tail_out_duration in values:
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
-            timeline = extended_timeline.extended_timeline(
+            timeline = CutTrack.from_timeline(
                 edl_timeline,
                 head_in=head_in,
                 head_in_duration=head_in_duration,

@@ -16,9 +16,9 @@ from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_O
 logger = logging.getLogger(__name__)
 
 
-class ExtendedClip(otio.schema.Clip):
+class CutClip(otio.schema.Clip):
     """
-    A class that extends the Clip class with additional fields.
+    A Clip in the context of a Cut.
     """
 
     def __init__(
@@ -36,7 +36,7 @@ class ExtendedClip(otio.schema.Clip):
         **kwargs
     ):
         """
-        Construct a :class:`ExtendedClip` instance.
+        Construct a :class:`CutClip` instance.
 
         :param int index: The index of the clip in the track.
         :param effects: A list of :class:`otio.schema.Effect` instances.
@@ -49,8 +49,9 @@ class ExtendedClip(otio.schema.Clip):
         :param str clip_name_shot_regexp: A regular expression to use to find the shot name.
         :param int log_level: The logging level to use.
         """
-        super(ExtendedClip, self).__init__(*args, **kwargs)
+        super(CutClip, self).__init__(*args, **kwargs)
         logger.setLevel(log_level)
+        # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
         if self.metadata.get("cmx_3600", {}).get("reel"):
             self.name = self.metadata["cmx_3600"]["reel"]
@@ -79,7 +80,7 @@ class ExtendedClip(otio.schema.Clip):
         log_level=logging.INFO,
     ):
         """
-        Convenience method to create a :class:`ExtendedClip` instance from a
+        Convenience method to create a :class:`CutClip` instance from a
         :class:`otio.schema.Clip` instance.
 
         :param clip: A :class:`otio.schema.Clip` instance.
@@ -91,7 +92,7 @@ class ExtendedClip(otio.schema.Clip):
                                                    use the clip name as the shot name.
         :param str clip_name_shot_regexp: A regular expression to use to find the shot name.
         :param int log_level: The logging level to use.
-        :returns: A :class:`ExtendedClip` instance.
+        :returns: A :class:`CutClip` instance.
         """
         return cls(
             name=clip.name,
@@ -154,7 +155,7 @@ class ExtendedClip(otio.schema.Clip):
         # check to see if there is more than one timing effect
         supported_effects = []
         for effect in effects:
-            if ExtendedClip._is_timing_effect_supported(effect):
+            if CutClip._is_timing_effect_supported(effect):
                 supported_effects.append(effect)
             else:
                 logger.warning(
@@ -530,8 +531,8 @@ class ExtendedClip(otio.schema.Clip):
         The reel name is only used if `_use_clip_names_for_shot_names` is True.
         If a `_clip_name_shot_regexp` is set, it will be used to extract the shot name from the reel name.
         """
-        if self.metadata.get("sg", {}).get("shot"):
-            self.shot_name = self.metadata["sg"]["shot"]["name"]
+        if self.metadata.get("sg", {}).get("shot.Shot.code"):
+            self.shot_name = self.metadata["sg"]["shot.Shot.code"]
             return
         if self.markers:
             self.shot_name = self.markers[0].name.split()[0]
