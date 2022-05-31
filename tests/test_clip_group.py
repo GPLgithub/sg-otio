@@ -8,7 +8,7 @@
 import unittest
 
 import opentimelineio as otio
-from sg_otio import extended_timeline
+from sg_otio.cut_track import CutTrack
 
 
 class TestClipGroup(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestClipGroup(unittest.TestCase):
         """
 
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = extended_timeline.extended_timeline(
+        timeline = CutTrack.from_timeline(
             edl_timeline
         )
         track = timeline.tracks[0]
@@ -76,7 +76,7 @@ class TestClipGroup(unittest.TestCase):
         ]
         for head_in, head_in_duration, tail_out_duration in values:
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-            timeline = extended_timeline.extended_timeline(
+            timeline = CutTrack.from_timeline(
                 edl_timeline,
                 head_in=head_in,
                 head_in_duration=head_in_duration,
