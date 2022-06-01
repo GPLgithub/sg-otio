@@ -297,11 +297,17 @@ class ShotgridAdapterTest(unittest.TestCase):
             otio.adapters.write_to_file(timeline, self._SG_CUT_URL, "ShotGrid")
             # Create a new Cut linked to the test Sequence
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
-            sg_cuts = self.mock_sg.find("Cut", [], [])
+            sg_cuts = self.mock_sg.find("Cut", [["id", "is_not", self.mock_cut["id"]]], [])
             # We should now have two Cuts with all CutItems duplicated
-            self.assertEqual(len(sg_cuts), 2)
-            sg_cut_items = self.mock_sg.find("CutItem", [], [])
-            self.assertEqual(len(sg_cut_items), 2 * len(self.mock_cut_items))
+            self.assertEqual(len(sg_cuts), 1)
+            sg_cut_items = self.mock_sg.find(
+                "CutItem", [["cut", "is", sg_cuts[0]]], []
+            )
+            self.assertEqual(len(sg_cut_items), len(self.mock_cut_items))
+            # Check the SG metadata
+            self.assertEqual(track.metadata["sg"]["id"], sg_cuts[0]["id"])
+            for i, clip in enumerate(track.each_clip()):
+                self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
 
     def test_read_write_to_edl(self):
         """

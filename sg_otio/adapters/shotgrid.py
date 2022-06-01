@@ -196,8 +196,8 @@ def write_to_file(input_otio, filepath):
     if sg_track_data["type"] != "Cut":
         raise ValueError("Invalid {} SG data for a {}".format(sg_data["type"], "Cut"))
 
-    # sg_cut_link = sg_cut.get("entity") or sg_project
     sg_cut_items = []
+    cut_item_clips = []
     for clip in video_track.each_clip():
         sg_data = clip.metadata.get("sg")
         if not sg_data:
@@ -207,6 +207,7 @@ def write_to_file(input_otio, filepath):
             logger.info("Not treating %s not linked to a SG CutItem" % clip)
             continue
         sg_cut_items.append(sg_data)
+        cut_item_clips.append(clip)
     sg_cut_data = {}
     # Collect and sanitize SG data
     # TODO: do it for real, this is just a proof of concept
@@ -292,6 +293,7 @@ def write_to_file(input_otio, filepath):
             })
     if batch_data:
         res = sg.batch(batch_data)
-        # TODO: update the SG metadata
+        # Update the clips SG metadata
+        for i, sg_cut_item in enumerate(res):
+            cut_item_clips[i].metadata["sg"] = sg_cut_item
     # TODO: deal with CutItems, Versions, Shots, etc...
-    print(res)
