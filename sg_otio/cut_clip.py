@@ -631,11 +631,12 @@ class CutClip(otio.schema.Clip):
 #            cut_item_payload["created_by"] = self._user
 #            cut_item_payload["updated_by"] = self._user
 #
-#        if self.has_effects:
-#            description = "%s\nEffects: %s" % (
-#                description,
-#                self.effects_str
-#            )
+        if self.has_effects:
+            description = "%s\nEffects: %s" % (
+                description,
+                self.effects_str
+            )
+
 #        if _EFFECTS_FIELD in self._cut_item_schema:
 #            cut_item_payload[_EFFECTS_FIELD] = self.has_effects
 #
@@ -644,7 +645,7 @@ class CutClip(otio.schema.Clip):
 #        if _RETIME_FIELD in self._cut_item_schema:
 #            cut_item_payload[_RETIME_FIELD] = self.has_retime
 #
-#        cut_item_payload["description"] = description
+        cut_item_payload["description"] = description
 #        linked_entity = self._sg_cut["entity"]
 #        if (
 #                _ABSOLUTE_CUT_ORDER_FIELD in self._cut_item_schema

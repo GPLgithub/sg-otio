@@ -194,7 +194,7 @@ def write_to_file(input_otio, filepath):
     if not sg_track_data:
         raise ValueError("No SG data found for {}".format(video_track))
     if sg_track_data["type"] != "Cut":
-        raise ValueError("Invalid {} SG data for a {}".format(sg_data["type"], "Cut"))
+        raise ValueError("Invalid {} SG data for a {}".format(sg_track_data["type"], "Cut"))
 
     sg_cut_items = []
     cut_item_clips = []
@@ -235,7 +235,7 @@ def write_to_file(input_otio, filepath):
     else:
         # Create a new Cut
         sg_cut_data["project"] = sg_project
-        sg_cut_data["entity"] = sg_linked_entity
+        sg_cut_data["entity"] = sg_linked_entity or sg_project
         sg_cut = sg.create(
             "Cut",
             sg_cut_data,
@@ -243,7 +243,6 @@ def write_to_file(input_otio, filepath):
         # Update the track with the result
         logger.info("Updating %s SG metadata with %s" % (video_track, sg_cut))
         video_track.metadata["sg"] = sg_cut
-    # TODO: make sure the SG metadata is updated with the sg_cut
     batch_data = []
     for cut_order, sg_cut_item in enumerate(sg_cut_items):
         sg_cut_item_data = {}

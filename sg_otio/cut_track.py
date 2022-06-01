@@ -8,6 +8,7 @@ import copy
 import logging
 
 import opentimelineio as otio
+from opentimelineio.opentime import RationalTime
 
 from .clip_group import ClipGroup
 from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_OUT_DURATION
@@ -251,5 +252,5 @@ class CutTrack(otio.schema.Track):
             cut_payload["updated_by"] = self._user
         if self._description:
             cut_payload["description"] = self._description
-        if input_media_version:
-            cut_payload["version"] = input_media_version
+#        if input_media_version:
+#            cut_payload["version"] = input_media_version
