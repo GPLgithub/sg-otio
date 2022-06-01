@@ -21,8 +21,8 @@ class ShotgridAdapterTest(unittest.TestCase):
     """
     Tests for the ShotGrid adapter.
 
-    To be able to run these tests you need to run pip install -e . in the parent
-    directory. And do the same for the sg_otio local repo.
+    To be able to run these tests you need to run pip install -e .[dev] in the parent
+    directory.
     """
     def setUp(self):
         """
@@ -132,6 +132,11 @@ class ShotgridAdapterTest(unittest.TestCase):
             self._SG_SITE,
             self._SESSION_TOKEN,
             self.mock_cut_id
+        )
+        self._SG_SEQ_URL = "{}/Sequence?session_token={}&id={}".format(
+            self._SG_SITE,
+            self._SESSION_TOKEN,
+            self.mock_sequence["id"]
         )
 
     def _add_to_sg_mock_db(self, mock_sg, entities):
@@ -290,11 +295,13 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertEqual(i + 1, len(self.mock_cut_items))
             # Now write it back to SG
             otio.adapters.write_to_file(timeline, self._SG_CUT_URL, "ShotGrid")
-            # Unset the Cut id on the track
-            track.metadata["sg"]["id"] = None
-            otio.adapters.write_to_file(timeline, self._SG_CUT_URL, "ShotGrid")
+            # Create a new Cut linked to the test Sequence
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
             sg_cuts = self.mock_sg.find("Cut", [], [])
+            # We should now have two Cuts with all CutItems duplicated
             self.assertEqual(len(sg_cuts), 2)
+            sg_cut_items = self.mock_sg.find("CutItem", [], [])
+            self.assertEqual(len(sg_cut_items), 2 * len(self.mock_cut_items))
 
     def test_read_write_to_edl(self):
         """

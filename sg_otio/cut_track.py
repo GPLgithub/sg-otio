@@ -212,3 +212,44 @@ class CutTrack(otio.schema.Track):
         if not shot:
             raise ValueError("ClipGroup %s not found" % shot_name)
         return shot.clips
+
+    @property
+    def sg_payload(self):
+        """
+        """
+        cut_name = self._track.name
+        revision_number = 1
+        previous_cut = self._sg.find_one(
+            "Cut",
+            [
+                ["code", "is", cut_name],
+                ["entity", "is", self._linked_entity],
+            ],
+            ["revision_number"],
+            order=[{"field_name": "revision_number", "direction": "desc"}]
+        )
+        if previous_cut:
+            revision_number = (previous_cut.get("revision_number") or 0) + 1
+        # If the track starts at 00:00:00:00, for some reason it does not have a source range.
+        if self._track.source_range:
+            track_start = (-self._track.source_range.start_time)
+        else:
+            track_start = RationalTime(0, self._track.duration().rate).to_timecode()
+        track_end = track_start + self._track.duration()
+        cut_payload = {
+            "project": self._project,
+            "code": self.name,
+            "entity": self._linked_entity,
+            "fps": self._track.duration().rate,
+            "timecode_start_text": track_start.to_timecode(),
+            "timecode_end_text": track_end.to_timecode(),
+            "duration": self._track.duration().to_frames(),
+            "revision_number": revision_number,
+        }
+        if self._user:
+            cut_payload["created_by"] = self._user
+            cut_payload["updated_by"] = self._user
+        if self._description:
+            cut_payload["description"] = self._description
+        if input_media_version:
+            cut_payload["version"] = input_media_version

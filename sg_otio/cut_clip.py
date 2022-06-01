@@ -579,3 +579,77 @@ class CutClip(otio.schema.Clip):
                 self.shot_name = m.group(1)
             else:
                 self.shot_name = m.group()
+
+    @property
+    def sg_payload(self):
+        """
+        Get a SG CutItem payload for a given :class:`otio.schema.Clip` instance.
+
+        An absolute cut order can be set on CutItems if the `sg_absolute_cut_order`
+        integer field was added to the SG CutItem schema. This absolute cut order
+        is meant to be the cut order of the CutItem in the Project and is based on
+        a cut order value set on the Entity (Reel, Sequence, etc...) the Cut is
+        imported against. The absolute cut order is then:
+        `1000 * entity cut order + edit cut order`.
+
+        :returns: A dictionary with the CutItem payload.
+        :raises ValueError: If no SG payload can be generated for this Clip
+        """
+        cut_track = self.parent()
+        if not cut_track:
+            raise ValueError(
+                "SG payload can only be generated for a Clip in a Track"
+            )
+        sg_cut = cut_track.metadata.get("sg")
+        if not sg_cut:
+            raise ValueError(
+                "Track %s does not have SG metadata" % cut_track
+            )
+        description = ""
+        cut_item_payload = {
+            "type": "CutItem",
+            "project": sg_cut.get("project"),
+            "code": self.name,
+            "cut": sg_cut,
+            "cut_order": self._clip_index,
+            "timecode_cut_item_in_text": self.source_in.to_timecode(),
+            "timecode_cut_item_out_text": self.source_out.to_timecode(),
+            "timecode_edit_in_text": self.edit_in().to_timecode(),
+            "timecode_edit_out_text": self.edit_out().to_timecode(),
+            "cut_item_in": self.cut_in.to_frames(),
+            "cut_item_out": self.cut_out.to_frames(),
+            "edit_in": self.edit_in(absolute=False).to_frames(),
+            "edit_out": self.edit_out(absolute=False).to_frames(),
+            "cut_item_duration": self.duration.to_frames(),
+            # TODO: Add support for Linking/Creating Versions + Published Files
+            # "version": cut_diff.sg_version,
+
+        }
+#        if self._sg_shot:
+#            cut_item_payload["shot"] = self._sg_shot
+#        if self._user:
+#            cut_item_payload["created_by"] = self._user
+#            cut_item_payload["updated_by"] = self._user
+#
+#        if self.has_effects:
+#            description = "%s\nEffects: %s" % (
+#                description,
+#                self.effects_str
+#            )
+#        if _EFFECTS_FIELD in self._cut_item_schema:
+#            cut_item_payload[_EFFECTS_FIELD] = self.has_effects
+#
+#        if self.has_retime:
+#            description = "%s\nRetime: %s" % (description, self.retime_str)
+#        if _RETIME_FIELD in self._cut_item_schema:
+#            cut_item_payload[_RETIME_FIELD] = self.has_retime
+#
+#        cut_item_payload["description"] = description
+#        linked_entity = self._sg_cut["entity"]
+#        if (
+#                _ABSOLUTE_CUT_ORDER_FIELD in self._cut_item_schema
+#                and linked_entity.get(_ENTITY_CUT_ORDER_FIELD)
+#        ):
+#            cut_item_payload[_ABSOLUTE_CUT_ORDER_FIELD] = 1000 * linked_entity[
+#                _ENTITY_CUT_ORDER_FIELD] + self._clip_index
+        return cut_item_payload

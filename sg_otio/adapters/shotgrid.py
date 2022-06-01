@@ -127,6 +127,12 @@ def write_to_file(input_otio, filepath):
     The filepath is a query url which have the form:
     `https://<SG site>/<SG Entity type>?session_token=<session token>&id=<SG Entity id>`
 
+    The Entity type can either be:
+    - A Cut, in that case the Cut with the given id will be updated.
+    - A Project, a new Cut will be created, linked to this Project.
+    - An arbitrary Entity type, e.g. a Sequence, a new Cut will be created, linked
+      to the Entity.
+
     :param input_otio: An :class:`otio.schema.Timeline` instance.
     :param str filepath: A query URL.
     :raises ValueError: For unsupported SG Entity types.
@@ -136,11 +142,43 @@ def write_to_file(input_otio, filepath):
     if isinstance(input_otio, otio.schema.Track) and input_otio.kind != otio.schema.TrackKind.Video:
         raise ValueError("Only OTIO Video Tracks are supported.")
     sg_site, entity_type, entity_id, session_token = parse_sg_url(filepath)
-    if entity_type != "Cut":
-        raise ValueError("Only the following entity types are supported: {}".format(
-            ", ".join(["Cut"])
-        ))
+    sg_cut = None
+    sg_project = None
+    sg_linked_entity = None
     sg = shotgun_api3.Shotgun(sg_site, session_token=session_token)
+    if entity_type == "Cut":
+        sg_cut = sg.find_one(
+            entity_type,
+            [["id", "is", entity_id]],
+            ["project"]
+        )
+        if not sg_cut:
+            raise ValueError(
+                "Unable to retrieve a %s with the id %s" % (entity_type, entity_id)
+            )
+        sg_project = sg_cut["project"]
+    elif entity_type == "Project":
+        sg_project = sg.find_one(
+            entity_type,
+            [["id", "is", entity_id]],
+        )
+        if not sg_project:
+            raise ValueError(
+                "Unable to retrieve a %s with the id %s" % (entity_type, entity_id)
+            )
+    else:
+        sg_linked_entity = sg.find_one(
+            entity_type,
+            [["id", "is", entity_id]],
+            ["project"]
+        )
+        if not sg_linked_entity:
+            raise ValueError(
+                "Unable to retrieve a %s with the id %s" % (entity_type, entity_id)
+            )
+        sg_project = sg_linked_entity["project"]
+    if not sg_project:
+        raise ValueError("Unable to retrieve a Project from %s %s")
     # OTIO suppports multiple video tracks, but ShotGrid cuts can only represent one.
     if isinstance(input_otio, otio.schema.Timeline):
         if len(input_otio.video_tracks()) > 1:
@@ -152,13 +190,12 @@ def write_to_file(input_otio, filepath):
         video_track.name = input_otio.name
     else:
         video_track = input_otio
-    sg_data = video_track.metadata.get("sg")
-    if not sg_data:
+    sg_track_data = video_track.metadata.get("sg")
+    if not sg_track_data:
         raise ValueError("No SG data found for {}".format(video_track))
-    if sg_data["type"] != entity_type:
-        raise ValueError("Invalid {} SG data for a {}".format(sg_data["type"], entity_type))
-    sg_cut = sg_data
-    sg_project = sg_cut["project"]
+    if sg_track_data["type"] != "Cut":
+        raise ValueError("Invalid {} SG data for a {}".format(sg_data["type"], "Cut"))
+
     # sg_cut_link = sg_cut.get("entity") or sg_project
     sg_cut_items = []
     for clip in video_track.each_clip():
@@ -173,7 +210,7 @@ def write_to_file(input_otio, filepath):
     sg_cut_data = {}
     # Collect and sanitize SG data
     # TODO: do it for real, this is just a proof of concept
-    for k, v in sg_cut.items():
+    for k, v in sg_track_data.items():
         if k in ["type", "id"]:
             continue
         if isinstance(v, otio._otio.AnyDictionary):
@@ -188,7 +225,7 @@ def write_to_file(input_otio, filepath):
         if k == "fps":
             sg_cut_data[k] = float(v)
 
-    if sg_cut.get("id"):  # Existing Cut, do an update?
+    if sg_cut:  # Update existing Cut
         sg.update(
             sg_cut["type"],
             sg_cut["id"],
@@ -196,15 +233,18 @@ def write_to_file(input_otio, filepath):
         )
     else:
         # Create a new Cut
+        sg_cut_data["project"] = sg_project
+        sg_cut_data["entity"] = sg_linked_entity
         sg_cut = sg.create(
-            sg_cut["type"],
+            "Cut",
             sg_cut_data,
         )
+        # Update the track with the result
+        logger.info("Updating %s SG metadata with %s" % (video_track, sg_cut))
+        video_track.metadata["sg"] = sg_cut
     # TODO: make sure the SG metadata is updated with the sg_cut
     batch_data = []
-    for sg_cut_item in sg_cut_items:
-        sg_cut_item["cut"] = sg_cut
-        sg_cut_item["project"] = sg_project
+    for cut_order, sg_cut_item in enumerate(sg_cut_items):
         sg_cut_item_data = {}
         # Collect and sanitize SG data
         # TODO: do it for real, this is just a proof of concept
@@ -224,13 +264,26 @@ def write_to_file(input_otio, filepath):
                     sg_cut_data[k] = v
             if k == "fps":
                 sg_cut_item_data[k] = float(v)
+        sg_cut_item_data["cut"] = sg_cut
+        sg_cut_item_data["project"] = sg_project
+        sg_cut_item_data["cut_order"] = cut_order
+        # Check if we should update an existing CutItem of create a new one
         if sg_cut_item.get("id"):
-            batch_data.append({
-                "request_type": "update",
-                "entity_type": "CutItem",
-                "entity_id": sg_cut_item["id"],
-                "data": sg_cut_item_data
-            })
+            # Check if the CutItem is linked to the Cut we updated or created.
+            # If not, create a new CutItem.
+            if sg_cut_item.get("cut") and sg_cut_item["cut"].get("id") == sg_cut["id"]:
+                batch_data.append({
+                    "request_type": "update",
+                    "entity_type": "CutItem",
+                    "entity_id": sg_cut_item["id"],
+                    "data": sg_cut_item_data
+                })
+            else:
+                batch_data.append({
+                    "request_type": "create",
+                    "entity_type": "CutItem",
+                    "data": sg_cut_item_data
+                })
         else:
             batch_data.append({
                 "request_type": "create",
