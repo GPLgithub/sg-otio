@@ -12,6 +12,7 @@ from opentimelineio.opentime import TimeRange, RationalTime
 
 from sg_otio.cut_clip import CutClip
 from sg_otio.cut_track import CutTrack
+from sg_otio.sg_settings import SGSettings
 
 
 class TestCutClip(unittest.TestCase):
@@ -54,8 +55,10 @@ class TestCutClip(unittest.TestCase):
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
         # Set use reel names to True to see it does not affect the outcome.
+        sg_settings = SGSettings()
+        sg_settings.use_clip_names_for_shot_names = True
         clip = CutClip.from_clip(
-            edl_clip, use_clip_names_for_shot_names=True
+            edl_clip
         )
         # Locators and comments present, locator is used.
         self.assertEqual(clip.shot_name, "shot_001")
@@ -115,15 +118,13 @@ class TestCutClip(unittest.TestCase):
         """
         # set non_default head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
-        head_in = 555
-        head_in_duration = 10
-        tail_out_duration = 20
+        sg_settings = SGSettings()
+        sg_settings.default_head_in = 555
+        sg_settings.default_head_in_duration = 10
+        sg_settings.default_tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         timeline = CutTrack.from_timeline(
             edl_timeline,
-            head_in=head_in,
-            head_in_duration=head_in_duration,
-            tail_out_duration=tail_out_duration,
         )
         clips = list(timeline.tracks[0].each_clip())
         self.assertEqual(len(clips), 2)
@@ -133,7 +134,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
         self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
-        self.assertEqual(clip_1.cut_in.to_frames(), head_in + head_in_duration)
+        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
         self.assertEqual(clip_1.cut_out.to_frames(), clip_1.cut_in.to_frames() + 48 - 1)
         self.assertEqual(clip_1.record_in.to_timecode(), "02:00:00:00")
         self.assertEqual(clip_1.record_out.to_timecode(), "02:00:01:00")
@@ -149,7 +150,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
         self.assertEqual(clip_2.source_in.to_timecode(), "00:00:00:00")
         self.assertEqual(clip_2.source_out.to_timecode(), "00:00:01:00")
-        self.assertEqual(clip_2.cut_in.to_frames(), head_in + head_in_duration)
+        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
         self.assertEqual(clip_2.cut_out.to_frames(), clip_2.cut_in.to_frames() + 24 - 1)
         self.assertEqual(clip_2.record_in.to_timecode(), "02:00:01:00")
         self.assertEqual(clip_2.record_out.to_timecode(), "02:00:02:00")
@@ -187,15 +188,13 @@ class TestCutClip(unittest.TestCase):
         """
         # set non_default head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
-        head_in = 555
-        head_in_duration = 10
-        tail_out_duration = 20
+        sg_settings = SGSettings()
+        sg_settings.default_head_in = 555
+        sg_settings.default_head_in_duration = 10
+        sg_settings.default_tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         timeline = CutTrack.from_timeline(
             edl_timeline,
-            head_in=head_in,
-            head_in_duration=head_in_duration,
-            tail_out_duration=tail_out_duration,
         )
         clips = list(timeline.tracks[0].each_clip())
         self.assertEqual(len(clips), 3)
@@ -207,7 +206,7 @@ class TestCutClip(unittest.TestCase):
         # All out values take into account the transition time
         self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
-        self.assertEqual(clip_1.cut_in.to_frames(), head_in + head_in_duration)
+        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
         self.assertEqual(clip_1.cut_out.to_frames(), clip_1.cut_in.to_frames() + 48 - 1)
         self.assertEqual(clip_1.record_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.record_out.to_timecode(), "01:00:02:00")
@@ -224,7 +223,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
         self.assertEqual(clip_2.source_in.to_timecode(), "01:00:01:00")
         self.assertEqual(clip_2.source_out.to_timecode(), "01:00:02:00")
-        self.assertEqual(clip_2.cut_in.to_frames(), head_in + head_in_duration)
+        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
         self.assertEqual(clip_2.cut_out.to_frames(), clip_2.cut_in.to_frames() + 24 - 1)
         self.assertEqual(clip_2.record_in.to_timecode(), "01:00:01:00")
         self.assertEqual(clip_2.record_out.to_timecode(), "01:00:02:00")
@@ -259,13 +258,14 @@ class TestCutClip(unittest.TestCase):
             [555, 10, 20],
             [666, 25, 50],
         ]
+        sg_settings = SGSettings()
         for head_in, head_in_duration, tail_out_duration in values:
+            sg_settings.default_head_in = head_in
+            sg_settings.default_head_in_duration = head_in_duration
+            sg_settings.default_tail_out_duration = tail_out_duration
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
             timeline = CutTrack.from_timeline(
                 edl_timeline,
-                head_in=head_in,
-                head_in_duration=head_in_duration,
-                tail_out_duration=tail_out_duration,
             )
             track = timeline.tracks[0]
             # All we care about is to make sure that head_in_duration and tail_out_duration have been set in such

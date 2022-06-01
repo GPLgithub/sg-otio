@@ -11,7 +11,6 @@ import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
 from .clip_group import ClipGroup
-from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_OUT_DURATION
 from .cut_clip import CutClip
 
 logger = logging.getLogger(__name__)
@@ -64,11 +63,6 @@ class CutTrack(otio.schema.Track):
         cls,
         timeline,
         clip_class=CutClip,
-        head_in=DEFAULT_HEAD_IN,
-        head_in_duration=DEFAULT_HEAD_IN_DURATION,
-        tail_out_duration=DEFAULT_TAIL_OUT_DURATION,
-        use_clip_names_for_shot_names=False,
-        clip_name_shot_regexp=None,
         log_level=logging.INFO,
     ):
         """
@@ -88,20 +82,16 @@ class CutTrack(otio.schema.Track):
         """
         audio_tracks = timeline.audio_tracks()
         video_tracks = timeline.video_tracks()
-        if len(video_tracks) > 1:
-            logger.warning("Only one video track is supported, using the first one.")
-            # We could flatten the timeline here by using otio.core.flatten_stack(input_otio.video_tracks())
-            # But we lose information, for example the track source_range becomes ``None``
-        video_tracks[0] = cls.from_track(
-            video_tracks[0],
-            clip_class=clip_class,
-            head_in=head_in,
-            head_in_duration=head_in_duration,
-            tail_out_duration=tail_out_duration,
-            use_clip_names_for_shot_names=use_clip_names_for_shot_names,
-            clip_name_shot_regexp=clip_name_shot_regexp,
-            log_level=log_level,
-        )
+        if video_tracks:
+            if len(video_tracks) > 1:
+                logger.warning("Only one video track is supported, using the first one.")
+                # We could flatten the timeline here by using otio.core.flatten_stack(input_otio.video_tracks())
+                # But we lose information, for example the track source_range becomes ``None``
+            video_tracks[0] = cls.from_track(
+                video_tracks[0],
+                clip_class=clip_class,
+                log_level=log_level,
+            )
 
         return otio.schema.Timeline(
             name=timeline.name,
@@ -115,11 +105,6 @@ class CutTrack(otio.schema.Track):
         cls,
         track,
         clip_class=CutClip,
-        head_in=DEFAULT_HEAD_IN,
-        head_in_duration=DEFAULT_HEAD_IN_DURATION,
-        tail_out_duration=DEFAULT_TAIL_OUT_DURATION,
-        use_clip_names_for_shot_names=False,
-        clip_name_shot_regexp=None,
         log_level=logging.INFO,
     ):
         """
@@ -148,11 +133,6 @@ class CutTrack(otio.schema.Track):
                 clip = clip_class.from_clip(
                     child,
                     index=clip_index,
-                    head_in=head_in,
-                    head_in_duration=head_in_duration,
-                    tail_out_duration=tail_out_duration,
-                    use_clip_names_for_shot_names=use_clip_names_for_shot_names,
-                    clip_name_shot_regexp=clip_name_shot_regexp,
                     log_level=log_level,
                 )
                 clip_index += 1
@@ -218,39 +198,38 @@ class CutTrack(otio.schema.Track):
     def sg_payload(self):
         """
         """
-        cut_name = self._track.name
         revision_number = 1
-        previous_cut = self._sg.find_one(
-            "Cut",
-            [
-                ["code", "is", cut_name],
-                ["entity", "is", self._linked_entity],
-            ],
-            ["revision_number"],
-            order=[{"field_name": "revision_number", "direction": "desc"}]
-        )
-        if previous_cut:
-            revision_number = (previous_cut.get("revision_number") or 0) + 1
+#        previous_cut = self._sg.find_one(
+#            "Cut",
+#            [
+#                ["code", "is", self.name],
+#                ["entity", "is", self._linked_entity],
+#            ],
+#            ["revision_number"],
+#            order=[{"field_name": "revision_number", "direction": "desc"}]
+#        )
+#        if previous_cut:
+#            revision_number = (previous_cut.get("revision_number") or 0) + 1
         # If the track starts at 00:00:00:00, for some reason it does not have a source range.
-        if self._track.source_range:
-            track_start = (-self._track.source_range.start_time)
+        if self.source_range:
+            track_start = (-self.source_range.start_time)
         else:
-            track_start = RationalTime(0, self._track.duration().rate).to_timecode()
-        track_end = track_start + self._track.duration()
+            track_start = RationalTime(0, self.duration().rate).to_timecode()
+        track_end = track_start + self.duration()
         cut_payload = {
-            "project": self._project,
+            "type": "Cut",
             "code": self.name,
-            "entity": self._linked_entity,
-            "fps": self._track.duration().rate,
+            "fps": self.duration().rate,
             "timecode_start_text": track_start.to_timecode(),
             "timecode_end_text": track_end.to_timecode(),
-            "duration": self._track.duration().to_frames(),
+            "duration": self.duration().to_frames(),
             "revision_number": revision_number,
         }
-        if self._user:
-            cut_payload["created_by"] = self._user
-            cut_payload["updated_by"] = self._user
-        if self._description:
-            cut_payload["description"] = self._description
+#        if self._user:
+#            cut_payload["created_by"] = self._user
+#            cut_payload["updated_by"] = self._user
+#        if self._description:
+#            cut_payload["description"] = self._description
 #        if input_media_version:
 #            cut_payload["version"] = input_media_version
+        return cut_payload

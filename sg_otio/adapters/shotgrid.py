@@ -13,6 +13,8 @@ import shotgun_api3
 from opentimelineio.opentime import RationalTime
 
 from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
+from sg_otio.cut_track import CutTrack
+from sg_otio.cut_clip import CutClip
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -192,7 +194,9 @@ def write_to_file(input_otio, filepath):
         video_track = input_otio
     sg_track_data = video_track.metadata.get("sg")
     if not sg_track_data:
-        raise ValueError("No SG data found for {}".format(video_track))
+        # Generate SG data on the fly
+        video_track = CutTrack.from_track(video_track)
+        sg_track_data = video_track.sg_payload
     if sg_track_data["type"] != "Cut":
         raise ValueError("Invalid {} SG data for a {}".format(sg_track_data["type"], "Cut"))
 
@@ -201,8 +205,11 @@ def write_to_file(input_otio, filepath):
     for clip in video_track.each_clip():
         sg_data = clip.metadata.get("sg")
         if not sg_data:
-            logger.info("Not treating %s without SG data" % clip)
-            continue
+            if isinstance(clip, CutClip):
+                sg_data = clip.sg_payload
+            else:
+                logger.info("Not treating %s without SG data" % clip)
+                continue
         if sg_data["type"] != "CutItem":
             logger.info("Not treating %s not linked to a SG CutItem" % clip)
             continue

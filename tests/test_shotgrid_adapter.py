@@ -332,8 +332,11 @@ class ShotgridAdapterTest(unittest.TestCase):
         )
         self.assertMultiLineEqual(edl_text, expected_edl_text)
         # TODO: Read back the EDL and write to SG
-        # timeline = otio.adapters.read_from_string(edl_text, adapter_name="cmx_3600")
-
+        timeline = otio.adapters.read_from_string(edl_text, adapter_name="cmx_3600")
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            # track = timeline.tracks[0]
+            # self.assertIsNotNone(track.metadata.get("sg"))
 #     def test_write(self):
 #         """
 #         Test writing features.

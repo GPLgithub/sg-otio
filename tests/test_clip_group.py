@@ -9,6 +9,7 @@ import unittest
 
 import opentimelineio as otio
 from sg_otio.cut_track import CutTrack
+from sg_otio.sg_settings import SGSettings
 
 
 class TestClipGroup(unittest.TestCase):
@@ -74,13 +75,14 @@ class TestClipGroup(unittest.TestCase):
             [555, 10, 20],
             [666, 25, 50],
         ]
+        sg_settings = SGSettings()
         for head_in, head_in_duration, tail_out_duration in values:
+            sg_settings.default_head_in = head_in
+            sg_settings.default_head_in_duration = head_in_duration
+            sg_settings.default_tail_out_duration = tail_out_duration
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
             timeline = CutTrack.from_timeline(
                 edl_timeline,
-                head_in=head_in,
-                head_in_duration=head_in_duration,
-                tail_out_duration=tail_out_duration,
             )
             track = timeline.tracks[0]
             shot = track.shots_by_name["shot_001"]

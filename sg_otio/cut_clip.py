@@ -11,7 +11,7 @@ import opentimelineio as otio
 import six
 from opentimelineio.opentime import RationalTime
 
-from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_OUT_DURATION
+from .sg_settings import SGSettings
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,6 @@ class CutClip(otio.schema.Clip):
         index=1,
         effects=None,
         markers=None,
-        head_in=DEFAULT_HEAD_IN,
-        head_in_duration=DEFAULT_HEAD_IN_DURATION,
-        tail_out_duration=DEFAULT_TAIL_OUT_DURATION,
-        use_clip_names_for_shot_names=False,
-        clip_name_shot_regexp=None,
         log_level=logging.INFO,
         *args,
         **kwargs
@@ -41,12 +36,6 @@ class CutClip(otio.schema.Clip):
         :param int index: The index of the clip in the track.
         :param effects: A list of :class:`otio.schema.Effect` instances.
         :param markers: A list of :class:`otio.schema.Marker` instances.
-        :param int head_in: The head in point of the clip.
-        :param int head_in_duration: The duration of the head in.
-        :param int tail_out_duration: The duration of the tail out.
-        :param bool use_clip_names_for_shot_names: If True, and a shot name was not found,
-                                                   use the clip name as the shot name.
-        :param str clip_name_shot_regexp: A regular expression to use to find the shot name.
         :param int log_level: The logging level to use.
         """
         super(CutClip, self).__init__(*args, **kwargs)
@@ -57,11 +46,12 @@ class CutClip(otio.schema.Clip):
             self.name = self.metadata["cmx_3600"]["reel"]
         self._frame_rate = self.duration().rate
         self._index = index
-        self._head_in = RationalTime(head_in, self._frame_rate)
-        self._head_in_duration = RationalTime(head_in_duration, self._frame_rate)
-        self._tail_out_duration = RationalTime(tail_out_duration, self._frame_rate)
-        self._use_clip_names_for_shot_names = use_clip_names_for_shot_names
-        self._clip_name_shot_regexp = clip_name_shot_regexp
+        sg_settings = SGSettings()
+        self._head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
+        self._head_in_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
+        self._tail_out_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
+        self._use_clip_names_for_shot_names = sg_settings.use_clip_names_for_shot_names
+        self._clip_name_shot_regexp = sg_settings.clip_name_shot_regexp
         self._shot_name = None
         self.effect = self._relevant_timing_effect(effects or [])
         self._markers = markers or []
@@ -72,11 +62,6 @@ class CutClip(otio.schema.Clip):
         cls,
         clip,
         index=1,
-        head_in=1001,
-        head_in_duration=8,
-        tail_out_duration=8,
-        use_clip_names_for_shot_names=False,
-        clip_name_shot_regexp=None,
         log_level=logging.INFO,
     ):
         """
@@ -85,12 +70,6 @@ class CutClip(otio.schema.Clip):
 
         :param clip: A :class:`otio.schema.Clip` instance.
         :param int index: The index of the clip in the track.
-        :param int head_in: The head in point of the clip.
-        :param int head_in_duration: The duration of the head in.
-        :param int tail_out_duration: The duration of the tail out.
-        :param bool use_clip_names_for_shot_names: If True, and a shot name was not found,
-                                                   use the clip name as the shot name.
-        :param str clip_name_shot_regexp: A regular expression to use to find the shot name.
         :param int log_level: The logging level to use.
         :returns: A :class:`CutClip` instance.
         """
@@ -102,11 +81,6 @@ class CutClip(otio.schema.Clip):
             metadata=clip.metadata,
             effects=clip.effects,
             markers=clip.markers,
-            head_in=head_in,
-            head_in_duration=head_in_duration,
-            tail_out_duration=tail_out_duration,
-            use_clip_names_for_shot_names=use_clip_names_for_shot_names,
-            clip_name_shot_regexp=clip_name_shot_regexp,
             log_level=log_level,
         )
 
@@ -595,32 +569,19 @@ class CutClip(otio.schema.Clip):
         :returns: A dictionary with the CutItem payload.
         :raises ValueError: If no SG payload can be generated for this Clip
         """
-        cut_track = self.parent()
-        if not cut_track:
-            raise ValueError(
-                "SG payload can only be generated for a Clip in a Track"
-            )
-        sg_cut = cut_track.metadata.get("sg")
-        if not sg_cut:
-            raise ValueError(
-                "Track %s does not have SG metadata" % cut_track
-            )
         description = ""
         cut_item_payload = {
             "type": "CutItem",
-            "project": sg_cut.get("project"),
             "code": self.name,
-            "cut": sg_cut,
-            "cut_order": self._clip_index,
             "timecode_cut_item_in_text": self.source_in.to_timecode(),
             "timecode_cut_item_out_text": self.source_out.to_timecode(),
-            "timecode_edit_in_text": self.edit_in().to_timecode(),
-            "timecode_edit_out_text": self.edit_out().to_timecode(),
+            "timecode_edit_in_text": self.edit_in.to_timecode(),
+            "timecode_edit_out_text": self.edit_out.to_timecode(),
             "cut_item_in": self.cut_in.to_frames(),
             "cut_item_out": self.cut_out.to_frames(),
-            "edit_in": self.edit_in(absolute=False).to_frames(),
-            "edit_out": self.edit_out(absolute=False).to_frames(),
-            "cut_item_duration": self.duration.to_frames(),
+            "edit_in": self.edit_in.to_frames(),
+            "edit_out": self.edit_out.to_frames(),
+            "cut_item_duration": self.visible_duration.to_frames(),
             # TODO: Add support for Linking/Creating Versions + Published Files
             # "version": cut_diff.sg_version,
 

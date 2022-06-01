@@ -24,10 +24,12 @@ class Singleton(type):
     A singleton meta class.
     """
     _instances = {}
+
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
+
 
 class SGSettings(Singleton("SGSettings", (object,), {})):
     """
@@ -37,11 +39,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         Instantiate a new :class:`SGSettings`.
         """
-        self._default_head_in = DEFAULT_HEAD_IN
-        self._default_head_in_duration = DEFAULT_HEAD_IN_DURATION
-        self._default_tail_out_duration = DEFAULT_TAIL_OUT_DURATION
-        self._use_clip_names_for_shot_names = False
-        self._clip_name_shot_regexp = None
+        self.reset_to_defaults()
 
     @property
     def default_head_in(self):
@@ -134,6 +132,16 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         :param str value: The regular expression to use.
         """
         self._clip_name_shot_regexp = value
+
+    def reset_to_defaults(self):
+        """
+        Reset settings to all default values.
+        """
+        self._default_head_in = DEFAULT_HEAD_IN
+        self._default_head_in_duration = DEFAULT_HEAD_IN_DURATION
+        self._default_tail_out_duration = DEFAULT_TAIL_OUT_DURATION
+        self._use_clip_names_for_shot_names = False
+        self._clip_name_shot_regexp = None
 
 
 class SGShotFieldsConfig(object):
