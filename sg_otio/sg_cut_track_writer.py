@@ -55,9 +55,9 @@ class SGCutTrackWriter(object):
         """
         # If the track starts at 00:00:00:00, for some reason it does not have a source range.
         if cut_track.source_range:
-            track_start = (-cut_track.source_range.start_time)
+            track_start = -cut_track.source_range.end_time_exclusive()
         else:
-            track_start = RationalTime(0, cut_track.duration().rate).to_timecode()
+            track_start = RationalTime(0, cut_track.duration().rate)
         track_end = track_start + cut_track.duration()
         cut_payload = {
             "code": cut_track.name,
@@ -94,8 +94,8 @@ class SGCutTrackWriter(object):
             "code": cut_clip.name or "foo",
             "timecode_cut_item_in_text": cut_clip.source_in.to_timecode(),
             "timecode_cut_item_out_text": cut_clip.source_out.to_timecode(),
-            "timecode_edit_in_text": cut_clip.edit_in.to_timecode(),
-            "timecode_edit_out_text": cut_clip.edit_out.to_timecode(),
+            "timecode_edit_in_text": cut_clip.record_in.to_timecode(),
+            "timecode_edit_out_text": cut_clip.record_out.to_timecode(),
             "cut_item_in": cut_clip.cut_in.to_frames(),
             "cut_item_out": cut_clip.cut_out.to_frames(),
             "edit_in": cut_clip.edit_in.to_frames(),

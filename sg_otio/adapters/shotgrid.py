@@ -107,8 +107,8 @@ def read_from_file(filepath):
 #            clip.name = cut_item["code"]
 #        clip.metadata["sg"]["cut_item"] = cut_item
         clip.source_range = otio.opentime.TimeRange(
-            start_time=RationalTime(cut_item["cut_item_in"], cut["fps"]),
-            duration=RationalTime(cut_item["cut_item_duration"], cut["fps"])
+            start_time=otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], cut["fps"]),
+            duration=otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], cut["fps"])
         )
         # TODO: Add media reference for Version. This would require some logic to get them either
         #       from the uploaded media, but the AWS links expire after a while, or from the
