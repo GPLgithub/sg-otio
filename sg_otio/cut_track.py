@@ -8,7 +8,6 @@ import copy
 import logging
 
 import opentimelineio as otio
-from opentimelineio.opentime import RationalTime
 
 from .clip_group import ClipGroup
 from .cut_clip import CutClip
@@ -53,6 +52,24 @@ class CutTrack(otio.schema.Track):
 
         # Set the :class:`ClipGroup` objects for this track.
         self._shots_by_name = {}
+
+# for n, item in enumerate(track):
+#        previous_item = track[n - 1] if n > 0 else None
+#        next_item = track[n + 1] if n + 1 < len(track) else None
+#        if not isinstance(item, schema.Transition):
+#            # find out if this item has any neighboring transition
+#            if isinstance(previous_item, schema.Transition):
+#                if previous_item.out_offset.value:
+#                    transition_offsets[0] = previous_item.in_offset
+#                else:
+#                    transition_offsets[0] = None
+#            if isinstance(next_item, schema.Transition):
+#                if next_item.in_offset.value:
+#                    transition_offsets[1] = next_item.out_offset
+#                else:
+#                    transition_offsets[1] = None
+
+        # Note: there is an assumption here that all clips are CutClips
         for clip in self.each_clip():
             if clip.shot_name not in self._shots_by_name:
                 self._shots_by_name[clip.shot_name] = ClipGroup(clip.shot_name, [clip])
@@ -194,44 +211,3 @@ class CutTrack(otio.schema.Track):
         if not shot:
             raise ValueError("ClipGroup %s not found" % shot_name)
         return shot.clips
-
-    @property
-    def sg_payload(self):
-        """
-        """
-#        cut_name = self.name
-        revision_number = 1
-#        previous_cut = self._sg.find_one(
-#            "Cut",
-#            [
-#                ["code", "is", self.name],
-#                ["entity", "is", self._linked_entity],
-#            ],
-#            ["revision_number"],
-#            order=[{"field_name": "revision_number", "direction": "desc"}]
-#        )
-#        if previous_cut:
-#            revision_number = (previous_cut.get("revision_number") or 0) + 1
-        # If the track starts at 00:00:00:00, for some reason it does not have a source range.
-        if self.source_range:
-            track_start = (-self.source_range.start_time)
-        else:
-            track_start = RationalTime(0, self.duration().rate).to_timecode()
-        track_end = track_start + self.duration()
-        cut_payload = {
-            "type": "Cut",
-            "code": self.name,
-            "fps": self.duration().rate,
-            "timecode_start_text": track_start.to_timecode(),
-            "timecode_end_text": track_end.to_timecode(),
-            "duration": self.duration().to_frames(),
-            "revision_number": revision_number,
-        }
-#        if self._user:
-#            cut_payload["created_by"] = self._user
-#            cut_payload["updated_by"] = self._user
-#        if self._description:
-#            cut_payload["description"] = self._description
-#        if input_media_version:
-#            cut_payload["version"] = input_media_version
-        return cut_payload

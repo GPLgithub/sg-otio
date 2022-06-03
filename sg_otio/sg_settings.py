@@ -7,7 +7,7 @@
 
 import logging
 
-from .constants import DEFAULT_HEAD_IN, DEFAULT_HEAD_IN_DURATION, DEFAULT_TAIL_OUT_DURATION
+from .constants import _DEFAULT_HEAD_IN, _DEFAULT_HEAD_IN_DURATION, _DEFAULT_TAIL_OUT_DURATION
 from .constants import _ALT_SHOT_CUT_DURATION_FIELD_TEMPLATE
 from .constants import _ALT_SHOT_WORKING_DURATION_FIELD_TEMPLATE
 from .constants import _ALT_SHOT_CUT_IN_FIELD_TEMPLATE, _ALT_SHOT_CUT_OUT_FIELD_TEMPLATE
@@ -137,9 +137,9 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         Reset settings to all default values.
         """
-        self._default_head_in = DEFAULT_HEAD_IN
-        self._default_head_in_duration = DEFAULT_HEAD_IN_DURATION
-        self._default_tail_out_duration = DEFAULT_TAIL_OUT_DURATION
+        self._default_head_in = _DEFAULT_HEAD_IN
+        self._default_head_in_duration = _DEFAULT_HEAD_IN_DURATION
+        self._default_tail_out_duration = _DEFAULT_TAIL_OUT_DURATION
         self._use_clip_names_for_shot_names = False
         self._clip_name_shot_regexp = None
 

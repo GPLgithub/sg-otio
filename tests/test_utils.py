@@ -8,7 +8,7 @@
 import unittest
 
 from sg_otio.sg_settings import SGSettings
-from sg_otio.constants import DEFAULT_HEAD_IN
+from sg_otio.constants import _DEFAULT_HEAD_IN
 
 
 class TestUtils(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestUtils(unittest.TestCase):
         # Make sure we have default values.
         sg_settings.reset_to_defaults()
         # Check a couple of them.
-        self.assertEqual(sg_settings.default_head_in, DEFAULT_HEAD_IN)
+        self.assertEqual(sg_settings.default_head_in, _DEFAULT_HEAD_IN)
         self.assertFalse(sg_settings.use_clip_names_for_shot_names)
         # Check that set values are global
         sg_settings.default_head_in = 1234

@@ -5,7 +5,6 @@
 # accompanies this software in either electronic or hard copy form.
 #
 from opentimelineio.opentime import RationalTime
-import opentimelineio as otio
 
 
 class ClipGroup(object):

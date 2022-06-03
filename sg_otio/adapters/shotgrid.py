@@ -15,7 +15,7 @@ from opentimelineio.opentime import RationalTime
 from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
 from sg_otio.cut_track import CutTrack
 from sg_otio.cut_clip import CutClip
-
+from sg_otio.sg_cut_track_writer import SGCutTrackWriter
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -192,6 +192,16 @@ def write_to_file(input_otio, filepath):
         video_track.name = input_otio.name
     else:
         video_track = input_otio
+
+    sg_writer = SGCutTrackWriter(sg)
+    sg_writer.write_to(
+        entity_type,
+        entity_id,
+        video_track,
+        description="Generated from sg-otio"
+    )
+    return
+
     cut_track = video_track
     sg_track_data = video_track.metadata.get("sg")
     if sg_track_data and sg_track_data["type"] != "Cut":
@@ -201,7 +211,7 @@ def write_to_file(input_otio, filepath):
     # Convert to a CutTrack if one was not provided.
     if not isinstance(cut_track, CutTrack):
         cut_track = CutTrack.from_track(video_track)
-        sg_track_data = cut_track.sg_payload
+    sg_track_data = cut_track.sg_payload
 
     sg_cut_items = []
     cut_item_clips = []
