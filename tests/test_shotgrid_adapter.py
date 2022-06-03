@@ -8,6 +8,8 @@ import opentimelineio as otio
 import shotgun_api3
 from shotgun_api3.lib import mockgun
 
+from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
+
 try:
     # Python 3.3 forward includes the mock module
     from unittest import mock
@@ -96,7 +98,10 @@ class ShotgridAdapterTest(unittest.TestCase):
             "timecode_start_text": "01:00:00:00",
             "timecode_end_text": "01:04:00:00",
             "revision_number": 1,
-            "entity": self.mock_sequence
+            "entity": self.mock_sequence,
+            "sg_status_list": "ip",
+            "image": None,
+            "description": "Mocked Cut",
         }
         self._add_to_sg_mock_db(self.mock_sg, self.mock_cut)
         self.mock_cut_id = self.mock_cut["id"]
@@ -109,6 +114,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                 "project": project,
                 "entity": shot,
                 "code": "%s_v001" % shot["code"],
+                "image": "file:///my_image.jpg",
             })
         self._add_to_sg_mock_db(self.mock_sg, self.mock_versions)
         # Create some Cut Items for each Version/Shot
@@ -120,11 +126,21 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "id": i + 1,
                     "code": "%s" % version["code"],
                     "cut_item_in": 0,
+                    "cut_item_out": self.fps * 59,
                     "cut_item_duration": self.fps * 60,
+                    "timecode_cut_item_in_text": "00:00:00:00",
+                    "timecode_cut_item_out_text": "00:01:00:00",
+                    "timecode_edit_in_text": "01:04:00:00",
+                    "timecode_edit_out_text": " 01:05:00:00",
                     "shot": shot,
+                    "shot.Shot.code": shot["code"],
                     "version": version,
+                    "version.Version.code": version["code"],
+                    "version.Version.entity": version["entity"],
+                    "version.Version.image": version["image"],
                     "cut": self.mock_cut,
-                    "cut_order": i,
+                    "cut.Cut.fps": self.mock_cut["fps"],
+                    "cut_order": i + 1,
                 }
             )
         self._add_to_sg_mock_db(self.mock_sg, self.mock_cut_items)
@@ -264,7 +280,6 @@ class ShotgridAdapterTest(unittest.TestCase):
             tmp_path = tempfile.mkdtemp()
             # Save the timeline to otio format
             otio_file = os.path.join(tmp_path, "test_read_write_sg_cut.otio")
-
             otio.adapters.write_to_file(timeline, otio_file)
             # Read it back and check the result
             timeline = otio.adapters.read_from_file(otio_file)
@@ -284,9 +299,10 @@ class ShotgridAdapterTest(unittest.TestCase):
             # Check the track clips
             for i, clip in enumerate(track.each_clip()):
                 sg_data = clip.metadata["sg"]
+                self.assertEqual(sg_data["type"], "CutItem")
                 cut_item = self.mock_cut_items[i]
                 for k, v in cut_item.items():
-                    if k in ["entity", "project", "cut", "shot", "version"]:
+                    if isinstance(v, dict):
                         # Just check the type and id
                         self.assertEqual(sg_data[k]["type"], v["type"])
                         self.assertEqual(sg_data[k]["id"], v["id"])
@@ -295,18 +311,43 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertEqual(i + 1, len(self.mock_cut_items))
             # Now write it back to SG
             otio.adapters.write_to_file(timeline, self._SG_CUT_URL, "ShotGrid")
+            sg_cuts = self.mock_sg.find("Cut", [["id", "is_not", self.mock_cut["id"]]], _CUT_FIELDS)
+            # We should have updated the existing Cut
+            self.assertEqual(len(sg_cuts), 0)
+
             # Create a new Cut linked to the test Sequence
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
-            sg_cuts = self.mock_sg.find("Cut", [["id", "is_not", self.mock_cut["id"]]], [])
-            # We should now have two Cuts with all CutItems duplicated
+            sg_cuts = self.mock_sg.find("Cut", [["id", "is_not", self.mock_cut["id"]]], _CUT_FIELDS)
+            # We should now have a second Cut with all CutItems duplicated
             self.assertEqual(len(sg_cuts), 1)
+            # Check values are identical
+            for field in _CUT_FIELDS:
+                if field not in ["id", "created_by", "updated_by", "updated_at", "created_at"]:
+                    if isinstance(sg_cuts[0][field], dict):
+                        self.assertEqual(sg_cuts[0][field]["type"], self.mock_cut[field]["type"])
+                        self.assertEqual(sg_cuts[0][field]["id"], self.mock_cut[field]["id"])
+                    else:
+                        self.assertEqual(sg_cuts[0][field], self.mock_cut[field])
             sg_cut_items = self.mock_sg.find(
-                "CutItem", [["cut", "is", sg_cuts[0]]], []
+                "CutItem", [["cut", "is", sg_cuts[0]]], _CUT_ITEM_FIELDS,
             )
             self.assertEqual(len(sg_cut_items), len(self.mock_cut_items))
+            for i, sg_cut_item in enumerate(sg_cut_items):
+                for field in _CUT_ITEM_FIELDS:
+                    if field not in ["id", "cut", "created_by", "updated_by", "updated_at", "created_at"]:
+                        logger.info("Checking %s" % field)
+                        if isinstance(sg_cut_item[field], dict):
+                            self.assertEqual(
+                                sg_cut_item[field]["type"], self.mock_cut_items[i][field]["type"]
+                            )
+                            self.assertEqual(sg_cut_item[field]["id"], self.mock_cut_items[i][field]["id"])
+                        else:
+                            self.assertEqual(sg_cut_item[field], self.mock_cut_items[i][field])
+
             # Check the SG metadata
             self.assertEqual(track.metadata["sg"]["id"], sg_cuts[0]["id"])
             for i, clip in enumerate(track.each_clip()):
+                self.assertEqual(clip.metadata["sg"]["type"], "CutItem")
                 self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
 
     def test_read_write_to_edl(self):
@@ -331,12 +372,26 @@ class ShotgridAdapterTest(unittest.TestCase):
             "* FROM CLIP NAME:  003_v001\n"
         )
         self.assertMultiLineEqual(edl_text, expected_edl_text)
-        # TODO: Read back the EDL and write to SG
-        timeline = otio.adapters.read_from_string(edl_text, adapter_name="cmx_3600")
+        # Read back the EDL and write to SG
+        timeline = otio.adapters.read_from_string(expected_edl_text, adapter_name="cmx_3600")
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
-            # track = timeline.tracks[0]
-            # self.assertIsNotNone(track.metadata.get("sg"))
+            track = timeline.tracks[0]
+            self.assertIsNotNone(track.metadata.get("sg"))
+            sg_data = track.metadata["sg"]
+            self.assertEqual(sg_data["type"], "Cut")
+            self.assertIsNotNone(sg_data.get("id"))
+            # Retrieve the Cut from SG
+            sg_cut = self.mock_sg.find_one("Cut", [["id", "is", sg_data["id"]]], [])
+            self.assertIsNotNone(sg_cut)
+            # Retrieve the CutItems
+            sg_cut_items = self.mock_sg.find(
+                "CutItem", [["cut", "is", sg_cut]], []
+            )
+            self.assertEqual(len(sg_cut_items), 3)
+            for i, clip in enumerate(track.each_clip()):
+                self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
+
 #     def test_write(self):
 #         """
 #         Test writing features.

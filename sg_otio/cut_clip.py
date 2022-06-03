@@ -572,7 +572,7 @@ class CutClip(otio.schema.Clip):
         description = ""
         cut_item_payload = {
             "type": "CutItem",
-            "code": self.name,
+            "code": self.name or "foo",
             "timecode_cut_item_in_text": self.source_in.to_timecode(),
             "timecode_cut_item_out_text": self.source_out.to_timecode(),
             "timecode_edit_in_text": self.edit_in.to_timecode(),

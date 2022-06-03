@@ -5,6 +5,7 @@
 # accompanies this software in either electronic or hard copy form.
 #
 from opentimelineio.opentime import RationalTime
+import opentimelineio as otio
 
 
 class ClipGroup(object):
@@ -21,11 +22,18 @@ class ClipGroup(object):
         """
         Initializes a new instance of the :class:`ClipGroup` class.
 
+        .. note:: Ideally this should derive from a :class:`otio.schema.Stack`
+                  but :class:`CutClip` code has a strong assumption that everything
+                  is in a single Track, right under a Timeline.
+                  Also, some adapters like cmx_3600 don't really support anything
+                  else than simple composition.
+
         :param str name: The name of the group.
         :param clips: A list of :class:`otio.schema.Clip` instances.
         """
+        super(ClipGroup, self).__init__()
         self.name = name
-        self._clips = clips or []
+        self._clips = []
         self._index = None
         self._source_in = None
         self._source_out = None
@@ -38,10 +46,8 @@ class ClipGroup(object):
         self._has_effects = False
         self._has_retime = False
         self._frame_rate = None
-        # All clips must have the same frame rate.
-        if self._clips:
-            self._frame_rate = clips[0].duration().rate
-        self._compute_group_values(clips)
+        if clips:
+            self.add_clips(clips)
 
     @property
     def clips(self):
@@ -137,7 +143,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the index of the group is the smallest index of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.index`
+        ..seealso:: :attr:`sg_otio.CutClip.index`
 
         :returns: An integer.
         """

@@ -31,6 +31,7 @@ class CutTrack(otio.schema.Track):
 
         :param log_level: The log level to use.
         """
+        # Must be kept first, before adding any attributes
         super(CutTrack, self).__init__(*args, **kwargs)
         logger.setLevel(log_level)
         # Check if Clips have duplicate names and if they have, make sure their names are unique.
@@ -198,6 +199,7 @@ class CutTrack(otio.schema.Track):
     def sg_payload(self):
         """
         """
+#        cut_name = self.name
         revision_number = 1
 #        previous_cut = self._sg.find_one(
 #            "Cut",
