@@ -46,6 +46,7 @@ class SGCutTrackWriter(object):
         """
         logger.setLevel(log_level)
         self._sg = sg
+        # FIXME: if another SG site is later used the schema will not be updated.
         if not self._cut_item_schema:
             self._cut_item_schema = self._sg.schema_field_read("CutItem")
 

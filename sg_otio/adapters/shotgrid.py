@@ -5,7 +5,6 @@
 # accompanies this software in either electronic or hard copy form.
 #
 import logging
-import six
 from six.moves.urllib import parse
 
 import opentimelineio as otio
@@ -13,8 +12,6 @@ import shotgun_api3
 from opentimelineio.opentime import RationalTime
 
 from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
-from sg_otio.cut_track import CutTrack
-from sg_otio.cut_clip import CutClip
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -144,43 +141,6 @@ def write_to_file(input_otio, filepath):
     if isinstance(input_otio, otio.schema.Track) and input_otio.kind != otio.schema.TrackKind.Video:
         raise ValueError("Only OTIO Video Tracks are supported.")
     sg_site, entity_type, entity_id, session_token = parse_sg_url(filepath)
-    sg_cut = None
-    sg_project = None
-    sg_linked_entity = None
-    sg = shotgun_api3.Shotgun(sg_site, session_token=session_token)
-    if entity_type == "Cut":
-        sg_cut = sg.find_one(
-            entity_type,
-            [["id", "is", entity_id]],
-            ["project"]
-        )
-        if not sg_cut:
-            raise ValueError(
-                "Unable to retrieve a %s with the id %s" % (entity_type, entity_id)
-            )
-        sg_project = sg_cut["project"]
-    elif entity_type == "Project":
-        sg_project = sg.find_one(
-            entity_type,
-            [["id", "is", entity_id]],
-        )
-        if not sg_project:
-            raise ValueError(
-                "Unable to retrieve a %s with the id %s" % (entity_type, entity_id)
-            )
-    else:
-        sg_linked_entity = sg.find_one(
-            entity_type,
-            [["id", "is", entity_id]],
-            ["project"]
-        )
-        if not sg_linked_entity:
-            raise ValueError(
-                "Unable to retrieve a %s with the id %s" % (entity_type, entity_id)
-            )
-        sg_project = sg_linked_entity["project"]
-    if not sg_project:
-        raise ValueError("Unable to retrieve a Project from %s %s")
     # OTIO suppports multiple video tracks, but ShotGrid cuts can only represent one.
     if isinstance(input_otio, otio.schema.Timeline):
         if len(input_otio.video_tracks()) > 1:
@@ -193,6 +153,7 @@ def write_to_file(input_otio, filepath):
     else:
         video_track = input_otio
 
+    sg = shotgun_api3.Shotgun(sg_site, session_token=session_token)
     sg_writer = SGCutTrackWriter(sg)
     sg_writer.write_to(
         entity_type,
@@ -201,140 +162,3 @@ def write_to_file(input_otio, filepath):
         description="Generated from sg-otio"
     )
     return
-
-    cut_track = video_track
-    sg_track_data = video_track.metadata.get("sg")
-    if sg_track_data and sg_track_data["type"] != "Cut":
-        raise ValueError(
-            "Invalid {} SG data for a {}".format(sg_track_data["type"], "Cut")
-        )
-    # Convert to a CutTrack if one was not provided.
-    if not isinstance(cut_track, CutTrack):
-        cut_track = CutTrack.from_track(video_track)
-    sg_track_data = cut_track.sg_payload
-
-    sg_cut_items = []
-    cut_item_clips = []
-    # Loop over clips from the cut_track in case we did a conversion to get
-    # SG data.
-    # Keep references to original clips
-    video_clips = list(video_track.each_clip())
-    for i, clip in enumerate(cut_track.each_clip()):
-        sg_data = clip.metadata.get("sg")
-        if not sg_data:
-            if isinstance(clip, CutClip):
-                sg_data = clip.sg_payload
-            else:
-                logger.info("Not treating %s without SG data" % clip)
-                continue
-        if sg_data["type"] != "CutItem":
-            logger.info("Not treating %s not linked to a SG CutItem" % clip)
-            continue
-        sg_cut_items.append(sg_data)
-        # Make sure we keep a reference to the original clip to able to set
-        # SG metadata.
-        cut_item_clips.append(video_clips[i])
-    sg_cut_data = {}
-    # Collect and sanitize SG data
-    # TODO: do it for real, this is just a proof of concept
-    for k, v in sg_track_data.items():
-        if k in ["type", "id"]:
-            continue
-        if isinstance(v, otio._otio.AnyDictionary):
-            sg_cut_data[k] = dict(v)
-        else:
-            for integer_type in six.integer_types:
-                if isinstance(v, integer_type):
-                    sg_cut_data[k] = int(v)
-                    break
-            else:
-                sg_cut_data[k] = v
-        if k == "fps":
-            sg_cut_data[k] = float(v)
-
-    if sg_cut:  # Update existing Cut
-        sg.update(
-            sg_cut["type"],
-            sg_cut["id"],
-            sg_cut_data,
-        )
-    else:
-        revision_number = 1
-        previous_cut = sg.find_one(
-            "Cut",
-            [
-                ["code", "is", video_track.name],
-                ["entity", "is", sg_linked_entity or sg_project],
-            ],
-            ["revision_number"],
-            order=[{"field_name": "revision_number", "direction": "desc"}]
-        )
-        if previous_cut:
-            revision_number = (previous_cut.get("revision_number") or 0) + 1
-        # Create a new Cut
-        sg_cut_data["project"] = sg_project
-        sg_cut_data["entity"] = sg_linked_entity or sg_project
-        sg_cut_data["revision_number"] = revision_number
-        sg_cut_data["description"] = "Blah"
-        sg_cut = sg.create(
-            "Cut",
-            sg_cut_data,
-        )
-        # Update the track with the result
-        logger.info("Updating %s SG metadata with %s" % (video_track, sg_cut))
-        video_track.metadata["sg"] = sg_cut
-    batch_data = []
-    for item_index, sg_cut_item in enumerate(sg_cut_items):
-        sg_cut_item_data = {}
-        # Collect and sanitize SG data
-        # TODO: do it for real, this is just a proof of concept
-        for k, v in sg_cut_item.items():
-            if k in ["type", "id", "cut_duration"]:  # cut_duration does not seem to be valid?
-                continue
-            if "." in k:
-                continue
-            if isinstance(v, otio._otio.AnyDictionary):
-                sg_cut_item_data[k] = dict(v)
-            else:
-                for integer_type in six.integer_types:
-                    if isinstance(v, integer_type):
-                        sg_cut_item_data[k] = int(v)
-                        break
-                else:
-                    sg_cut_item_data[k] = v
-            if k == "fps":
-                sg_cut_item_data[k] = float(v)
-        sg_cut_item_data["cut"] = sg_cut
-        sg_cut_item_data["project"] = sg_project
-        sg_cut_item_data["cut_order"] = item_index + 1
-        # Check if we should update an existing CutItem of create a new one
-        if sg_cut_item.get("id"):
-            # Check if the CutItem is linked to the Cut we updated or created.
-            # If not, create a new CutItem.
-            if sg_cut_item.get("cut") and sg_cut_item["cut"].get("id") == sg_cut["id"]:
-                batch_data.append({
-                    "request_type": "update",
-                    "entity_type": "CutItem",
-                    "entity_id": sg_cut_item["id"],
-                    "data": sg_cut_item_data
-                })
-            else:
-                batch_data.append({
-                    "request_type": "create",
-                    "entity_type": "CutItem",
-                    "data": sg_cut_item_data
-                })
-        else:
-            batch_data.append({
-                "request_type": "create",
-                "entity_type": "CutItem",
-                "data": sg_cut_item_data
-            })
-    if batch_data:
-        res = sg.batch(batch_data)
-        # Update the clips SG metadata
-        for i, sg_cut_item in enumerate(res):
-            cut_item_clips[i].metadata["sg"] = sg_cut_item
-            logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], sg_cut_item))
-
-    # TODO: deal with CutItems, Versions, Shots, etc...
