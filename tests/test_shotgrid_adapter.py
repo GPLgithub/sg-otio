@@ -9,6 +9,7 @@ import shotgun_api3
 from shotgun_api3.lib import mockgun
 
 from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
+from sg_otio.sg_settings import SGSettings
 
 try:
     # Python 3.3 forward includes the mock module
@@ -31,6 +32,7 @@ class ShotgridAdapterTest(unittest.TestCase):
         Setup the tests suite.
         """
         self.maxDiff = None
+        SGSettings().reset_to_defaults()
         # Retrieve SG credentials from the environment
         # The SG site
         self._SG_SITE = os.getenv("SG_TEST_SITE") or "https://mysite.shotgunstudio.com"
