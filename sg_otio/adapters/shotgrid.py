@@ -9,7 +9,6 @@ from six.moves.urllib import parse
 
 import opentimelineio as otio
 import shotgun_api3
-from opentimelineio.opentime import RationalTime
 
 from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
@@ -75,10 +74,6 @@ def read_from_file(filepath):
     track.metadata["sg"] = cut
     # TODO: check what should be done if these values are not set
     if cut["timecode_end_text"] and cut["timecode_start_text"]:
-#        track.source_range = otio.opentime.range_from_start_end_time(
-#            -otio.opentime.from_timecode(cut["timecode_start_text"], cut["fps"]),
-#            -otio.opentime.from_timecode(cut["timecode_end_text"], cut["fps"]),
-#        )
         start_time = otio.opentime.from_timecode(cut["timecode_start_text"], cut["fps"])
         duration = otio.opentime.from_timecode(cut["timecode_end_text"], cut["fps"]) - start_time
         # We use a negative start time which will be used as an offset for clip record times.

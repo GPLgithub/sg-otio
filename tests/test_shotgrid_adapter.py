@@ -130,7 +130,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "code": "%s" % version["code"],
                     # FIXME: get real actual values we can check
                     "cut_item_in": 1009,
-                    "cut_item_out": 1009 + (self.fps * 60) -1,
+                    "cut_item_out": 1009 + (self.fps * 60) - 1,
                     "cut_item_duration": self.fps * 60,
                     "timecode_cut_item_in_text": "00:00:00:00",
                     "timecode_cut_item_out_text": "00:01:00:00",
@@ -352,9 +352,6 @@ class ShotgridAdapterTest(unittest.TestCase):
 
                     if field not in [
                         "id", "cut", "created_by", "updated_by", "updated_at", "created_at",
-                        #"timecode_edit_in_text",
-                        #"timecode_edit_out_text",
-                        #"timecode_cut_item_in_text", "timecode_cut_item_out_text",
                         # Not yet implemented
                         "shot", "shot.Shot.code", "version", "version.Version.code", "version.Version.entity",
                         "version.Version.image",
