@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 
+import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
 # Relative imports don't work with the way OTIO loads adapters.
@@ -177,7 +178,12 @@ class SGCutTrackWriter(object):
             )
         # Convert to a CutTrack if one was not provided.
         if not isinstance(cut_track, CutTrack):
+            # We need to give the track a parent so time transforms from the Clip
+            # to the track are correctly evaluated.
+            stack = otio.schema.Stack()
             cut_track = CutTrack.from_track(video_track)
+            stack.append(cut_track)
+
         sg_cut_data = self.get_sg_cut_payload(cut_track, sg_user, description)
         sg_cut_items_data = []
         cut_item_clips = []

@@ -243,10 +243,6 @@ class ShotgridAdapterTest(unittest.TestCase):
 
         )
         self.assertEqual(
-            track.source_range.duration.to_frames(),
-            5760,
-        )
-        self.assertEqual(
             (otio.opentime.from_timecode(self.mock_cut["timecode_start_text"], self.fps) + track.source_range.duration).to_timecode(),
             self.mock_cut["timecode_end_text"],
         )
@@ -297,6 +293,13 @@ class ShotgridAdapterTest(unittest.TestCase):
             tracks = list(timeline.tracks)
             self.assertEqual(len(tracks), 1)
             track = tracks[0]
+            # Check the source range which should match Cut values
+            self.assertEqual(
+                track.source_range.start_time,
+                -otio.opentime.from_timecode(self.mock_cut["timecode_start_text"], self.fps),
+
+            )
+
             # Check the track metadata
             for k, v in self.mock_cut.items():
                 if k == "entity":
@@ -331,7 +334,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertEqual(len(sg_cuts), 1)
             # Check values are identical
             for field in _CUT_FIELDS:
-                logger.info("Checking %s" % field)
+                logger.info("Checking Cut %s" % field)
                 if field == "revision_number":
                     self.assertEqual(sg_cuts[0][field], self.mock_cut[field] + 1)
                 elif field not in ["id", "created_by", "updated_by", "updated_at", "created_at", "description"]:
@@ -357,7 +360,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                         "version.Version.image",
                     ]:
                         logger.info(
-                            "Checking %d %s %s %s" % (i, field, sg_cut_item[field], self.mock_cut_items[i][field])
+                            "Checking item %d %s %s %s" % (i, field, sg_cut_item[field], self.mock_cut_items[i][field])
                         )
                         if isinstance(sg_cut_item[field], dict):
                             self.assertEqual(
