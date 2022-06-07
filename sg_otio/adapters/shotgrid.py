@@ -75,10 +75,18 @@ def read_from_file(filepath):
     track.metadata["sg"] = cut
     # TODO: check what should be done if these values are not set
     if cut["timecode_end_text"] and cut["timecode_start_text"]:
-        track.source_range = otio.opentime.range_from_start_end_time(
-            -otio.opentime.from_timecode(cut["timecode_end_text"], cut["fps"]),
-            -otio.opentime.from_timecode(cut["timecode_start_text"], cut["fps"]),
+#        track.source_range = otio.opentime.range_from_start_end_time(
+#            -otio.opentime.from_timecode(cut["timecode_start_text"], cut["fps"]),
+#            -otio.opentime.from_timecode(cut["timecode_end_text"], cut["fps"]),
+#        )
+        start_time = otio.opentime.from_timecode(cut["timecode_start_text"], cut["fps"])
+        duration = otio.opentime.from_timecode(cut["timecode_end_text"], cut["fps"]) - start_time
+        # We use a negative start time which will be used as an offset for clip record times.
+        track.source_range = otio.opentime.TimeRange(
+            -start_time,
+            duration,
         )
+
     timeline.tracks.append(track)
     cut_items = sg.find(
         "CutItem",

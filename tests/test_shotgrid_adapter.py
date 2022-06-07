@@ -99,7 +99,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             "project": project,
             "fps": self.fps,
             "timecode_start_text": "01:00:00:00",
-            "timecode_end_text": "01:04:00:00",
+            "timecode_end_text": "01:04:00:00",  # 5760 frames at 24 fps.
             "revision_number": 1,
             "entity": self.mock_sequence,
             "sg_status_list": "ip",
@@ -134,8 +134,8 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "cut_item_duration": self.fps * 60,
                     "timecode_cut_item_in_text": "00:00:00:00",
                     "timecode_cut_item_out_text": "00:01:00:00",
-                    "timecode_edit_in_text": "00:00:%02d:00" % i,
-                    "timecode_edit_out_text": "00:00:%02d:00" % (i + 1),
+                    "timecode_edit_in_text": "01:%02d:00:00" % i,
+                    "timecode_edit_out_text": "01:%02d:00:00" % (i + 1),
                     "shot": shot,
                     "shot.Shot.code": shot["code"],
                     "version": version,
@@ -239,12 +239,16 @@ class ShotgridAdapterTest(unittest.TestCase):
         # Check the source range which should match Cut values
         self.assertEqual(
             track.source_range.start_time,
-            -otio.opentime.from_timecode(self.mock_cut["timecode_end_text"], self.fps),
+            -otio.opentime.from_timecode(self.mock_cut["timecode_start_text"], self.fps),
 
         )
         self.assertEqual(
-            track.source_range.end_time_exclusive(),
-            -otio.opentime.from_timecode(self.mock_cut["timecode_start_text"], self.fps)
+            track.source_range.duration.to_frames(),
+            5760,
+        )
+        self.assertEqual(
+            (otio.opentime.from_timecode(self.mock_cut["timecode_start_text"], self.fps) + track.source_range.duration).to_timecode(),
+            self.mock_cut["timecode_end_text"],
         )
         # Check the track metadata
         for k, v in self.mock_cut.items():
@@ -345,12 +349,16 @@ class ShotgridAdapterTest(unittest.TestCase):
 
                     if field not in [
                         "id", "cut", "created_by", "updated_by", "updated_at", "created_at",
-                        "timecode_edit_in_text", "timecode_edit_out_text", "timecode_cut_item_in_text", "timecode_cut_item_out_text",
+                        #"timecode_edit_in_text",
+                        #"timecode_edit_out_text",
+                        #"timecode_cut_item_in_text", "timecode_cut_item_out_text",
                         # Not yet implemented
                         "shot", "shot.Shot.code", "version", "version.Version.code", "version.Version.entity",
                         "version.Version.image",
                     ]:
-                        logger.info("Checking %s" % field)
+                        logger.info(
+                            "Checking %d %s %s %s" % (i, field, sg_cut_item[field], self.mock_cut_items[i][field])
+                        )
                         if isinstance(sg_cut_item[field], dict):
                             self.assertEqual(
                                 sg_cut_item[field]["type"], self.mock_cut_items[i][field]["type"]
@@ -379,11 +387,11 @@ class ShotgridAdapterTest(unittest.TestCase):
         edl_text = otio.adapters.write_to_string(timeline, adapter_name="cmx_3600")
         expected_edl_text = (
             "TITLE: Cut01\n\n"
-            "001  001_v001 V     C        00:00:00:00 00:01:00:00 01:04:00:00 01:05:00:00\n"
+            "001  001_v001 V     C        00:00:00:00 00:01:00:00 01:00:00:00 01:01:00:00\n"
             "* FROM CLIP NAME:  001_v001\n"
-            "002  002_v001 V     C        00:00:00:00 00:01:00:00 01:05:00:00 01:06:00:00\n"
+            "002  002_v001 V     C        00:00:00:00 00:01:00:00 01:01:00:00 01:02:00:00\n"
             "* FROM CLIP NAME:  002_v001\n"
-            "003  003_v001 V     C        00:00:00:00 00:01:00:00 01:06:00:00 01:07:00:00\n"
+            "003  003_v001 V     C        00:00:00:00 00:01:00:00 01:02:00:00 01:03:00:00\n"
             "* FROM CLIP NAME:  003_v001\n"
         )
         self.assertMultiLineEqual(edl_text, expected_edl_text)

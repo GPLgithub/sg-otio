@@ -55,7 +55,9 @@ class SGCutTrackWriter(object):
         """
         # If the track starts at 00:00:00:00, for some reason it does not have a source range.
         if cut_track.source_range:
-            track_start = -cut_track.source_range.end_time_exclusive()
+            # The source range is set with a negative offset to use it as an
+            # offset when computing clips record times.
+            track_start = -cut_track.source_range.start_time
         else:
             track_start = RationalTime(0, cut_track.duration().rate)
         track_end = track_start + cut_track.duration()

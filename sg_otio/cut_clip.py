@@ -268,8 +268,17 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
+#        range_in_timeline = clip.transformed_time_range(
+#            clip.trimmed_range(),
+#            tracks
+#        )
+        # We use visible_range wich adds adjacents transitions ranges to the Clip
+        # trimmed_range
+        # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
+        # We need to evaluate the time in the parent of our parent track to get
+        # the track source_range applied as an offset to our values.
         transformed_time_range = self.transformed_time_range(
-            self.visible_range(), self.parent().parent()
+            self.visible_range(), self.parent().parent(),
         )
         return transformed_time_range.start_time
 
@@ -287,7 +296,11 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-        # Does not take into account retime effects like self.visible_duration does.
+        # We use visible_range wich adds adjacents transitions ranges to the Clip
+        # trimmed_range
+        # We use visible_range wich adds adjacents transitions ranges to the Clip
+        # trimmed_range
+        # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
         return self.record_in + self.visible_range().duration
 
     @property
