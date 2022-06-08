@@ -94,7 +94,7 @@ class TestCutClip(unittest.TestCase):
         clip.metadata["sg"] = {
             "type": "CutItem",
             "id": 123456,
-            "shot.Shot.code": "shot_from_SG"
+            "shot": {"code": "shot_from_SG"}
         }
         clip._compute_shot_name()
         self.assertEqual(clip.shot_name, "shot_from_SG")

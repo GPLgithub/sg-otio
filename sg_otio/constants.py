@@ -50,7 +50,6 @@ _CUT_ITEM_FIELDS = [
     "cut_item_in",
     "cut_item_out",
     "shot",
-    "shot.Shot.code",
     # "cut_duration",  # Does not seem to exist?
     "cut_item_duration",
     "cut.Cut.fps",

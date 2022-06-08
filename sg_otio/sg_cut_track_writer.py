@@ -281,9 +281,12 @@ class SGCutTrackWriter(object):
         if batch_data:
             res = self._sg.batch(batch_data)
             # Update the clips SG metadata
-            for i, sg_cut_item in enumerate(res):
-                cut_item_clips[i].metadata["sg"] = sg_cut_item
-                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], sg_cut_item))
+            for i, (sg_cut_item, new_sg_cut_item) in enumerate(zip(sg_cut_items_data, res)):
+                # The batch response does not provide all the information
+                # we had for the Shot. Add it back.
+                new_sg_cut_item["shot"] = sg_cut_item["shot"]
+                cut_item_clips[i].metadata["sg"] = new_sg_cut_item
+                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], new_sg_cut_item))
 
     @staticmethod
     def _retrieve_local_storage(sg, local_storage_name):

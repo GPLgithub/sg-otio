@@ -137,7 +137,6 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "timecode_edit_in_text": "01:%02d:00:00" % i,
                     "timecode_edit_out_text": "01:%02d:00:00" % (i + 1),
                     "shot": shot,
-                    "shot.Shot.code": shot["code"],
                     "version": version,
                     "version.Version.code": version["code"],
                     "version.Version.entity": version["entity"],
@@ -353,7 +352,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                     if field not in [
                         "id", "cut", "created_by", "updated_by", "updated_at", "created_at",
                         # Not yet implemented
-                        "shot", "shot.Shot.code", "version", "version.Version.code", "version.Version.entity",
+                        "shot", "version", "version.Version.code", "version.Version.entity",
                         "version.Version.image",
                     ]:
                         logger.info(

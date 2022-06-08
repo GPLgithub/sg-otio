@@ -518,8 +518,8 @@ class CutClip(otio.schema.Clip):
         The reel name is only used if `_use_clip_names_for_shot_names` is True.
         If a `_clip_name_shot_regexp` is set, it will be used to extract the shot name from the reel name.
         """
-        if self.metadata.get("sg", {}).get("shot.Shot.code"):
-            self.shot_name = self.metadata["sg"]["shot.Shot.code"]
+        if self.metadata.get("sg", {}).get("shot", {}).get("code"):
+            self.shot_name = self.metadata["sg"]["shot"]["code"]
             return
         if self.markers:
             self.shot_name = self.markers[0].name.split()[0]
