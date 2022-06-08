@@ -17,6 +17,7 @@ from .constants import _EFFECTS_FIELD, _RETIME_FIELD
 # from .sg_settings import SGShotFieldsConfig
 from .cut_track import CutTrack
 from .cut_clip import CutClip
+from .sg_settings import SGShotFieldsConfig
 
 try:
     # For Python 3.4 or later
@@ -185,6 +186,7 @@ class SGCutTrackWriter(object):
             stack.append(cut_track)
 
         sg_cut_data = self.get_sg_cut_payload(cut_track, sg_user, description)
+        shots_by_name = self._create_or_update_sg_shots(cut_track, sg_project, sg_linked_entity, sg_user)
         sg_cut_items_data = []
         cut_item_clips = []
         # Loop over clips from the cut_track
@@ -193,7 +195,9 @@ class SGCutTrackWriter(object):
         for i, clip in enumerate(cut_track.each_clip()):
             if not isinstance(clip, CutClip):
                 continue
-            sg_data = self.get_sg_cut_item_payload(clip)
+            # Get the SG Shot for this clip
+            sg_shot = shots_by_name.get(clip.shot_name)
+            sg_data = self.get_sg_cut_item_payload(clip, sg_shot=sg_shot)
             sg_cut_items_data.append(sg_data)
             # Make sure we keep a reference to the original clip to able to set
             # SG metadata.
@@ -391,109 +395,90 @@ class SGCutTrackWriter(object):
         )
         return version, published_file
 
-    def _create_or_update_sg_shots(self):
+    def _create_or_update_sg_shots(self, cut_track, sg_project, sg_linked_entity, sg_user=None):
         """
         Create or update SG Shots based.
         """
         sg_batch_data = []
-        sfg = self._shot_fields_config
-        for shot_code, cut_items in self._cut_items_by_shot.items():
-            sg_shot = cut_items[0].sg_shot
-            # Some SGCutItems might not have information about their SG Shot name (ex: Gaps).
-            # In this case we cannot create or update the SG Shot.
-            if not shot_code:
-                continue
-            elif not sg_shot:
-                logger.debug("Will create Shot %s" % shot_code)
-                shot_index, head_in, cut_in, cut_out, tail_out, has_effects, has_retime = self._get_shot_cut_values(cut_items)
-                shot_payload = {
-                    "project": self._project,
-                    "code": shot_code,
-                    sfg.head_in: head_in.to_frames(),
-                    sfg.cut_in: cut_in.to_frames(),
-                    sfg.cut_out: cut_out.to_frames(),
-                    sfg.tail_out: tail_out.to_frames(),
-                    sfg.cut_duration: (cut_out - cut_in).to_frames() + 1,
-                    sfg.cut_order: shot_index,
-                }
-                head_out_frames = cut_in.to_frames() - 1
-                tail_in_frames = cut_out.to_frames() + 1
-                if sfg.working_duration:
-                    shot_payload[sfg.working_duration] = (tail_out - head_in).to_frames()
-                if sfg.head_out:
-                    shot_payload[sfg.head_out] = head_out_frames
-                if sfg.head_duration:
-                    shot_payload[sfg.head_duration] = head_out_frames - head_in.to_frames() + 1
-                if sfg.tail_in:
-                    shot_payload[sfg.tail_in] = tail_in_frames
-                if sfg.tail_duration:
-                    shot_payload[sfg.tail_duration] = tail_out.to_frames() - tail_in_frames + 1
-                if self._flag_retimes_and_effects:
-                    shot_payload[sfg.has_effects] = has_effects
-                    shot_payload[sfg.has_retime] = has_retime
-                if sfg.absolute_cut_order:
-                    entity_cut_order = self._linked_entity.get(sfg.absolute_cut_order)
-                    if entity_cut_order:
-                        absolute_cut_order = 1000 * entity_cut_order + shot_index
-                        shot_payload[sfg.absolute_cut_order] = absolute_cut_order
-                if sfg.shot_link_field:
-                    shot_payload[sfg.shot_link_field] = self._linked_entity
+        existing_shots = self._sg.find(
+            "Shot",
+            [["project", "is", sg_project], ["code", "in", cut_track.shot_names]],
+            ["code"]
+        )
+        existing_shots_by_name = {shot["code"]: shot for shot in existing_shots}
+        for shot in cut_track.shots:
+            if shot.name not in existing_shots_by_name.keys():
+                logger.debug("Will create Shot %s" % shot.name)
+                shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
                 sg_batch_data.append({
                     "request_type": "create",
                     "entity_type": "Shot",
                     "data": shot_payload
                 })
             else:
-                # TODO: Add update logic
-                pass
+                # TODO: Logic for omitted/reinstated shots
+                sg_shot = existing_shots_by_name[shot.name]
+                shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
+                sg_batch_data.append({
+                    "request_type": "update",
+                    "entity_type": "Shot",
+                    "entity_id": sg_shot["id"],
+                    "data": shot_payload
+                })
+
+        shots_by_name = {}
         if sg_batch_data:
-            shots = self._sg.batch(sg_batch_data)
-            for shot in shots:
-                cut_items = self._cut_items_by_shot[shot["code"]]
-                for cut_item in cut_items:
-                    if cut_item.sg_shot:
-                        cut_item.sg_shot.update(shot)
-                    else:
-                        cut_item.sg_shot = shot
+            sg_shots = self._sg.batch(sg_batch_data)
+            for sg_shot in sg_shots:
+                shots_by_name[sg_shot["code"]] = sg_shot
+        return shots_by_name
 
-    def _get_shot_cut_values(self, cut_items):
+    def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):
         """
-        Return data about the Shot cut values based on its SGCutItems.
-
-        Return a tuple with :
-        - The smallest clip index
-        - The earliest head in
-        - The earliest cut in
-        - The last cut out
-        - The last tail out
-        - If at least one clip has effects
-        - If at least one clip has retimes
-
-        :returns: A tuple.
         """
-        min_clip_index = None
-        min_head_in = None
-        min_cut_in = None
-        max_cut_out = None
-        max_tail_out = None
-        has_effects = False
-        has_retime = False
-        for cut_item in cut_items:
-            if min_clip_index is None or cut_item.clip_index < min_clip_index:
-                min_clip_index = cut_item.clip_index
-            if min_head_in is None or cut_item.head_in < min_head_in:
-                min_head_in = cut_item.head_in
-            if min_cut_in is None or cut_item.cut_in < min_cut_in:
-                min_cut_in = cut_item.cut_in
-            if max_cut_out is None or cut_item.cut_out > max_cut_out:
-                max_cut_out = cut_item.cut_out
-            if max_tail_out is None or cut_item.tail_out > max_tail_out:
-                max_tail_out = cut_item.tail_out
-            if cut_item.has_effects:
-                has_effects = True
-            if cut_item.has_retime:
-                has_retime = True
-        return min_clip_index, min_head_in, min_cut_in, max_cut_out, max_tail_out, has_effects, has_retime
+        sg_linked_entity = sg_linked_entity or sg_project
+        # TODO: deal with smart fields and shot_cut_fields_prefix
+        sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"], use_smart_fields=False, shot_cut_fields_prefix=None)
+        shot_payload = {
+            "project": sg_project,
+            "code": shot.name,
+            sfg.head_in: shot.head_in.to_frames(),
+            sfg.cut_in: shot.cut_in.to_frames(),
+            sfg.cut_out: shot.cut_out.to_frames(),
+            sfg.tail_out: shot.tail_out.to_frames(),
+            sfg.cut_duration: shot.duration.to_frames(),
+            sfg.cut_order: shot.index
+        }
+        if sg_user:
+            shot_payload["created_by"] = sg_user
+            shot_payload["updated_by"] = sg_user
+        if sfg.working_duration:
+            shot_payload[sfg.working_duration] = shot.working_duration.to_frames()
+        if sfg.head_out:
+            shot_payload[sfg.head_out] = shot.head_out.to_frames()
+        if sfg.tail_in:
+            shot_payload[sfg.tail_in] = shot.tail_in.to_frames()
+        if sfg.tail_duration:
+            shot_payload[sfg.tail_duration] = shot.tail_duration.to_frames()
+        # TODO: Add setting for flagging retimes and effects?
+        if True:
+            shot_payload[sfg.has_effects] = shot.has_effects
+            shot_payload[sfg.has_retime] = shot.has_retime
+        if sfg.absolute_cut_order:
+            # TODO: maybe create shot fields config before so that
+            #       we can get the field without an extra query?
+            sg_entity = self._sg.find_one(
+                sg_linked_entity["type"],
+                [["id", "is", sg_linked_entity["id"]]],
+                [sfg.absolute_cut_order]
+            )
+            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
+            if entity_cut_order:
+                absolute_cut_order = 1000 * entity_cut_order + shot.index
+                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
+        if sfg.shot_link_field and sg_linked_entity:
+            shot_payload[sfg.shot_link_field] = sg_linked_entity
+        return shot_payload
 
     def _create_sg_cut_items(self):
         """

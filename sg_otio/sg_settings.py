@@ -160,13 +160,23 @@ class SGShotFieldsConfig(object):
     _shot_schema = None
     _entity_schema = None
 
-    def __init__(self, sg, linked_entity_type, use_smart_fields=False, shot_cut_fields_prefix=None):
+    def __init__(self, sg, linked_entity_type=None, use_smart_fields=False, shot_cut_fields_prefix=None):
         self._linked_entity_type = linked_entity_type
         self._sg = sg
         self._use_smart_fields = use_smart_fields
         self.validate_shot_cut_fields_prefix(shot_cut_fields_prefix)
         self._shot_cut_fields_prefix = shot_cut_fields_prefix
         self._sg_shot_link_field = None
+        self._shot_schema = None
+
+    @property
+    def shot_schema(self):
+        """
+        Return the schema for the Shot entity.
+        """
+        if self._shot_schema is None:
+            self._shot_schema = self._sg.schema_field_read("Shot")
+        return self._shot_schema
 
     @property
     def use_smart_fields(self):
@@ -188,13 +198,11 @@ class SGShotFieldsConfig(object):
         """
         if not value:
             return
-        if not self._shot_schema:
-            self._shot_schema = self._sg.schema_field_read("Shot")
         missing = []
         for sg_field in [
             x % value for x in _ALT_SHOT_FIELDS
         ]:
-            if sg_field not in self._shot_schema:
+            if sg_field not in self.shot_schema:
                 missing.append(sg_field)
         if missing:
             raise ValueError(
@@ -350,7 +358,7 @@ class SGShotFieldsConfig(object):
 
         :returns: A str or ``None``.
         """
-        if _EFFECTS_FIELD in self._shot_schema:
+        if _EFFECTS_FIELD in self.shot_schema:
             return _EFFECTS_FIELD
         return None
 
@@ -361,7 +369,7 @@ class SGShotFieldsConfig(object):
 
         :returns: A str or ``None``.
         """
-        if _RETIME_FIELD in self._shot_schema:
+        if _RETIME_FIELD in self.shot_schema:
             return _RETIME_FIELD
         return None
 
@@ -372,7 +380,7 @@ class SGShotFieldsConfig(object):
 
         :returns: A str or ``None``.
         """
-        if _ABSOLUTE_CUT_ORDER_FIELD in self._shot_schema:
+        if _ABSOLUTE_CUT_ORDER_FIELD in self.shot_schema:
             return _ABSOLUTE_CUT_ORDER_FIELD
         return None
 
@@ -400,11 +408,11 @@ class SGShotFieldsConfig(object):
         :returns: A field name or ``None``.
         :raises ValueError: If the given Entity type is not found in the schema.
         """
+        if not self._linked_entity_type:
+            return None
         if self._sg_shot_link_field:
             return self._sg_shot_link_field
         sg_shot_link_field_name = None
-        if not self._shot_schema:
-            self._shot_schema = self._sg.schema_field_read("Shot")
         # Prefer a sg_<entity type> field if available
         if not self._entity_schema:
             self._entity_schema = self._sg.schema_entity_read()
@@ -413,7 +421,7 @@ class SGShotFieldsConfig(object):
             raise ValueError("Cannot find schema for entity type %s" % self._linked_entity_type)
         entity_type_name = schema_entity_type["name"]["value"]
         field_name = "sg_%s" % entity_type_name.lower()
-        field = self._shot_schema.get(field_name)
+        field = self.shot_schema.get(field_name)
         if(
             field
             and field["data_type"]["value"] == "entity"
@@ -423,7 +431,7 @@ class SGShotFieldsConfig(object):
             sg_shot_link_field_name = field_name
         else:
             # General lookup
-            for field_name, field in self._shot_schema.items():
+            for field_name, field in self.shot_schema.items():
                 # the field has to accept entities and be editable.
                 if(
                     field["data_type"]["value"] == "entity"
