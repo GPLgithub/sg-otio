@@ -109,7 +109,11 @@ class SGCutTrackWriter(object):
             # "version": cut_diff.sg_version,
         }
         if sg_shot:
-            cut_item_payload["shot"] = sg_shot
+            cut_item_payload["shot"] = {
+                "type": sg_shot["type"],
+                "id": sg_shot["id"],
+                "code": sg_shot["code"],
+            }
         if sg_user:
             cut_item_payload["created_by"] = sg_user
             cut_item_payload["updated_by"] = sg_user
@@ -186,7 +190,13 @@ class SGCutTrackWriter(object):
             stack.append(cut_track)
 
         sg_cut_data = self.get_sg_cut_payload(cut_track, sg_user, description)
-        shots_by_name = self._create_or_update_sg_shots(cut_track, sg_project, sg_linked_entity, sg_user)
+        shots_by_name = self._create_or_update_sg_shots(
+            cut_track,
+            sg_project,
+            sg_linked_entity,
+            sg_user
+        )
+        shots_by_id = {x["id"]: x for x in shots_by_name.values()}
         sg_cut_items_data = []
         cut_item_clips = []
         # Loop over clips from the cut_track
@@ -281,12 +291,17 @@ class SGCutTrackWriter(object):
         if batch_data:
             res = self._sg.batch(batch_data)
             # Update the clips SG metadata
-            for i, (sg_cut_item, new_sg_cut_item) in enumerate(zip(sg_cut_items_data, res)):
-                # The batch response does not provide all the information
-                # we had for the Shot. Add it back.
-                new_sg_cut_item["shot"] = sg_cut_item["shot"]
-                cut_item_clips[i].metadata["sg"] = new_sg_cut_item
-                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], new_sg_cut_item))
+#            for i, (sg_cut_item, new_sg_cut_item) in enumerate(zip(sg_cut_items_data, res)):
+#                # The batch response does not provide all the information
+#                # we had for the Shot. Add it back.
+#                new_sg_cut_item["shot"] = sg_cut_item["shot"]
+#                cut_item_clips[i].metadata["sg"] = new_sg_cut_item
+#                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], new_sg_cut_item))
+            for i, sg_cut_item in enumerate(res):
+                # Set the Shot code we don't get back from the batch request
+                sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
+                cut_item_clips[i].metadata["sg"] = sg_cut_item
+                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], sg_cut_item))
 
     @staticmethod
     def _retrieve_local_storage(sg, local_storage_name):
@@ -411,7 +426,7 @@ class SGCutTrackWriter(object):
         existing_shots_by_name = {shot["code"]: shot for shot in existing_shots}
         for shot in cut_track.shots:
             if shot.name not in existing_shots_by_name.keys():
-                logger.debug("Will create Shot %s" % shot.name)
+                logger.warning("Will create Shot %s" % shot.name)
                 shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
                 sg_batch_data.append({
                     "request_type": "create",
