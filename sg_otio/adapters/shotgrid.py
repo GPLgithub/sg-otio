@@ -10,7 +10,7 @@ from six.moves.urllib import parse
 import opentimelineio as otio
 import shotgun_api3
 
-from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS, _SHOT_FIELDS
+from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS  # , _SHOT_FIELDS
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -91,18 +91,20 @@ def read_from_file(filepath):
         _CUT_ITEM_FIELDS,
         order=[{"field_name": "cut_order", "direction": "asc"}]
     )
-    # We could avoid an extra query by adding shot.Shot.XXX to the _CUT_FIELDS using _SHOT_FIELDS, but it would
-    # require some cleaning up of the cut_item afterwards.
-    shot_ids = [cut_item["shot"]["id"] for cut_item in cut_items if cut_item.get("shot", {}).get("id")]
-    shots = sg.find(
-        "Shot",
-        [["id", "in", shot_ids]],
-        _SHOT_FIELDS
-    )
-    shots_by_id = {shot["id"]: shot for shot in shots}
+#    # We could avoid an extra query by adding shot.Shot.XXX to the _CUT_FIELDS using _SHOT_FIELDS, but it would
+#    # require some cleaning up of the cut_item afterwards.
+#    shot_ids = [cut_item["shot"]["id"] for cut_item in cut_items if cut_item.get("shot", {}).get("id")]
+#    shots = sg.find(
+#        "Shot",
+#        [["id", "in", shot_ids]],
+#        _SHOT_FIELDS
+#    )
+#    shots_by_id = {shot["id"]: shot for shot in shots}
     for cut_item in cut_items:
+        # if cut_item["shot"]:
+        #     cut_item["shot"] = shots_by_id[cut_item["shot"]["id"]]
         if cut_item["shot"]:
-            cut_item["shot"] = shots_by_id[cut_item["shot"]["id"]]
+            cut_item["shot"]["code"] = cut_item["shot.Shot.code"]
         clip = otio.schema.Clip()
         # Not sure if there is a better way to allow writing to EDL and getting the right
         # Reel name without having this dependency to the CMX adapter.

@@ -32,7 +32,9 @@ class ShotgridAdapterTest(unittest.TestCase):
         Setup the tests suite.
         """
         self.maxDiff = None
-        SGSettings().reset_to_defaults()
+        sg_settings = SGSettings()
+        sg_settings.reset_to_defaults()
+        sg_settings.use_clip_names_for_shot_names = True
         # Retrieve SG credentials from the environment
         # The SG site
         self._SG_SITE = os.getenv("SG_TEST_SITE") or "https://mysite.shotgunstudio.com"
@@ -137,6 +139,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "timecode_edit_in_text": "01:%02d:00:00" % i,
                     "timecode_edit_out_text": "01:%02d:00:00" % (i + 1),
                     "shot": shot,
+                    "shot.Shot.code": shot["code"],
                     "version": version,
                     "version.Version.code": version["code"],
                     "version.Version.entity": version["entity"],
@@ -350,13 +353,13 @@ class ShotgridAdapterTest(unittest.TestCase):
                 for field in _CUT_ITEM_FIELDS:
 
                     if field not in [
-                        "id", "cut", "created_by", "updated_by", "updated_at", "created_at",
+                        "id", "cut", "created_by", "updated_by", "updated_at", "created_at", "shot.Shot.code",
                         # Not yet implemented
-                        "shot", "version", "version.Version.code", "version.Version.entity",
+                        "version", "version.Version.code", "version.Version.entity",
                         "version.Version.image",
                     ]:
                         logger.info(
-                            "Checking item %d %s %s %s" % (i, field, sg_cut_item[field], self.mock_cut_items[i][field])
+                            "Checking item %d %s %s vs %s" % (i, field, sg_cut_item[field], self.mock_cut_items[i][field])
                         )
                         if isinstance(sg_cut_item[field], dict):
                             self.assertEqual(

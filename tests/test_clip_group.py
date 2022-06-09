@@ -13,6 +13,14 @@ from sg_otio.sg_settings import SGSettings
 
 
 class TestClipGroup(unittest.TestCase):
+
+    def setUp(self):
+        """
+        Setup the tests suite.
+        """
+        sg_settings = SGSettings()
+        sg_settings.reset_to_defaults()
+
     def test_shot_clips(self):
         """
         Test that when loading a timeline, it detects the shots belonging to the tracks,

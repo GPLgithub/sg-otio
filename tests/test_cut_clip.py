@@ -16,6 +16,14 @@ from sg_otio.sg_settings import SGSettings
 
 
 class TestCutClip(unittest.TestCase):
+
+    def setUp(self):
+        """
+        Setup the tests suite.
+        """
+        sg_settings = SGSettings()
+        sg_settings.reset_to_defaults()
+
     def test_clip_name(self):
         """
         Test that the name does come from the reel name if available,
@@ -189,6 +197,7 @@ class TestCutClip(unittest.TestCase):
         # set non_default head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
         sg_settings = SGSettings()
+        sg_settings.use_clip_names_for_shot_names = False
         sg_settings.default_head_in = 555
         sg_settings.default_head_in_duration = 10
         sg_settings.default_tail_out_duration = 20
@@ -198,6 +207,10 @@ class TestCutClip(unittest.TestCase):
         )
         clips = list(timeline.tracks[0].each_clip())
         self.assertEqual(len(clips), 3)
+        # FIXME: the transition is added as a Clip in the CutTrack, with an empty
+        # Shot name.
+        for clip in clips:
+            self.assertIsNotNone(clip.shot_name)
         clip_1 = clips[0]
         # The normal duration is 24 frames plus the in offset of the transition
         self.assertEqual(clip_1.duration().to_frames(), 36)
@@ -214,7 +227,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.edit_out.to_frames(), 48)
         self.assertTrue(clip_1.has_effects)
         self.assertEqual(clip_1.effects_str, "After: SMPTE_Dissolve (12 frames)")
-
+        self.assertEqual(clip_1.shot_name, "shot_001")
         # This is the transition clip. It has a duration of 1 second.
         clip_2 = clips[1]
         # The duration only takes into account the transition out_offset
