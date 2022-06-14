@@ -11,12 +11,10 @@ import sys
 import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
-# Relative imports don't work with the way OTIO loads adapters.
-from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD
-# from .sg_settings import SGShotFieldsConfig
-from .cut_track import CutTrack
+from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .cut_clip import CutClip
+from .cut_track import CutTrack
 from .sg_settings import SGShotFieldsConfig
 
 try:
@@ -33,11 +31,13 @@ logger = logging.getLogger(__name__)
 class SGCutTrackWriter(object):
     """
     A class to save a :class:`otio.schema.Track` of kind ``otio.schema.TrackKind.Video``
-    in Shotgrid.
-    """
+    in ShotGrid.
 
-    # The CutItem schema in ShotGrid. Make it a class variable to get it only once.
-    _cut_item_schema = None
+    It gathers information about the track and its clips and creates or updates the
+    corresponding ShotGrid Entities.
+    """
+    # The CutItem schema in ShotGrid, per ShotGrid site. Make it a class variable to get it only once.
+    _cut_item_schema = {}
 
     def __init__(self, sg, log_level=logging.INFO):
         """
@@ -48,12 +48,124 @@ class SGCutTrackWriter(object):
         """
         logger.setLevel(log_level)
         self._sg = sg
-        # FIXME: if another SG site is later used the schema will not be updated.
-        if not self._cut_item_schema:
-            self._cut_item_schema = self._sg.schema_field_read("CutItem")
 
-    def get_sg_cut_payload(self, cut_track, sg_user=None, description=""):
+    @property
+    def cut_item_schema(self):
         """
+        Return the Cut Item schema for the current SG site.
+
+        :returns: The Cut Item Schema.
+        """
+        if not self._cut_item_schema.get(self._sg.base_url):
+            self._cut_item_schema[self._sg.base_url] = self._sg.schema_field_read("CutItem")
+        return self._cut_item_schema[self._sg.base_url]
+
+    def write_to(self, entity_type, entity_id, video_track, sg_user=None, description=""):
+        """
+        Gather information about a Cut, its Cut Items and their linked Shots and create
+        or update Entities accordingly in SG.
+
+        When writing to SG, The Entity provided (type and ID) can be:
+        - The Cut itself
+        - The Project
+        - Any Entity to link the Cut against (e.g. Sequence, Reel...)
+
+        :param str entity_type: A SG Entity type.
+        :param int entity_id: A SG Entity ID.
+        :param video_track: An OTIO Video Track.
+        :param sg_user: An optional SG User which will be registered when creating/updating Entities.
+        :param description: An optional description for the Cut.
+        """
+        cut_track = video_track
+        sg_track_data = video_track.metadata.get("sg")
+        if sg_track_data and sg_track_data["type"] != "Cut":
+            raise ValueError(
+                "Invalid {} SG data for a {}".format(sg_track_data["type"], "Cut")
+            )
+        # Convert to a CutTrack if one was not provided.
+        if not isinstance(cut_track, CutTrack):
+            # We need to give the track a parent so time transforms from the Clip
+            # to the track are correctly evaluated.
+            stack = otio.schema.Stack()
+            cut_track = CutTrack.from_track(video_track)
+            stack.append(cut_track)
+
+        sg_project, sg_cut, sg_linked_entity = self._get_cut_entities(
+            entity_type, entity_id
+        )
+        sg_cut = self._write_cut(
+            video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_user, description
+        )
+
+        sg_shots = self._write_shots(
+            cut_track,
+            sg_project,
+            sg_linked_entity,
+            sg_user
+        )
+        self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user)
+
+    def _write_cut(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_user=None, description=""):
+        """
+        Gather information about a SG Cut given a video track, and create or update
+        the corresponding Cut in SG.
+
+        If a new Cut is created, add metadata to the OTIO video Track about the SG Cut.
+
+        :param video_track: An OTIO Video Track.
+        :param cut_track: An instance of :class:`CutTrack`.
+        :param sg_project: The SG Project to write the Cut to.
+        :param sg_cut: If provided, the SG Cut to update.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :param str description: An optional description for the Cut.
+        :returns: The SG Cut entity created.
+        """
+        sg_cut_data = self._get_sg_cut_payload(cut_track, sg_user, description)
+        if sg_cut:
+            # Update existing Cut
+            logger.info("Cut update payload %s" % sg_cut_data)
+            self._sg.update(
+                sg_cut["type"],
+                sg_cut["id"],
+                sg_cut_data,
+            )
+        else:
+            revision_number = 1
+            previous_cut = self._sg.find_one(
+                "Cut",
+                [
+                    ["code", "is", cut_track.name],
+                    ["entity", "is", sg_linked_entity or sg_project],
+                ],
+                ["revision_number"],
+                order=[{"field_name": "revision_number", "direction": "desc"}]
+            )
+            if previous_cut:
+                revision_number = (previous_cut.get("revision_number") or 0) + 1
+            # Create a new Cut
+            sg_cut_data["project"] = sg_project
+            sg_cut_data["entity"] = sg_linked_entity or sg_project
+            sg_cut_data["revision_number"] = revision_number
+            logger.info("Cut create payload %s" % sg_cut_data)
+
+            sg_cut = self._sg.create(
+                "Cut",
+                sg_cut_data,
+            )
+            # Update the original track with the result
+            logger.info("Updating %s SG metadata with %s" % (video_track, sg_cut))
+            video_track.metadata["sg"] = sg_cut
+        return sg_cut
+
+    def _get_sg_cut_payload(self, cut_track, sg_user=None, description=""):
+        """
+        Gather information about a SG Cut given a CutTrack.
+
+        :param cut_track: An instance of :class:`CutTrack`.
+        :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :param str description: An optional description for the Cut.
+        :returns: A dictionary with the SG Cut payload.
         """
         # If the track starts at 00:00:00:00, for some reason it does not have a source range.
         if cut_track.source_range:
@@ -75,11 +187,95 @@ class SGCutTrackWriter(object):
             cut_payload["updated_by"] = sg_user
         if description:
             cut_payload["description"] = description
-#        if input_media_version:
-#            cut_payload["version"] = input_media_version
+        # if input_media_version:
+        #    cut_payload["version"] = input_media_version
         return cut_payload
 
-    def get_sg_cut_item_payload(self, cut_clip, sg_user=None, sg_shot=None):
+    def _write_cut_items(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user):
+        """
+        Gather information about the Cut Items given a CutTrack, and create or update the Cut Items in SG
+        accordingly.
+
+        Add metadata to the OTIO Clips in the Track about the SG Cut Items.
+        :param video_track: An OTIO Video Track.
+        :param cut_track: An instance of :class:`CutTrack`.
+        :param sg_project: The SG Project to write the Cut to.
+        :param sg_cut: If provided, the SG Cut to update.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param sg_shots: A list of SG Shots.
+        :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :returns: The SG Cut Items.
+        """
+        shots_by_name = {x["code"]: x for x in sg_shots}
+        shots_by_id = {x["id"]: x for x in sg_shots}
+        sg_cut_items_data = []
+        cut_item_clips = []
+
+        # Loop over clips from the cut_track
+        # Keep references to original clips
+        video_clips = list(video_track.each_clip())
+        for i, clip in enumerate(cut_track.each_clip()):
+            if not isinstance(clip, CutClip):
+                continue
+            # Get the SG Shot for this clip
+            sg_shot = shots_by_name.get(clip.shot_name)
+            sg_data = self.get_sg_cut_item_payload(clip, sg_shot=sg_shot, sg_user=sg_user)
+            sg_cut_items_data.append(sg_data)
+            # Make sure we keep a reference to the original clip to be able to set
+            # SG metadata.
+            cut_item_clips.append(video_clips[i])
+        batch_data = []
+        linked_entity = sg_linked_entity or sg_project
+        for item_index, sg_cut_item_data in enumerate(sg_cut_items_data):
+            sg_cut_item_data["cut"] = sg_cut
+            sg_cut_item_data["project"] = sg_project
+            sg_cut_item_data["cut_order"] = item_index + 1
+            if (
+                _ABSOLUTE_CUT_ORDER_FIELD in self.cut_item_schema
+                and linked_entity.get(_ENTITY_CUT_ORDER_FIELD)
+            ):
+                sg_cut_item_data[_ABSOLUTE_CUT_ORDER_FIELD] = (
+                    1000
+                    * linked_entity[_ENTITY_CUT_ORDER_FIELD]
+                    + sg_cut_item_data["cut_order"]
+                )
+
+            # Check if we should update an existing CutItem of create a new one
+            sg_cut_item = cut_item_clips[item_index].metadata.get("sg") or {}
+            if sg_cut_item.get("id"):
+                # Check if the CutItem is linked to the Cut we updated or created.
+                # If not, create a new CutItem.
+                if sg_cut_item.get("cut") and sg_cut_item["cut"].get("id") == sg_cut["id"]:
+                    batch_data.append({
+                        "request_type": "update",
+                        "entity_type": "CutItem",
+                        "entity_id": sg_cut_item["id"],
+                        "data": sg_cut_item_data
+                    })
+                else:
+                    batch_data.append({
+                        "request_type": "create",
+                        "entity_type": "CutItem",
+                        "data": sg_cut_item_data
+                    })
+            else:
+                batch_data.append({
+                    "request_type": "create",
+                    "entity_type": "CutItem",
+                    "data": sg_cut_item_data
+                })
+        sg_cut_items = []
+        if batch_data:
+            res = self._sg.batch(batch_data)
+            for i, sg_cut_item in enumerate(res):
+                # Set the Shot code we don't get back from the batch request
+                sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
+                cut_item_clips[i].metadata["sg"] = sg_cut_item
+                sg_cut_items.append(sg_cut_item)
+                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], sg_cut_item))
+        return sg_cut_items
+
+    def get_sg_cut_item_payload(self, cut_clip, sg_shot=None, sg_user=None):
         """
         Get a SG CutItem payload for a given :class:`sg_otio.CutClip` instance.
 
@@ -90,8 +286,11 @@ class SGCutTrackWriter(object):
         imported against. The absolute cut order is then:
         `1000 * entity cut order + edit cut order`.
 
+        :param cut_clip: A :class:`sg_otio.CutClip` instance.
+        :param sg_shot: An optional SG Shot to use for the CutItem.
+        :param sg_user: An optional user to provide when creating/updating Cut Items in SG.
         :returns: A dictionary with the CutItem payload.
-        :raises ValueError: If no SG payload can be generated for this Clip
+        :raises ValueError: If no SG payload can be generated for this Clip.
         """
         description = ""
         cut_item_payload = {
@@ -123,19 +322,131 @@ class SGCutTrackWriter(object):
                 description,
                 self.effects_str
             )
-        if _EFFECTS_FIELD in self._cut_item_schema:
+        if _EFFECTS_FIELD in self.cut_item_schema:
             cut_item_payload[_EFFECTS_FIELD] = cut_clip.has_effects
 
         if cut_clip.has_retime:
             description = "%s\nRetime: %s" % (description, self.retime_str)
-        if _RETIME_FIELD in self._cut_item_schema:
+        if _RETIME_FIELD in self.cut_item_schema:
             cut_item_payload[_RETIME_FIELD] = cut_clip.has_retime
 
         cut_item_payload["description"] = description
         return cut_item_payload
 
-    def write_to(self, entity_type, entity_id, video_track, sg_user=None, description=""):
+    def _write_shots(self, cut_track, sg_project, sg_linked_entity, sg_user=None):
         """
+        Gather information about SG Shots given a CutTrack, and create or update
+        them accordingly in SG.
+
+        :param cut_track: An instance of :class:`CutTrack`.
+        :param sg_project: The SG Project to write the Cut to.
+        :param sg_cut: If provided, the SG Cut to update.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :returns: A list of SG Shot Entities.
+        """
+        sg_batch_data = []
+        sg_shots = []
+        existing_shots = self._sg.find(
+            "Shot",
+            [["project", "is", sg_project], ["code", "in", cut_track.shot_names]],
+            ["code"]
+        )
+        existing_shots_by_name = {shot["code"]: shot for shot in existing_shots}
+        for shot in cut_track.shots:
+            if shot.name not in existing_shots_by_name.keys():
+                logger.warning("Will create Shot %s" % shot.name)
+                shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
+                sg_batch_data.append({
+                    "request_type": "create",
+                    "entity_type": "Shot",
+                    "data": shot_payload
+                })
+            else:
+                # TODO: Logic for omitted/reinstated shots
+                sg_shot = existing_shots_by_name[shot.name]
+                shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
+                sg_batch_data.append({
+                    "request_type": "update",
+                    "entity_type": "Shot",
+                    "entity_id": sg_shot["id"],
+                    "data": shot_payload
+                })
+
+        if sg_batch_data:
+            sg_shots = self._sg.batch(sg_batch_data)
+        return sg_shots
+
+    def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):
+        """
+        Get a SG Shot payload for a given :class:`sg_otio.Shot` instance.
+
+        :param shot: A :class:`sg_otio.Shot` instance.
+        :param sg_project: The SG Project to write the Shot to.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param sg_user: An optional user to provide when creating/updating Shots in SG.
+        :returns: A dictionary with the Shot payload.
+        """
+        sg_linked_entity = sg_linked_entity or sg_project
+        # TODO: deal with smart fields and shot_cut_fields_prefix
+        sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"], use_smart_fields=False, shot_cut_fields_prefix=None)
+        shot_payload = {
+            "project": sg_project,
+            "code": shot.name,
+            sfg.head_in: shot.head_in.to_frames(),
+            sfg.cut_in: shot.cut_in.to_frames(),
+            sfg.cut_out: shot.cut_out.to_frames(),
+            sfg.tail_out: shot.tail_out.to_frames(),
+            sfg.cut_duration: shot.duration.to_frames(),
+            sfg.cut_order: shot.index
+        }
+        if sg_user:
+            shot_payload["created_by"] = sg_user
+            shot_payload["updated_by"] = sg_user
+        if sfg.working_duration:
+            shot_payload[sfg.working_duration] = shot.working_duration.to_frames()
+        if sfg.head_out:
+            shot_payload[sfg.head_out] = shot.head_out.to_frames()
+        if sfg.tail_in:
+            shot_payload[sfg.tail_in] = shot.tail_in.to_frames()
+        if sfg.tail_duration:
+            shot_payload[sfg.tail_duration] = shot.tail_duration.to_frames()
+        # TODO: Add setting for flagging retimes and effects?
+        if True:
+            shot_payload[sfg.has_effects] = shot.has_effects
+            shot_payload[sfg.has_retime] = shot.has_retime
+        if sfg.absolute_cut_order:
+            # TODO: maybe create shot fields config before so that
+            #       we can get the field without an extra query?
+            sg_entity = self._sg.find_one(
+                sg_linked_entity["type"],
+                [["id", "is", sg_linked_entity["id"]]],
+                [sfg.absolute_cut_order]
+            )
+            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
+            if entity_cut_order:
+                absolute_cut_order = 1000 * entity_cut_order + shot.index
+                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
+        if sfg.shot_link_field and sg_linked_entity:
+            shot_payload[sfg.shot_link_field] = sg_linked_entity
+        return shot_payload
+
+    def _get_cut_entities(self, entity_type, entity_id):
+        """
+        Get the Cut, Project and linked Entity which will be used to create or update
+        the Cut, Shots and CutItems in SG.
+
+        When writing to SG, The Entity provided (type and ID) can be:
+        - The Cut itself
+        - The Project
+        - Any Entity to link the Cut against (e.g. Sequence, Reel...)
+
+        Find these entities and return them.
+
+        :param str entity_type: A SG Entity Type.
+        :param int entity_id: A SG Entity ID.
+        :returns: A tuple (project, sg_cut, sg_linked_entity). The Cut and linked Entity
+                  can be ``None``.
         """
         sg_cut = None
         sg_project = None
@@ -174,134 +485,7 @@ class SGCutTrackWriter(object):
             sg_project = sg_linked_entity["project"]
         if not sg_project:
             raise ValueError("Unable to retrieve a Project from %s %s")
-
-        cut_track = video_track
-        sg_track_data = video_track.metadata.get("sg")
-        if sg_track_data and sg_track_data["type"] != "Cut":
-            raise ValueError(
-                "Invalid {} SG data for a {}".format(sg_track_data["type"], "Cut")
-            )
-        # Convert to a CutTrack if one was not provided.
-        if not isinstance(cut_track, CutTrack):
-            # We need to give the track a parent so time transforms from the Clip
-            # to the track are correctly evaluated.
-            stack = otio.schema.Stack()
-            cut_track = CutTrack.from_track(video_track)
-            stack.append(cut_track)
-
-        sg_cut_data = self.get_sg_cut_payload(cut_track, sg_user, description)
-        shots_by_name = self._create_or_update_sg_shots(
-            cut_track,
-            sg_project,
-            sg_linked_entity,
-            sg_user
-        )
-        shots_by_id = {x["id"]: x for x in shots_by_name.values()}
-        sg_cut_items_data = []
-        cut_item_clips = []
-        # Loop over clips from the cut_track
-        # Keep references to original clips
-        video_clips = list(video_track.each_clip())
-        for i, clip in enumerate(cut_track.each_clip()):
-            if not isinstance(clip, CutClip):
-                continue
-            # Get the SG Shot for this clip
-            sg_shot = shots_by_name.get(clip.shot_name)
-            sg_data = self.get_sg_cut_item_payload(clip, sg_shot=sg_shot)
-            sg_cut_items_data.append(sg_data)
-            # Make sure we keep a reference to the original clip to able to set
-            # SG metadata.
-            cut_item_clips.append(video_clips[i])
-
-#        if input_media_version:
-#            cut_payload["version"] = input_media_version
-        if sg_cut:  # Update existing Cut
-            logger.info("Cut update payload %s" % sg_cut_data)
-            self._sg.update(
-                sg_cut["type"],
-                sg_cut["id"],
-                sg_cut_data,
-            )
-        else:
-            revision_number = 1
-            previous_cut = self._sg.find_one(
-                "Cut",
-                [
-                    ["code", "is", video_track.name],
-                    ["entity", "is", sg_linked_entity or sg_project],
-                ],
-                ["revision_number"],
-                order=[{"field_name": "revision_number", "direction": "desc"}]
-            )
-            if previous_cut:
-                revision_number = (previous_cut.get("revision_number") or 0) + 1
-            # Create a new Cut
-            sg_cut_data["project"] = sg_project
-            sg_cut_data["entity"] = sg_linked_entity or sg_project
-            sg_cut_data["revision_number"] = revision_number
-            logger.info("Cut create payload %s" % sg_cut_data)
-
-            sg_cut = self._sg.create(
-                "Cut",
-                sg_cut_data,
-            )
-            # Update the track with the result
-            logger.info("Updating %s SG metadata with %s" % (video_track, sg_cut))
-            video_track.metadata["sg"] = sg_cut
-        batch_data = []
-        linked_entity = sg_linked_entity or sg_project
-        for item_index, sg_cut_item_data in enumerate(sg_cut_items_data):
-            sg_cut_item_data["cut"] = sg_cut
-            sg_cut_item_data["project"] = sg_project
-            sg_cut_item_data["cut_order"] = item_index + 1
-            if (
-                _ABSOLUTE_CUT_ORDER_FIELD in self._cut_item_schema
-                and linked_entity.get(_ENTITY_CUT_ORDER_FIELD)
-            ):
-                sg_cut_item_data[_ABSOLUTE_CUT_ORDER_FIELD] = (
-                    1000
-                    * linked_entity[_ENTITY_CUT_ORDER_FIELD]
-                    + sg_cut_item_data["cut_order"]
-                )
-
-            # Check if we should update an existing CutItem of create a new one
-            sg_cut_item = cut_item_clips[item_index].metadata.get("sg") or {}
-            if sg_cut_item.get("id"):
-                # Check if the CutItem is linked to the Cut we updated or created.
-                # If not, create a new CutItem.
-                if sg_cut_item.get("cut") and sg_cut_item["cut"].get("id") == sg_cut["id"]:
-                    batch_data.append({
-                        "request_type": "update",
-                        "entity_type": "CutItem",
-                        "entity_id": sg_cut_item["id"],
-                        "data": sg_cut_item_data
-                    })
-                else:
-                    batch_data.append({
-                        "request_type": "create",
-                        "entity_type": "CutItem",
-                        "data": sg_cut_item_data
-                    })
-            else:
-                batch_data.append({
-                    "request_type": "create",
-                    "entity_type": "CutItem",
-                    "data": sg_cut_item_data
-                })
-        if batch_data:
-            res = self._sg.batch(batch_data)
-            # Update the clips SG metadata
-#            for i, (sg_cut_item, new_sg_cut_item) in enumerate(zip(sg_cut_items_data, res)):
-#                # The batch response does not provide all the information
-#                # we had for the Shot. Add it back.
-#                new_sg_cut_item["shot"] = sg_cut_item["shot"]
-#                cut_item_clips[i].metadata["sg"] = new_sg_cut_item
-#                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], new_sg_cut_item))
-            for i, sg_cut_item in enumerate(res):
-                # Set the Shot code we don't get back from the batch request
-                sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
-                cut_item_clips[i].metadata["sg"] = sg_cut_item
-                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], sg_cut_item))
+        return sg_project, sg_cut, sg_linked_entity
 
     @staticmethod
     def _retrieve_local_storage(sg, local_storage_name):
@@ -412,111 +596,3 @@ class SGCutTrackWriter(object):
             "sg_uploaded_movie"
         )
         return version, published_file
-
-    def _create_or_update_sg_shots(self, cut_track, sg_project, sg_linked_entity, sg_user=None):
-        """
-        Create or update SG Shots based.
-        """
-        sg_batch_data = []
-        existing_shots = self._sg.find(
-            "Shot",
-            [["project", "is", sg_project], ["code", "in", cut_track.shot_names]],
-            ["code"]
-        )
-        existing_shots_by_name = {shot["code"]: shot for shot in existing_shots}
-        for shot in cut_track.shots:
-            if shot.name not in existing_shots_by_name.keys():
-                logger.warning("Will create Shot %s" % shot.name)
-                shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
-                sg_batch_data.append({
-                    "request_type": "create",
-                    "entity_type": "Shot",
-                    "data": shot_payload
-                })
-            else:
-                # TODO: Logic for omitted/reinstated shots
-                sg_shot = existing_shots_by_name[shot.name]
-                shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
-                sg_batch_data.append({
-                    "request_type": "update",
-                    "entity_type": "Shot",
-                    "entity_id": sg_shot["id"],
-                    "data": shot_payload
-                })
-
-        shots_by_name = {}
-        if sg_batch_data:
-            sg_shots = self._sg.batch(sg_batch_data)
-            for sg_shot in sg_shots:
-                shots_by_name[sg_shot["code"]] = sg_shot
-        return shots_by_name
-
-    def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):
-        """
-        """
-        sg_linked_entity = sg_linked_entity or sg_project
-        # TODO: deal with smart fields and shot_cut_fields_prefix
-        sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"], use_smart_fields=False, shot_cut_fields_prefix=None)
-        shot_payload = {
-            "project": sg_project,
-            "code": shot.name,
-            sfg.head_in: shot.head_in.to_frames(),
-            sfg.cut_in: shot.cut_in.to_frames(),
-            sfg.cut_out: shot.cut_out.to_frames(),
-            sfg.tail_out: shot.tail_out.to_frames(),
-            sfg.cut_duration: shot.duration.to_frames(),
-            sfg.cut_order: shot.index
-        }
-        if sg_user:
-            shot_payload["created_by"] = sg_user
-            shot_payload["updated_by"] = sg_user
-        if sfg.working_duration:
-            shot_payload[sfg.working_duration] = shot.working_duration.to_frames()
-        if sfg.head_out:
-            shot_payload[sfg.head_out] = shot.head_out.to_frames()
-        if sfg.tail_in:
-            shot_payload[sfg.tail_in] = shot.tail_in.to_frames()
-        if sfg.tail_duration:
-            shot_payload[sfg.tail_duration] = shot.tail_duration.to_frames()
-        # TODO: Add setting for flagging retimes and effects?
-        if True:
-            shot_payload[sfg.has_effects] = shot.has_effects
-            shot_payload[sfg.has_retime] = shot.has_retime
-        if sfg.absolute_cut_order:
-            # TODO: maybe create shot fields config before so that
-            #       we can get the field without an extra query?
-            sg_entity = self._sg.find_one(
-                sg_linked_entity["type"],
-                [["id", "is", sg_linked_entity["id"]]],
-                [sfg.absolute_cut_order]
-            )
-            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
-            if entity_cut_order:
-                absolute_cut_order = 1000 * entity_cut_order + shot.index
-                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
-        if sfg.shot_link_field and sg_linked_entity:
-            shot_payload[sfg.shot_link_field] = sg_linked_entity
-        return shot_payload
-
-    def _create_sg_cut_items(self):
-        """
-        Creates SG CutItems for each clip of the input :class:`otio.schema.Timeline` instance.
-
-        :param sg_cut: The SG Cut to create the CutItems for.
-        :returns: A list of SG CutItems.
-        """
-        batch_data = []
-        logger.info("Creating CutItems...")
-        # Get the cut items by name for easy update after creation.
-        cut_items_by_name = dict((val.name, val) for lst in self._cut_items_by_shot.values() for val in lst)
-        for cut_item in cut_items_by_name.values():
-            batch_data.append({
-                "request_type": "create",
-                "entity_type": "CutItem",
-                "data": cut_item.payload
-            })
-        if batch_data:
-            res = self._sg.batch(batch_data)
-            for sg_cut_item in res:
-                cut_item = cut_items_by_name[sg_cut_item["code"]]
-                cut_item.sg_cut_item = sg_cut_item
