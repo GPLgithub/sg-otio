@@ -184,11 +184,11 @@ class TestCutClip(unittest.TestCase):
             * COMMENT: shot_001
 
             002  ABC0200 V     C        01:00:01:00 01:00:01:00 01:00:01:00 01:00:01:00
-            * COMMENT: shot_002
 
             002  ABC0200 V     D    024 01:00:01:00 01:00:02:00 01:00:01:00 01:00:02:00
             * FROM CLIP NAME: shot_001_v001
             * TO CLIP NAME: shot_002_v001
+            * COMMENT: shot_002
 
             003  ABC0300 V     C        00:00:05:00 00:00:15:00 01:00:02:00 01:00:12:00
             * FROM CLIP NAME: shot_003_v001
@@ -207,8 +207,6 @@ class TestCutClip(unittest.TestCase):
         )
         clips = list(timeline.tracks[0].each_clip())
         self.assertEqual(len(clips), 3)
-        # FIXME: the transition is added as a Clip in the CutTrack, with an empty
-        # Shot name.
         for clip in clips:
             self.assertIsNotNone(clip.shot_name)
         clip_1 = clips[0]

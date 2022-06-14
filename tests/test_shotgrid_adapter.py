@@ -138,6 +138,8 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "timecode_cut_item_out_text": "00:01:00:00",
                     "timecode_edit_in_text": "01:%02d:00:00" % i,
                     "timecode_edit_out_text": "01:%02d:00:00" % (i + 1),
+                    "edit_in": i * (self.fps * 60) + 1,
+                    "edit_out": (i + 1) * (self.fps * 60),
                     "shot": shot,
                     "shot.Shot.code": shot["code"],
                     "version": version,
@@ -274,6 +276,171 @@ class ShotgridAdapterTest(unittest.TestCase):
                     self.fps
                 )
             )
+
+    def test_read_raises_error_if_overlap(self):
+        """
+        Test reading a SG Cut with overlapping cut items.
+        """
+        mock_cut_id = 1000
+        mock_cut = {
+            "type": "Cut",
+            "id": mock_cut_id,
+            "code": "Cut_Overlapping_cut_items",
+            "project": self.mock_project,
+            "fps": self.fps,
+            "timecode_start_text": "01:00:00:00",
+            "timecode_end_text": "01:02:00:00",  # 5760 frames at 24 fps.
+            "revision_number": 1,
+            "entity": self.mock_sequence,
+            "sg_status_list": "ip",
+            "image": None,
+            "description": "Mocked Cut",
+        }
+        # When edit in and edit out are provided, the overlap is calculated with the edit in and out,
+        # not the text fields.
+        # SG, for edit_in and edit_out, adds 1 frame to the next edit_in, e.g. first clip 1-24, next
+        # clip 25-48, etc.
+        mock_cut_items = [
+            {
+                "type": "CutItem",
+                "id": 1000,
+                "code": "first",
+                "cut": mock_cut,
+                "timecode_cut_item_in_text": "00:00:00:00",
+                "timecode_cut_item_out_text": "00:01:00:00",
+                "timecode_edit_in_text": "01:00:00:00",
+                "timecode_edit_out_text": "01:01:00:00",
+                "edit_in": 1,
+                "edit_out": 24,
+                "cut_order": 1,
+            },
+            {
+                "type": "CutItem",
+                "id": 1001,
+                "code": "second",
+                "cut": mock_cut,
+                "timecode_cut_item_in_text": "00:00:00:00",
+                "timecode_cut_item_out_text": "00:01:00:00",
+                "timecode_edit_in_text": "01:00:59:00",
+                "timecode_edit_out_text": "01:02:00:00",
+                "edit_in": 24,
+                "edit_out": 48,
+                "cut_order": 2,
+            }
+        ]
+        self._add_to_sg_mock_db(self.mock_sg, mock_cut)
+        self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
+        SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+            self._SG_SITE,
+            self._SESSION_TOKEN,
+            mock_cut_id
+        )
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            with self.assertRaises(ValueError) as cm:
+                otio.adapters.read_from_file(
+                    SG_CUT_URL,
+                    "ShotGrid",
+                )
+            self.assertIn(
+                "Overlapping cut items detected",
+                str(cm.exception)
+            )
+
+        # Now test with the edit in and edit out text fields.
+        self.mock_sg.update("CutItem", 1000, {"edit_out": None})
+        self.mock_sg.update("CutItem", 1001, {"edit_in": None})
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            with self.assertRaises(ValueError) as cm:
+                otio.adapters.read_from_file(
+                    SG_CUT_URL,
+                    "ShotGrid",
+                )
+            self.assertIn(
+                "Overlapping cut items detected",
+                str(cm.exception)
+            )
+        self.mock_sg.delete("Cut", mock_cut_id)
+        self.mock_sg.delete("CutItem", 1000)
+        self.mock_sg.delete("CutItem", 1001)
+
+    def test_read_adds_gap(self):
+        """
+        Test that reading a SG Cut with gaps also adds gaps to the track.
+        """
+        mock_cut_id = 1000
+        mock_cut = {
+            "type": "Cut",
+            "id": mock_cut_id,
+            "code": "Cut_with_gaps",
+            "project": self.mock_project,
+            "fps": self.fps,
+            "timecode_start_text": "01:00:00:00",
+            "timecode_end_text": "01:03:00:00",  # 5760 frames at 24 fps.
+            "revision_number": 1,
+            "entity": self.mock_sequence,
+            "sg_status_list": "ip",
+            "image": None,
+            "description": "Mocked Cut",
+        }
+        mock_cut_items = [
+            {
+                "type": "CutItem",
+                "id": 1000,
+                "code": "first",
+                "cut": mock_cut,
+                "timecode_cut_item_in_text": "00:00:00:00",
+                "timecode_cut_item_out_text": "00:01:00:00",
+                "timecode_edit_in_text": "01:00:00:00",
+                "timecode_edit_out_text": "01:01:00:00",
+                "edit_in": 1,
+                "edit_out": 24,
+                "cut_order": 1,
+            },
+            {
+                "type": "CutItem",
+                "id": 1001,
+                "code": "second",
+                "cut": mock_cut,
+                "timecode_cut_item_in_text": "00:00:00:00",
+                "timecode_cut_item_out_text": "00:01:00:00",
+                "timecode_edit_in_text": "01:02:00:00",
+                "timecode_edit_out_text": "01:03:00:00",
+                "edit_in": 49,
+                "edit_out": 72,
+                "cut_order": 2,
+            }
+        ]
+        self._add_to_sg_mock_db(self.mock_sg, mock_cut)
+        self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
+        SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+            self._SG_SITE,
+            self._SESSION_TOKEN,
+            mock_cut_id
+        )
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            timeline = otio.adapters.read_from_file(
+                    SG_CUT_URL,
+                    "ShotGrid",
+                )
+        tracks = list(timeline.tracks)
+        self.assertEqual(len(tracks), 1)
+        track = tracks[0]
+        clips = list(track.each_clip())
+        self.assertEqual(len(clips), 2)
+        children = list(track.each_child())
+        self.assertEqual(len(children), 3)
+        self.assertTrue(isinstance(children[0], otio.schema.Clip))
+        self.assertTrue(isinstance(children[2], otio.schema.Clip))
+        gap = children[1]
+        self.assertTrue(isinstance(gap, otio.schema.Gap))
+        source_range = otio.opentime.TimeRange(
+            start_time=otio.opentime.RationalTime(0, self.fps),
+            duration=otio.opentime.RationalTime(24, self.fps)
+        )
+        self.assertEqual(gap.source_range, source_range)
+        self.mock_sg.delete("Cut", mock_cut_id)
+        self.mock_sg.delete("CutItem", 1000)
+        self.mock_sg.delete("CutItem", 1001)
 
     def test_read_write_sg_cut(self):
         """
