@@ -100,7 +100,38 @@ def read_from_file(filepath):
 #        _SHOT_FIELDS
 #    )
 #    shots_by_id = {shot["id"]: shot for shot in shots}
-    for cut_item in cut_items:
+    for i, cut_item in enumerate(cut_items):
+        # Check if there's an overlap of clips and flag it.
+        if i > 0:
+            prev_cut_item = cut_items[i - 1]
+            if prev_cut_item["edit_out"]:
+                edit_out = otio.opentime.from_frames(prev_cut_item["edit_out"], cut["fps"])
+            elif prev_cut_item["timecode_edit_out_text"]:
+                edit_out = otio.opentime.from_timecode(prev_cut_item["timecode_edit_out_text"], cut["fps"])
+            else:
+                raise ValueError("No edit_out found for cut_item %s" % prev_cut_item)
+            # edit_in is one frame bigger than edit_out, whereas timecodes are the same. Take that into account.
+            if cut_item["edit_in"]:
+                edit_in = otio.opentime.from_frames(cut_item["edit_in"] - 1, cut["fps"])
+            elif cut_item["timecode_edit_in_text"]:
+                edit_in = otio.opentime.from_timecode(cut_item["timecode_edit_in_text"], cut["fps"])
+            else:
+                raise ValueError("No edit_in found for cut_item %s" % cut_item)
+            if edit_out > edit_in:
+                raise ValueError("Overlapping cut items detected: %s ends at %s but %s starts at %s" % (
+                    prev_cut_item["code"], edit_out.to_timecode(), cut_item["code"], edit_in.to_timecode()
+                ))
+            # Check if there's a gap between the two clips and add a gap if there is.
+            if edit_in > edit_out:
+                logger.debug("Adding gap between cut items %s (ends at %s) and %s (starts at %s)" % (
+                    prev_cut_item["code"], edit_out.to_timecode(), cut_item["code"], edit_in.to_timecode()
+                ))
+                gap = otio.schema.Gap()
+                gap.source_range = otio.opentime.TimeRange(
+                    start_time=otio.opentime.RationalTime(0, cut["fps"]),
+                    duration=edit_in - edit_out
+                )
+                track.append(gap)
         # if cut_item["shot"]:
         #     cut_item["shot"] = shots_by_id[cut_item["shot"]["id"]]
         if cut_item["shot"]:
