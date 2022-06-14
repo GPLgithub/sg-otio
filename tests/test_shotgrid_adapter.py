@@ -419,9 +419,9 @@ class ShotgridAdapterTest(unittest.TestCase):
         )
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             timeline = otio.adapters.read_from_file(
-                    SG_CUT_URL,
-                    "ShotGrid",
-                )
+                SG_CUT_URL,
+                "ShotGrid",
+            )
         tracks = list(timeline.tracks)
         self.assertEqual(len(tracks), 1)
         track = tracks[0]
