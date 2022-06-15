@@ -330,38 +330,40 @@ class ShotgridAdapterTest(unittest.TestCase):
         ]
         self._add_to_sg_mock_db(self.mock_sg, mock_cut)
         self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
-        SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
-            self._SG_SITE,
-            self._SESSION_TOKEN,
-            mock_cut_id
-        )
-        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-            with self.assertRaises(ValueError) as cm:
-                otio.adapters.read_from_file(
-                    SG_CUT_URL,
-                    "ShotGrid",
-                )
-            self.assertIn(
-                "Overlapping cut items detected",
-                str(cm.exception)
+        try:
+            SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+                self._SG_SITE,
+                self._SESSION_TOKEN,
+                mock_cut_id
             )
+            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+                with self.assertRaises(ValueError) as cm:
+                    otio.adapters.read_from_file(
+                        SG_CUT_URL,
+                        "ShotGrid",
+                    )
+                self.assertIn(
+                    "Overlapping cut items detected",
+                    str(cm.exception)
+                )
 
-        # Now test with the edit in and edit out text fields.
-        self.mock_sg.update("CutItem", 1000, {"edit_out": None})
-        self.mock_sg.update("CutItem", 1001, {"edit_in": None})
-        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-            with self.assertRaises(ValueError) as cm:
-                otio.adapters.read_from_file(
-                    SG_CUT_URL,
-                    "ShotGrid",
+            # Now test with the edit in and edit out text fields.
+            self.mock_sg.update("CutItem", 1000, {"edit_out": None})
+            self.mock_sg.update("CutItem", 1001, {"edit_in": None})
+            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+                with self.assertRaises(ValueError) as cm:
+                    otio.adapters.read_from_file(
+                        SG_CUT_URL,
+                        "ShotGrid",
+                    )
+                self.assertIn(
+                    "Overlapping cut items detected",
+                    str(cm.exception)
                 )
-            self.assertIn(
-                "Overlapping cut items detected",
-                str(cm.exception)
-            )
-        self.mock_sg.delete("Cut", mock_cut_id)
-        self.mock_sg.delete("CutItem", 1000)
-        self.mock_sg.delete("CutItem", 1001)
+        finally:
+            self.mock_sg.delete("Cut", mock_cut_id)
+            self.mock_sg.delete("CutItem", 1000)
+            self.mock_sg.delete("CutItem", 1001)
 
     def test_read_adds_gap(self):
         """
@@ -412,35 +414,38 @@ class ShotgridAdapterTest(unittest.TestCase):
         ]
         self._add_to_sg_mock_db(self.mock_sg, mock_cut)
         self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
-        SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
-            self._SG_SITE,
-            self._SESSION_TOKEN,
-            mock_cut_id
-        )
-        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-            timeline = otio.adapters.read_from_file(
-                SG_CUT_URL,
-                "ShotGrid",
+        try:
+            SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+                self._SG_SITE,
+                self._SESSION_TOKEN,
+                mock_cut_id
             )
-        tracks = list(timeline.tracks)
-        self.assertEqual(len(tracks), 1)
-        track = tracks[0]
-        clips = list(track.each_clip())
-        self.assertEqual(len(clips), 2)
-        children = list(track.each_child())
-        self.assertEqual(len(children), 3)
-        self.assertTrue(isinstance(children[0], otio.schema.Clip))
-        self.assertTrue(isinstance(children[2], otio.schema.Clip))
-        gap = children[1]
-        self.assertTrue(isinstance(gap, otio.schema.Gap))
-        source_range = otio.opentime.TimeRange(
-            start_time=otio.opentime.RationalTime(0, self.fps),
-            duration=otio.opentime.RationalTime(24, self.fps)
-        )
-        self.assertEqual(gap.source_range, source_range)
-        self.mock_sg.delete("Cut", mock_cut_id)
-        self.mock_sg.delete("CutItem", 1000)
-        self.mock_sg.delete("CutItem", 1001)
+            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+                timeline = otio.adapters.read_from_file(
+                    SG_CUT_URL,
+                    "ShotGrid",
+                )
+            tracks = list(timeline.tracks)
+            self.assertEqual(len(tracks), 1)
+            track = tracks[0]
+            clips = list(track.each_clip())
+            self.assertEqual(len(clips), 2)
+            children = list(track.each_child())
+            self.assertEqual(len(children), 3)
+            print("HERE", children)
+            self.assertTrue(isinstance(children[0], otio.schema.Clip))
+            self.assertTrue(isinstance(children[2], otio.schema.Clip))
+            gap = children[1]
+            self.assertTrue(isinstance(gap, otio.schema.Gap))
+            source_range = otio.opentime.TimeRange(
+                start_time=otio.opentime.RationalTime(0, self.fps),
+                duration=otio.opentime.RationalTime(24, self.fps)
+            )
+            self.assertEqual(gap.source_range, source_range)
+        finally:
+            self.mock_sg.delete("Cut", mock_cut_id)
+            self.mock_sg.delete("CutItem", 1000)
+            self.mock_sg.delete("CutItem", 1001)
 
     def test_read_write_sg_cut(self):
         """
