@@ -197,6 +197,7 @@ class SGCutTrackWriter(object):
         accordingly.
 
         Add metadata to the OTIO Clips in the Track about the SG Cut Items.
+
         :param video_track: An OTIO Video Track.
         :param cut_track: An instance of :class:`CutTrack`.
         :param sg_project: The SG Project to write the Cut to.
