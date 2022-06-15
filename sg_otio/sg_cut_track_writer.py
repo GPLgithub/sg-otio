@@ -72,7 +72,7 @@ class SGCutTrackWriter(object):
 
         :param str entity_type: A SG Entity type.
         :param int entity_id: A SG Entity ID.
-        :param video_track: An OTIO Video Track.
+        :param video_track: An OTIO Video Track or a CutTrack.
         :param sg_user: An optional SG User which will be registered when creating/updating Entities.
         :param description: An optional description for the Cut.
         """
@@ -110,7 +110,7 @@ class SGCutTrackWriter(object):
         Gather information about a SG Cut given a video track, and create or update
         the corresponding Cut in SG.
 
-        If a new Cut is created, add metadata to the OTIO video Track about the SG Cut.
+        Add metadata to the OTIO video Track about the SG Cut.
 
         :param video_track: An OTIO Video Track.
         :param cut_track: An instance of :class:`CutTrack`.
@@ -125,11 +125,12 @@ class SGCutTrackWriter(object):
         if sg_cut:
             # Update existing Cut
             logger.info("Cut update payload %s" % sg_cut_data)
-            self._sg.update(
+            sg_cut = self._sg.update(
                 sg_cut["type"],
                 sg_cut["id"],
                 sg_cut_data,
             )
+            video_track.metadata["sg"] = sg_cut
         else:
             revision_number = 1
             previous_cut = self._sg.find_one(
