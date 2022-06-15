@@ -129,7 +129,7 @@ class SGCutTrackWriter(object):
                 sg_cut["type"],
                 sg_cut["id"],
                 sg_cut_data,
-            )
+            )[0]
             video_track.metadata["sg"] = sg_cut
         else:
             revision_number = 1
