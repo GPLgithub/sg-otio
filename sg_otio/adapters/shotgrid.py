@@ -110,8 +110,8 @@ def read_from_file(filepath):
                 prev_edit_out = otio.opentime.from_timecode(prev_cut_item["timecode_edit_out_text"], cut["fps"])
             else:
                 raise ValueError("No edit_out found for cut_item %s" % prev_cut_item)
-            # we start frame numbering at one
-            # since timecode out is exclusive we adjust it to not do 1 + value -1
+            # We start frame numbering at one
+            # since timecode out is exclusive we just use it to not do 1 + value -1
             if cut_item["edit_in"]:
                 edit_in = otio.opentime.from_frames(cut_item["edit_in"] - 1, cut["fps"])
             elif cut_item["timecode_edit_in_text"]:
