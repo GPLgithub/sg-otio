@@ -321,6 +321,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                 "cut": mock_cut,
                 "timecode_cut_item_in_text": "00:00:00:00",
                 "timecode_cut_item_out_text": "00:01:00:00",
+                # One frame overlap with previous
                 "timecode_edit_in_text": "01:00:59:00",
                 "timecode_edit_out_text": "01:02:00:00",
                 "edit_in": 24,
@@ -328,9 +329,9 @@ class ShotgridAdapterTest(unittest.TestCase):
                 "cut_order": 2,
             }
         ]
-        self._add_to_sg_mock_db(self.mock_sg, mock_cut)
-        self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
         try:
+            self._add_to_sg_mock_db(self.mock_sg, mock_cut)
+            self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
             SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
                 self._SG_SITE,
                 self._SESSION_TOKEN,
@@ -412,9 +413,9 @@ class ShotgridAdapterTest(unittest.TestCase):
                 "cut_order": 2,
             }
         ]
-        self._add_to_sg_mock_db(self.mock_sg, mock_cut)
-        self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
         try:
+            self._add_to_sg_mock_db(self.mock_sg, mock_cut)
+            self._add_to_sg_mock_db(self.mock_sg, mock_cut_items)
             SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
                 self._SG_SITE,
                 self._SESSION_TOKEN,
