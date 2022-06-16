@@ -49,6 +49,8 @@ _CUT_ITEM_FIELDS = [
     "cut_order",
     "cut_item_in",
     "cut_item_out",
+    "edit_in",
+    "edit_out",
     "shot",
     "shot.Shot.code",
     # "cut_duration",  # Does not seem to exist?
