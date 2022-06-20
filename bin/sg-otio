@@ -10,25 +10,26 @@ from sg_otio.sg_settings import SGSettings
 
 def run():
     """
-    Parse command line arguments and read/write cuts from/to SG from/to OTIO.
+    Parse command line arguments and read Cuts from SG to a file, or write files to SG as Cuts.
     """
-    parser = argparse.ArgumentParser(description="Read Cuts from SG to OTIO format, or write OTIO files to SG as Cuts.")
+    parser = argparse.ArgumentParser(description="Read Cuts from SG to a file, or write files to SG as Cuts.")
     subparser = parser.add_subparsers(dest="command")
     # Read sub parser
     read_parser = subparser.add_parser(
         "read",
-        help="Read a Cut from SG and write it to a OTIO Timeline."
+        help="Read a Cut from SG and write it to a file, or to the std output in OTIO format."
     )
     # Write sub parser
     write_parser = subparser.add_parser(
         "write",
-        help="Write a OTIO Timeline to SG as a Cut."
+        help="Write a Timeline or a video track to SG as a Cut."
     )
     # Common arguments for read and write.
     # We need to add them to the subparsers and not the main parser so that
     # the first positional argument is "read" or "write".
     add_common_args(read_parser)
     add_common_args(write_parser)
+
     # Read parameters
     read_parser.add_argument(
         "--cut-id", "-i",
@@ -38,19 +39,14 @@ def run():
     read_parser.add_argument(
         "--file", "-f",
         required=False,
-        help="An optional output file to write the OTIO Timeline to. If not provided, the output is printed to stdout."
+        help="An optional output file to write the Cut to."
+             "If not provided, the output is printed to stdout in OTIO format."
     )
     # Write parameters
     write_parser.add_argument(
         "--file", "-f",
         required=True,
         help="The OTIO file to read the Timeline from."
-    )
-    write_parser.add_argument(
-        "--adapter", "-a",
-        required=False,
-        help="The adapter to use to read the OTIO file. If not provided, the default adapter"
-             "given the extension is used."
     )
     write_parser.add_argument(
         "--entity-type", "-e",
@@ -72,7 +68,7 @@ def run():
 
     args = parser.parse_args()
 
-    # Check that we can login to SG
+    # Check that we can log in to SG
     if not (args.login and args.password):
         if not (args.script and args.api_key):
             if not args.session_token:
@@ -88,10 +84,12 @@ def run():
 
 def read_from_sg(args):
     """
-    Reads information from a Cut in ShotGrid and returns a
-    :class:`otio.schema.Timeline` instance.
+    Reads information from a Cut in ShotGrid and print it
+    to stdout, or write it to a file.
 
-    It can either print it to stdout or write it to a file.
+    If printed to stdout, the output is in OTIO format.
+    If written to a file, the output depends on the extension of the file
+    or the adapter chosen.
 
     The retrieved SG entities are stored in the items metadata.
 
@@ -105,12 +103,15 @@ def read_from_sg(args):
     if not args.file:
         print(otio.adapters.write_to_string(timeline))
     else:
-        otio.adapters.write_to_file(timeline, args.file)
+        otio.adapters.write_to_file(timeline, args.file, adapter_name=args.adapter)
 
 
 def write_to_sg(args):
     """
-    Write an OTIO file to SG as a Cut.
+    Write an input file to SG as a Cut.
+
+    The input file can be any format supported by OTIO.
+    If no adapter is provided, the default adapter for the file extension is used.
 
     :param args: The command line arguments.
     """
@@ -122,6 +123,7 @@ def write_to_sg(args):
         SGSettings.from_file(args.settings)
     otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid")
     print("File %s successfully written to %s" % (args.file, url))
+
 
 def add_common_args(parser):
     """
@@ -163,6 +165,12 @@ def add_common_args(parser):
         "--session-token", "-t",
         required=False,
         help="The SG session token to use to login."
+    )
+    parser.add_argument(
+        "--adapter", "-a",
+        required=False,
+        help="The adapter to use to read or write the file. If not provided, the default adapter"
+             "given the extension is used."
     )
 
 
