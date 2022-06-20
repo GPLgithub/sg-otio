@@ -173,10 +173,11 @@ class CutTrack(otio.schema.Track):
 
         ..note:: some clips might not have information to be able to link them to a shot,
         in which case the :class:`ClipGroup` does exist, but its name is ``None``.
+        Do not return it here
 
         :returns: A list of :class:`ClipGroup` instances.
         """
-        return list(self._shots_by_name.values())
+        return [v for k, v in self._shots_by_name.items() if k is not None]
 
     @property
     def shot_names(self):
@@ -184,11 +185,11 @@ class CutTrack(otio.schema.Track):
         Returns the names of the shots of the track.
 
         There can be a shot named ``None`` if some clips don't have information
-        to be able to link them to a shot.
+        to be able to link them to a shot. Do not return it here.
 
         :returns: A list of shot names.
         """
-        return list(self._shots_by_name.keys())
+        return [k for k in self._shots_by_name.keys() if k is not None]
 
     @property
     def shots_by_name(self):

@@ -169,11 +169,9 @@ class CutClip(otio.schema.Clip):
         """
         Return the name of the shot.
 
-        :returns: A str.
+        :returns: A str or ``None``.
         """
-        # A None Shot name can be problematic when using this
-        # to search for a Shot in SG.
-        return self._shot_name or ""
+        return self._shot_name
 
     @shot_name.setter
     def shot_name(self, value):
@@ -241,7 +239,6 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-        print("HERE", self.name, self._head_in, self._head_in_duration)
         cut_in = self._head_in + self._head_in_duration
         return cut_in
 
