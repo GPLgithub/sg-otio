@@ -357,9 +357,6 @@ class SGCutTrackWriter(object):
         )
         existing_shots_by_name = {shot["code"]: shot for shot in existing_shots}
         for shot in cut_track.shots:
-            # No shot name for these items.
-            if not shot.name:
-                continue
             if shot.name not in existing_shots_by_name.keys():
                 logger.warning("Will create Shot %s" % shot.name)
                 shot_payload = self._get_shot_payload(shot, sg_project, sg_linked_entity, sg_user)
