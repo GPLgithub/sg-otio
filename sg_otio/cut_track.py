@@ -171,10 +171,6 @@ class CutTrack(otio.schema.Track):
         """
         Returns the :class:`ClipGroup` instances of the track.
 
-        ..note:: some clips might not have information to be able to link them to a shot,
-        in which case the :class:`ClipGroup` does exist, but its name is ``None``.
-        Do not return it here
-
         :returns: A list of :class:`ClipGroup` instances.
         """
         return [v for k, v in self._shots_by_name.items() if k is not None]
@@ -183,9 +179,6 @@ class CutTrack(otio.schema.Track):
     def shot_names(self):
         """
         Returns the names of the shots of the track.
-
-        There can be a shot named ``None`` if some clips don't have information
-        to be able to link them to a shot. Do not return it here.
 
         :returns: A list of shot names.
         """

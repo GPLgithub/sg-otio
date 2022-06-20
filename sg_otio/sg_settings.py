@@ -51,6 +51,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         with open(json_file, "r") as f:
             json_data = json.loads(f.read())
         settings = SGSettings()
+        settings.reset_to_defaults()
         for key, value in json_data.items():
             if hasattr(settings, key):
                 setattr(settings, key, value)

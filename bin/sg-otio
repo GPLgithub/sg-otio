@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import logging
 
 import opentimelineio as otio
 from shotgun_api3 import Shotgun
@@ -7,6 +8,8 @@ from six.moves.urllib import parse
 
 from sg_otio.sg_settings import SGSettings
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("sg-otio")
 
 def run():
     """
@@ -101,7 +104,7 @@ def read_from_sg(args):
         adapter_name="ShotGrid",
     )
     if not args.file:
-        print(otio.adapters.write_to_string(timeline))
+        logger.info(otio.adapters.write_to_string(timeline))
     else:
         otio.adapters.write_to_file(timeline, args.file, adapter_name=args.adapter)
 
@@ -122,7 +125,7 @@ def write_to_sg(args):
     if args.settings:
         SGSettings.from_file(args.settings)
     otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid")
-    print("File %s successfully written to %s" % (args.file, url))
+    logger.info("File %s successfully written to %s" % (args.file, url))
 
 
 def add_common_args(parser):
@@ -133,7 +136,7 @@ def add_common_args(parser):
     """
     # Common arguments to read and write
     parser.add_argument(
-        "--url", "-u",
+        "--sg-site-url", "-u",
         required=True,
         help="The SG URL to read the Cut from."
     )
@@ -182,7 +185,7 @@ def _get_write_url(args):
     """
     session_token = _get_session_token(args)
     # Construct the URL with urlparse
-    parsed_url = parse.urlparse(args.url)
+    parsed_url = parse.urlparse(args.sg_site_url)
     query = "session_token=%s&id=%s" % (
         session_token,
         args.entity_id,
@@ -204,7 +207,7 @@ def _get_read_url(args):
     """
     session_token = _get_session_token(args)
     # Construct the URL with urlparse
-    parsed_url = parse.urlparse(args.url)
+    parsed_url = parse.urlparse(args.sg_site_url)
     query = "session_token=%s&id=%s" % (
         session_token,
         args.cut_id
@@ -227,9 +230,9 @@ def _get_session_token(args):
     if args.session_token:
         return args.session_token
     if args.login and args.password:
-        sg = Shotgun(args.url, login=args.login, password=args.password)
+        sg = Shotgun(args.sg_site_url, login=args.login, password=args.password)
     elif args.script_name and args.api_key:
-        sg = Shotgun(args.url, script_name=args.script_name, api_key=args.api_key)
+        sg = Shotgun(args.sg_site_url, script_name=args.script_name, api_key=args.api_key)
     return sg.get_session_token()
 
 
