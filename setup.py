@@ -20,6 +20,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/GPLgithub/sg-otio.git",
     packages=setuptools.find_packages(),
+    scripts=["bin/sg-otio"],
     entry_points={
         "opentimelineio.plugins": "sg_otio = sg_otio"
     },

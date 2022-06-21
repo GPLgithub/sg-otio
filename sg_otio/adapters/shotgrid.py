@@ -68,6 +68,10 @@ def read_from_file(filepath):
     )
     if not cut:
         raise ValueError("No Cut found with ID {}".format(cut_id))
+    if cut["created_at"]:
+        cut["created_at"] = str(cut["created_at"])
+    if cut["updated_at"]:
+        cut["updated_at"] = str(cut["updated_at"])
     # TODO: check if we should just return a track or a timeline?
     timeline = otio.schema.Timeline(name=cut["code"])
     track = otio.schema.Track(name=cut["code"])
@@ -145,9 +149,9 @@ def read_from_file(filepath):
             clip.name = cut_item["version"]["name"]
         else:
             clip.name = cut_item["code"]
-        clip.source_range = otio.opentime.TimeRange(
-            start_time=otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], cut["fps"]),
-            duration=otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], cut["fps"])
+        clip.source_range = otio.opentime.range_from_start_end_time(
+            otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], cut["fps"]),
+            otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], cut["fps"])
         )
         # TODO: Add media reference for Version. This would require some logic to get them either
         #       from the uploaded media, but the AWS links expire after a while, or from the

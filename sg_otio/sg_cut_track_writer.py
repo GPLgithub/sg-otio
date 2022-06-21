@@ -129,7 +129,7 @@ class SGCutTrackWriter(object):
                 sg_cut["type"],
                 sg_cut["id"],
                 sg_cut_data,
-            )[0]
+            )
             video_track.metadata["sg"] = sg_cut
         else:
             revision_number = 1
@@ -155,7 +155,7 @@ class SGCutTrackWriter(object):
                 sg_cut_data,
             )
             # Update the original track with the result
-            logger.info("Updating %s SG metadata with %s" % (video_track, sg_cut))
+            logger.info("Updating %s SG metadata with %s" % (video_track.name, sg_cut))
             video_track.metadata["sg"] = sg_cut
         return sg_cut
 
@@ -271,10 +271,11 @@ class SGCutTrackWriter(object):
             res = self._sg.batch(batch_data)
             for i, sg_cut_item in enumerate(res):
                 # Set the Shot code we don't get back from the batch request
-                sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
+                if sg_cut_item.get("shot"):
+                    sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
                 cut_item_clips[i].metadata["sg"] = sg_cut_item
                 sg_cut_items.append(sg_cut_item)
-                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i], sg_cut_item))
+                logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i].name, sg_cut_item))
         return sg_cut_items
 
     def get_sg_cut_item_payload(self, cut_clip, sg_shot=None, sg_user=None):

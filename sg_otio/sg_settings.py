@@ -4,7 +4,7 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
-
+import json
 import logging
 
 from .constants import _DEFAULT_HEAD_IN, _DEFAULT_HEAD_IN_DURATION, _DEFAULT_TAIL_OUT_DURATION
@@ -40,6 +40,25 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         Instantiate a new :class:`SGSettings`.
         """
         self.reset_to_defaults()
+
+    @classmethod
+    def from_file(cls, json_file):
+        """
+        Load settings from a JSON file.
+
+        :returns: The :class:`SGSettings` singleton instance.
+        """
+        with open(json_file, "r") as f:
+            json_data = json.loads(f.read())
+        settings = SGSettings()
+        settings.reset_to_defaults()
+        for key, value in json_data.items():
+            if hasattr(settings, key):
+                setattr(settings, key, value)
+            else:
+                raise ValueError("Unknown setting %s with value %s" % (key, value))
+        # We return the settings, but since it's a singleton, it's not really needed.
+        return settings
 
     @property
     def default_head_in(self):
