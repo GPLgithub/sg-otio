@@ -15,7 +15,7 @@ from .constants import _EFFECTS_FIELD, _RETIME_FIELD
 from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .cut_clip import CutClip
 from .cut_track import CutTrack
-from .sg_settings import SGShotFieldsConfig
+from .sg_settings import SGShotFieldsConfig, SGSettings
 
 try:
     # For Python 3.4 or later
@@ -48,6 +48,8 @@ class SGCutTrackWriter(object):
         """
         logger.setLevel(log_level)
         self._sg = sg
+        self._settings = SGSettings()
+        self._local_storage = None
 
     @property
     def cut_item_schema(self):
@@ -104,6 +106,8 @@ class SGCutTrackWriter(object):
             sg_user
         )
         self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user)
+        if cut_track.metadata["media"]:
+            self._create_input_media_version(cut_track, sg_project, sg_linked_entity, sg_user)
 
     def _write_cut(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_user=None, description=""):
         """
@@ -490,49 +494,55 @@ class SGCutTrackWriter(object):
             raise ValueError("Unable to retrieve a Project from %s %s")
         return sg_project, sg_cut, sg_linked_entity
 
-    @staticmethod
-    def _retrieve_local_storage(sg, local_storage_name):
+    def _retrieve_local_storage(self):
         """
         Retrieve a Local Storage path given its name.
 
-        :param sg: A ShotGrid API session instance.
-        :param str local_storage_name: The name of the Local Storage.
         :raises ValueError: If LocalStorages can't be retrieved.
         :raises RuntimeError: If the platform is not supported.
         :returns: A SG Local Storage entity.
         """
-        platform = sys.platform
-        if platform == "win32":
-            path_field = "windows_path"
-        elif platform == "darwin":
-            path_field = "mac_path"
-        elif platform.startswith("linux"):
-            path_field = "linux_path"
-        else:
-            raise RuntimeError("Platform %s is not supported" % platform)
+        if not self._local_storage:
+            platform = sys.platform
+            if platform == "win32":
+                path_field = "windows_path"
+            elif platform == "darwin":
+                path_field = "mac_path"
+            elif platform.startswith("linux"):
+                path_field = "linux_path"
+            else:
+                raise RuntimeError("Platform %s is not supported" % platform)
 
-        local_storage = sg.find_one(
-            "LocalStorage",
-            [["code", "is", local_storage_name]],
-            [path_field]
-        )
-        if not local_storage:
-            raise ValueError(
-                "Unable to retrieve a Local Storage with the name %s" % local_storage_name
+            local_storage = self._sg.find_one(
+                "LocalStorage",
+                [["code", "is", self._settings.local_storage_name]],
+                [path_field]
             )
-        # Update the dictionary so that there is a "path" key no matter what the platform is.
-        local_storage["path"] = local_storage[path_field]
-        return local_storage
+            if not local_storage:
+                raise ValueError(
+                    "Unable to retrieve a Local Storage with the name %s" % self._settings.local_storage_name
+                )
+            # Update the dictionary so that there is a "path" key no matter what the platform is.
+            local_storage["path"] = local_storage[path_field]
+            self._local_storage = local_storage
+        return self._local_storage
 
-    def _create_input_media_version(self):
+    def _create_input_media_version(self, cut_track, sg_project, sg_linked_entity, sg_user=None):
         """
         Creates a Version and a Published File for an input media
         representing the whole Timeline.
 
+        :param cut_track: An instance of :class:`CutTrack`.
+        :param sg_project: A SG Project.
+        :param sg_linked_entity: A SG Entity or ``None``.
+        :param sg_user: A SG User or ``None``.
         :returns: A tuple of (SG Version, SG PublishedFile).
         """
+        linked_entity = sg_linked_entity or sg_project
+        input_media = cut_track.metadata["media"]
+        local_storage = self._retrieve_local_storage()
         # Create the Version
-        version_name, file_extension = os.path.splitext(os.path.basename(self._input_media))
+        version_name, file_extension = os.path.splitext(os.path.basename(input_media))
         # Get the extension without '.' to use as a published_file_type
         file_extension = file_extension[1:]
         published_file_type = self._sg.find_one(
@@ -546,22 +556,22 @@ class SGCutTrackWriter(object):
                 {"code": file_extension}
             )
         version_payload = {
-            "project": self._project,
+            "project": sg_project,
             "code": version_name,
-            "entity": self._linked_entity,
-            "description": "Base media layer imported with Cut: %s" % self._track.name,
+            "entity": linked_entity,
+            "description": "Base media layer imported with Cut: %s" % cut_track.name,
             "sg_first_frame": 1,
             "sg_movie_has_slate": False,
-            "sg_path_to_movie": self._input_media,
+            "sg_path_to_movie": input_media,
         }
-        if self._user:
-            version_payload["created_by"] = self._user
-            version_payload["updated_by"] = self._user
+        if sg_user:
+            version_payload["created_by"] = sg_user
+            version_payload["updated_by"] = sg_user
         version = self._sg.create("Version", version_payload)
         # Create the Published File
         # Check if we can publish it with a local file path instead of a URL
-        if self._local_storage and self._input_media.startswith(self._local_storage["path"]):
-            relative_path = self._input_media[len(self._local_storage["path"]):]
+        if local_storage and input_media.startswith(local_storage["path"]):
+            relative_path = input_media[len(local_storage["path"]):]
             # Get rid of double slashes and replace backslashes by forward slashes.
             # SG doesn't seem to accept backslashes when creating
             # PublishedFiles with relative paths to local storage
@@ -569,33 +579,33 @@ class SGCutTrackWriter(object):
             relative_path = relative_path.replace("\\", "/")
             publish_path = {
                 "relative_path": relative_path,
-                "local_storage": self._local_storage
+                "local_storage": local_storage
             }
         else:
             publish_path = {
-                "url": pathlib.Path(os.path.abspath(self._input_media)).as_uri(),
+                "url": pathlib.Path(os.path.abspath(input_media)).as_uri(),
                 "name": version_name,
             }
         published_file_payload = {
             "code": version_name,
-            "project": self._project,
-            "entity": self._linked_entity,
+            "project": sg_project,
+            "entity": linked_entity,
             "path": publish_path,
             "published_file_type": published_file_type,
             "version_number": 1,
             "version": version
         }
-        if self._user:
-            published_file_payload["created_by"] = self._user
-            published_file_payload["updated_by"] = self._user
+        if sg_user:
+            published_file_payload["created_by"] = sg_user
+            published_file_payload["updated_by"] = sg_user
         published_file = self._sg.create("PublishedFile", published_file_payload)
 
         # Upload media to the version.
-        logger.info("Uploading movie...")
+        logger.info("Uploading movie %s..." % os.path.basename(input_media))
         self._sg.upload(
             "Version",
             version["id"],
-            self._input_media,
+            input_media,
             "sg_uploaded_movie"
         )
         return version, published_file
