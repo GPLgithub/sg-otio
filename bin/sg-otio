@@ -1,12 +1,19 @@
 #!/usr/bin/env python
+# Copyright 2022 GPL Solutions, LLC.  All rights reserved.
+#
+# Use of this software is subject to the terms of the GPL Solutions license
+# agreement provided at the time of installation or download, or which otherwise
+# accompanies this software in either electronic or hard copy form.
+#
+
 import argparse
 import logging
 
 import opentimelineio as otio
 from shotgun_api3 import Shotgun
-from six.moves.urllib import parse
 
 from sg_otio.sg_settings import SGSettings
+from sg_otio.utils import get_write_url, get_read_url
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
@@ -42,14 +49,14 @@ def run():
     read_parser.add_argument(
         "--file", "-f",
         required=False,
-        help="An optional output file to write the Cut to."
+        help="An optional file to write the Cut to when reading it."
              "If not provided, the output is printed to stdout in OTIO format."
     )
     # Write parameters
     write_parser.add_argument(
         "--file", "-f",
         required=True,
-        help="The OTIO file to read the Timeline from."
+        help="The file to read the Timeline from (can be OTIO, EDL, etc)."
     )
     write_parser.add_argument(
         "--entity-type", "-e",
@@ -98,7 +105,11 @@ def read_from_sg(args):
 
     :param args: The command line arguments.
     """
-    url = _get_read_url(args)
+    url = get_read_url(
+        sg_site_url=args.sg_site_url,
+        cut_id=args.cut_id,
+        session_token=_get_session_token(args)
+    )
     timeline = otio.adapters.read_from_file(
         url,
         adapter_name="ShotGrid",
@@ -118,7 +129,12 @@ def write_to_sg(args):
 
     :param args: The command line arguments.
     """
-    url = _get_write_url(args)
+    url = get_write_url(
+        sg_site_url=args.sg_site_url,
+        entity_type=args.entity_type,
+        entity_id=args.entity_id,
+        session_token=_get_session_token(args)
+    )
     timeline = otio.adapters.read_from_file(
         args.file, adapter_name=args.adapter
     )
@@ -175,50 +191,6 @@ def add_common_args(parser):
         help="The adapter to use to read or write the file. If not provided, the default adapter"
              "given the extension is used."
     )
-
-
-def _get_write_url(args):
-    """
-    Get the URL to write a Cut to SG from the arguments.
-
-    :param args: The command line arguments.
-    """
-    session_token = _get_session_token(args)
-    # Construct the URL with urlparse
-    parsed_url = parse.urlparse(args.sg_site_url)
-    query = "session_token=%s&id=%s" % (
-        session_token,
-        args.entity_id,
-    )
-    # If no scheme was provided, netloc is empty and the whole url is in the path.
-    # So we just append Cut to it.
-    path = "%s/%s" % (parsed_url.path, args.entity_type)
-    # Make sure to add https:// if the url was provided without it.
-    return parsed_url._replace(
-        scheme="https", query=query, path=path
-    ).geturl()
-
-
-def _get_read_url(args):
-    """
-    Get the URL to read a Cut from SG from the arguments.
-
-    :param args: The command line arguments.
-    """
-    session_token = _get_session_token(args)
-    # Construct the URL with urlparse
-    parsed_url = parse.urlparse(args.sg_site_url)
-    query = "session_token=%s&id=%s" % (
-        session_token,
-        args.cut_id
-    )
-    # If no scheme was provided, netloc is empty and the whole url is in the path.
-    # So we just append Cut to it.
-    path = "%s/Cut" % parsed_url.path
-    # Make sure to add https:// if the url was provided without it.
-    return parsed_url._replace(
-        scheme="https", query=query, path=path
-    ).geturl()
 
 
 def _get_session_token(args):
