@@ -62,7 +62,7 @@ class SGCutTrackWriter(object):
             self._cut_item_schema[self._sg.base_url] = self._sg.schema_field_read("CutItem")
         return self._cut_item_schema[self._sg.base_url]
 
-    def write_to(self, entity_type, entity_id, video_track, sg_user=None, description=""):
+    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description=""):
         """
         Gather information about a Cut, its Cut Items and their linked Shots and create
         or update Entities accordingly in SG.
@@ -75,6 +75,7 @@ class SGCutTrackWriter(object):
         :param str entity_type: A SG Entity type.
         :param int entity_id: A SG Entity ID.
         :param video_track: An OTIO Video Track or a CutTrack.
+        :param str input_media: An optional input media. If provided, a Version will be created for the Cut.
         :param sg_user: An optional SG User which will be registered when creating/updating Entities.
         :param description: An optional description for the Cut.
         """
@@ -106,8 +107,8 @@ class SGCutTrackWriter(object):
             sg_user
         )
         self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user)
-        if cut_track.metadata["media"]:
-            self._create_input_media_version(cut_track, sg_project, sg_linked_entity, sg_user)
+        if input_media:
+            self._create_input_media_version(input_media, cut_track.name, sg_project, sg_linked_entity, sg_user)
 
     def _write_cut(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_user=None, description=""):
         """
@@ -527,19 +528,19 @@ class SGCutTrackWriter(object):
             self._local_storage = local_storage
         return self._local_storage
 
-    def _create_input_media_version(self, cut_track, sg_project, sg_linked_entity, sg_user=None):
+    def _create_input_media_version(self, input_media, track_name, sg_project, sg_linked_entity, sg_user=None):
         """
         Creates a Version and a Published File for an input media
         representing the whole Timeline.
 
-        :param cut_track: An instance of :class:`CutTrack`.
+        :param input_media: The path to the input media.
+        :param str track_name: The track name.
         :param sg_project: A SG Project.
         :param sg_linked_entity: A SG Entity or ``None``.
         :param sg_user: A SG User or ``None``.
         :returns: A tuple of (SG Version, SG PublishedFile).
         """
         linked_entity = sg_linked_entity or sg_project
-        input_media = cut_track.metadata["media"]
         local_storage = self._retrieve_local_storage()
         # Create the Version
         version_name, file_extension = os.path.splitext(os.path.basename(input_media))
@@ -559,7 +560,7 @@ class SGCutTrackWriter(object):
             "project": sg_project,
             "code": version_name,
             "entity": linked_entity,
-            "description": "Base media layer imported with Cut: %s" % cut_track.name,
+            "description": "Base media layer imported with Cut: %s" % track_name,
             "sg_first_frame": 1,
             "sg_movie_has_slate": False,
             "sg_path_to_movie": input_media,

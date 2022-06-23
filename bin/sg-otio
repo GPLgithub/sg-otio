@@ -152,11 +152,7 @@ def write_to_sg(args):
     if args.movie:
         if not os.path.isfile(args.movie):
             raise ValueError("%s does not exist" % args.movie)
-        video_tracks = timeline.video_tracks()
-        if not video_tracks:
-            raise ValueError("%s has no video tracks" % args.file)
-        video_tracks[0].metadata["media"] = args.movie
-    otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid")
+    otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid", input_media=args.movie)
     logger.info("File %s successfully written to %s" % (args.file, url))
 
 
