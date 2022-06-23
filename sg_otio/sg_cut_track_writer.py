@@ -48,8 +48,8 @@ class SGCutTrackWriter(object):
         """
         logger.setLevel(log_level)
         self._sg = sg
-        self._settings = SGSettings()
-        self._local_storage = None
+        # Local storages by name.
+        self._local_storages = {}
 
     @property
     def cut_item_schema(self):
@@ -503,7 +503,8 @@ class SGCutTrackWriter(object):
         :raises RuntimeError: If the platform is not supported.
         :returns: A SG Local Storage entity.
         """
-        if not self._local_storage:
+        local_storage_name = SGSettings().local_storage_name
+        if not self._local_storages.get(local_storage_name):
             platform = sys.platform
             if platform == "win32":
                 path_field = "windows_path"
@@ -516,17 +517,17 @@ class SGCutTrackWriter(object):
 
             local_storage = self._sg.find_one(
                 "LocalStorage",
-                [["code", "is", self._settings.local_storage_name]],
+                [["code", "is", local_storage_name]],
                 [path_field]
             )
             if not local_storage:
                 raise ValueError(
-                    "Unable to retrieve a Local Storage with the name %s" % self._settings.local_storage_name
+                    "Unable to retrieve a Local Storage with the name %s" % local_storage_name
                 )
             # Update the dictionary so that there is a "path" key no matter what the platform is.
             local_storage["path"] = local_storage[path_field]
-            self._local_storage = local_storage
-        return self._local_storage
+            self._local_storages[local_storage_name] = local_storage
+        return self._local_storages[local_storage_name]
 
     def _create_input_media_version(self, input_media, track_name, sg_project, sg_linked_entity, sg_user=None):
         """
