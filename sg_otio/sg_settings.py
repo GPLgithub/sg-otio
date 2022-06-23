@@ -164,7 +164,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
     @local_storage_name.setter
     def local_storage_name(self, value):
         """
-        Set the local storage to use when publishing Versions.
+        Set the name of the local storage to use when publishing files.
 
         :param str value: The name of the local storage to use.
         """
