@@ -155,7 +155,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
     @property
     def local_storage_name(self):
         """
-        Return the local storage to use when publishing Versions.
+        Return the name of the local storage to use when publishing files.
 
         :returns: A string.
         """
