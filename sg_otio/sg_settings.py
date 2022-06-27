@@ -152,6 +152,24 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._clip_name_shot_regexp = value
 
+    @property
+    def local_storage_name(self):
+        """
+        Return the name of the local storage to use when publishing files.
+
+        :returns: A string.
+        """
+        return self._local_storage_name
+
+    @local_storage_name.setter
+    def local_storage_name(self, value):
+        """
+        Set the name of the local storage to use when publishing files.
+
+        :param str value: The name of the local storage to use.
+        """
+        self._local_storage_name = value
+
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -161,6 +179,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._default_tail_out_duration = _DEFAULT_TAIL_OUT_DURATION
         self._use_clip_names_for_shot_names = False
         self._clip_name_shot_regexp = None
+        self._local_storage_name = "primary"
 
 
 class SGShotFieldsConfig(object):

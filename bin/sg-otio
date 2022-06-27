@@ -8,6 +8,7 @@
 
 import argparse
 import logging
+import os
 
 import opentimelineio as otio
 from shotgun_api3 import Shotgun
@@ -17,6 +18,7 @@ from sg_otio.utils import get_write_url, get_read_url
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
+
 
 def run():
     """
@@ -74,6 +76,12 @@ def run():
         "--settings", "-s",
         required=False,
         help="The settings JSON file to use when writing the Cut. If not provided, the default settings are used."
+    )
+    write_parser.add_argument(
+        "--movie", "-m",
+        required=False,
+        help="An optional movie of the timeline so that it can be published as a Version and used to create Versions" \
+             "for each clip"
     )
 
     args = parser.parse_args()
@@ -140,7 +148,11 @@ def write_to_sg(args):
     )
     if args.settings:
         SGSettings.from_file(args.settings)
-    otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid")
+    # Add the movie as metadata
+    if args.movie:
+        if not os.path.isfile(args.movie):
+            raise ValueError("%s does not exist" % args.movie)
+    otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid", input_media=args.movie)
     logger.info("File %s successfully written to %s" % (args.file, url))
 
 
