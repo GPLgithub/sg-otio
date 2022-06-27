@@ -255,6 +255,54 @@ class CutClip(otio.schema.Clip):
         return self.cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
 
     @property
+    def media_cut_in(self):
+        """
+        Return the cut in time of the media reference.
+
+        If the clip has no media reference, return ``None``.
+
+        If it has one, but it has no available range, then the cut_in is the same as the clip's.
+
+        If it has an available range, take it into account comparing it to the visible range
+        of the clip.
+
+        For example, if a clip visible range starts at frame 5, and the media reference starts
+        at frame 0, it means that the media cut_in has to start 5 frames before the clip's cut_in
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
+        if self.media_reference.is_missing_reference:
+            return None
+        if self.media_reference.available_range is None:
+            return self.cut_in
+        media_cut_in_offset = self.media_reference.available_range.start_time - self.visible_range().start_time
+        return self.cut_in + media_cut_in_offset
+
+    @property
+    def media_cut_out(self):
+        """
+        Return the cut out time of the media reference.
+
+        If the clip has no media reference, return ``None``.
+
+        If it has one, but it has no available range, then the cut_out is the same as the clip's.
+
+        If it has an available range, take it into account comparing it to the visible range
+        of the clip.
+
+        For example, if a clip visible range ends at frame 10, and the media reference ends
+        at frame 20, it means that the media cut_out has to end 10 frames after the clip's cut_out
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
+        if self.media_reference.is_missing_reference:
+            return None
+        if self.media_reference.available_range is None:
+            return self.cut_out
+        media_cut_out_offset = self.media_reference.available_range.end_time - self.visible_range().end_time
+        return self.cut_out + media_cut_out_offset
+
+    @property
     def record_in(self):
         """
         Return the record in time of the clip.

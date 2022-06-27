@@ -15,6 +15,7 @@ from shotgun_api3 import Shotgun
 
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_write_url, get_read_url
+from sg_otio.media_reference_creator import MediaReferenceCreator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
@@ -83,6 +84,16 @@ def run():
         help="An optional movie of the timeline so that it can be published as a Version and used to create Versions" \
              "for each clip"
     )
+    write_parser.add_argument(
+        "--create-missing-versions", "-c",
+        action="store_true",
+        help="If set, Versions will be created for Cut Items that don't have one in SG."
+    )
+    write_parser.add_argument(
+        "--version-names-template",
+        required=False,
+        help="If provided, and if some clips have no names, the template will be used to generate the name."
+    )
 
     args = parser.parse_args()
 
@@ -148,11 +159,29 @@ def write_to_sg(args):
     )
     if args.settings:
         SGSettings.from_file(args.settings)
-    # Add the movie as metadata
     if args.movie:
         if not os.path.isfile(args.movie):
             raise ValueError("%s does not exist" % args.movie)
-    otio.adapters.write_to_file(timeline, url, adapter_name="ShotGrid", input_media=args.movie)
+    if args.create_missing_versions:
+        mediaref_creator = MediaReferenceCreator(
+            timeline,
+            args.movie,
+            args.version_names_template
+        )
+        mediaref_creator.create_media_references()
+    else:
+        # Since we will use media references to determine
+        # if Versions need to be created, if create_missing_versions is not set,
+        # we need to remove any media references from the clips.
+        for clip in timeline.each_clip():
+            clip.media_reference = None
+
+    otio.adapters.write_to_file(
+        timeline,
+        url,
+        adapter_name="ShotGrid",
+        input_media=args.movie,
+    )
     logger.info("File %s successfully written to %s" % (args.file, url))
 
 

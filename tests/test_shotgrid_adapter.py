@@ -81,7 +81,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             raise RuntimeError("Unsupported platform: %s" % platform)
         self.mock_local_storage = {
             "type": "LocalStorage",
-            "code": "local_storage",
+            "code": "primary",
             "id": 1,
             self.path_field: tempfile.gettempdir()}
         self._add_to_sg_mock_db(self.mock_sg, self.mock_local_storage)

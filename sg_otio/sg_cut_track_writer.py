@@ -4,8 +4,10 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import datetime
 import logging
 import os
+import shutil
 import sys
 
 import opentimelineio as otio
@@ -106,9 +108,13 @@ class SGCutTrackWriter(object):
             sg_linked_entity,
             sg_user
         )
-        self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user)
+        input_media_pf = None
         if input_media:
-            self._create_input_media_version(input_media, cut_track.name, sg_project, sg_linked_entity, sg_user)
+            _, input_media_pf = self._create_input_media_version(
+                input_media, cut_track.name, sg_project, sg_linked_entity, sg_user
+            )
+        sg_versions = self._write_versions(cut_track, sg_project, sg_linked_entity, input_media_pf, sg_user)
+        self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_versions, sg_user)
 
     def _write_cut(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_user=None, description=""):
         """
@@ -197,7 +203,7 @@ class SGCutTrackWriter(object):
         #    cut_payload["version"] = input_media_version
         return cut_payload
 
-    def _write_cut_items(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user):
+    def _write_cut_items(self, video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_versions, sg_user):
         """
         Gather information about the Cut Items given a CutTrack, and create or update the Cut Items in SG
         accordingly.
@@ -210,11 +216,13 @@ class SGCutTrackWriter(object):
         :param sg_cut: If provided, the SG Cut to update.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
         :param sg_shots: A list of SG Shots.
+        :param sg_versions: A list of SG Versions.
         :param sg_user: An optional user to provide when creating/updating Entities in SG.
         :returns: The SG Cut Items.
         """
         shots_by_name = {x["code"]: x for x in sg_shots}
         shots_by_id = {x["id"]: x for x in sg_shots}
+        versions_by_name = {x["code"]: x for x in sg_versions}
         sg_cut_items_data = []
         cut_item_clips = []
 
@@ -226,7 +234,10 @@ class SGCutTrackWriter(object):
                 continue
             # Get the SG Shot for this clip
             sg_shot = shots_by_name.get(clip.shot_name)
-            sg_data = self.get_sg_cut_item_payload(clip, sg_shot=sg_shot, sg_user=sg_user)
+            sg_version = None
+            if not clip.media_reference.is_missing_reference:
+                sg_version = versions_by_name.get(clip.media_reference.name)
+            sg_data = self.get_sg_cut_item_payload(clip, sg_shot=sg_shot, sg_version=sg_version, sg_user=sg_user)
             sg_cut_items_data.append(sg_data)
             # Make sure we keep a reference to the original clip to be able to set
             # SG metadata.
@@ -283,7 +294,7 @@ class SGCutTrackWriter(object):
                 logger.info("Updating %s SG metadata with %s" % (cut_item_clips[i].name, sg_cut_item))
         return sg_cut_items
 
-    def get_sg_cut_item_payload(self, cut_clip, sg_shot=None, sg_user=None):
+    def get_sg_cut_item_payload(self, cut_clip, sg_shot=None, sg_version=None, sg_user=None):
         """
         Get a SG CutItem payload for a given :class:`sg_otio.CutClip` instance.
 
@@ -296,6 +307,7 @@ class SGCutTrackWriter(object):
 
         :param cut_clip: A :class:`sg_otio.CutClip` instance.
         :param sg_shot: An optional SG Shot to use for the CutItem.
+        :param sg_version: An optional SG Version to use for the CutItem.
         :param sg_user: An optional user to provide when creating/updating Cut Items in SG.
         :returns: A dictionary with the CutItem payload.
         :raises ValueError: If no SG payload can be generated for this Clip.
@@ -321,6 +333,12 @@ class SGCutTrackWriter(object):
                 "id": sg_shot["id"],
                 "code": sg_shot["code"],
             }
+        if sg_version:
+            cut_item_payload["version"] = {
+                "type": sg_version["type"],
+                "id": sg_version["id"],
+                "code": sg_version["code"],
+            }
         if sg_user:
             cut_item_payload["created_by"] = sg_user
             cut_item_payload["updated_by"] = sg_user
@@ -341,6 +359,174 @@ class SGCutTrackWriter(object):
         cut_item_payload["description"] = description
         return cut_item_payload
 
+    def _write_versions(self, cut_track, sg_project, sg_linked_entity, cut_published_file=None, sg_user=None):
+        """
+        For Clips which have a Media Reference, create a Version and a Published file for each one.
+
+        :param cut_track: An instance of :class:`CutTrack`.
+        :param sg_project: The SG Project to write the Cut to.
+        :param sg_cut: If provided, the SG Cut to update.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param cut_published_file: If provided, the Cut's Published File.
+        :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :returns: A list of SG Versions, if any.
+        """
+        date = datetime.datetime.now()
+        versions_path_template = SGSettings().versions_path_template
+        linked_entity = sg_linked_entity or sg_project
+        local_storage = self._retrieve_local_storage()
+        published_file_type = "mov"
+        sg_published_file_type = self._sg.find_one(
+            "PublishedFileType",
+            [["code", "is", published_file_type]]
+        )
+        if not sg_published_file_type:
+            logger.info("Creating %s PublishedFileType..." % published_file_type)
+            sg_published_file_type = self._sg.create(
+                "PublishedFileType",
+                {"code": published_file_type}
+            )
+        data = {
+            "PROJECT": sg_project["name"],
+            "CUT_TITLE": cut_track.name,
+            "LINK": linked_entity.get("code") or linked_entity.get("name") or "",
+            "HH": date.strftime("%H"),
+            "DD": date.strftime("%d"),
+            "MM": date.strftime("%m"),
+            "YY": date.strftime("%y"),
+            "YYYY": date.strftime("%Y"),
+        }
+        # Store versions data by code since it will be useful when
+        # creating the PublishedFiles and their dependencies.
+        versions_data = {}
+        for clip in cut_track.each_clip():
+            # We only create a Version for Clips with a Media Reference.
+            if clip.media_reference.is_missing_reference:
+                continue
+            sg_shot = clip.metadata.get("sg", {}).get("shot")
+            # If executing through sg-otio, this is guaranteed to be unique.
+            version_name = clip.media_reference.name
+            logger.info("Creating Version %s for clip %s..." % (version_name, clip.name))
+            data["SHOT"] = sg_shot
+            version_relative_path = versions_path_template.format(**data)
+            version_path = os.path.join(local_storage["path"], version_relative_path)
+            version_filename = "%s.mov" % version_name
+            version_relative_file_path = os.path.join(version_relative_path, version_filename)
+            version_file_path = os.path.join(version_path, version_filename)
+            if not os.path.exists(version_path):
+                os.makedirs(version_path)
+            # Copy the file to the write path
+            shutil.copyfile(
+                clip.media_reference.target_url.replace("file://", ""),
+                version_file_path
+            )
+            # Replace the media reference with the proper file path.
+            clip.media_reference.target_url = "file://%s" % version_file_path
+            version_data = {
+                "code": version_name,
+                "project": sg_project,
+                # The Version's first frame and last frame must correspond to
+                # the Cut Item's cut_item_in and cut_item_out
+                "sg_first_frame": clip.media_cut_in.to_frames(),
+                "sg_last_frame": clip.media_cut_out.to_frames(),
+                "entity": sg_shot
+            }
+
+            if sg_user:
+                version_data["created_by"] = sg_user
+                version_data["updated_by"] = sg_user
+            # Get rid of double slashes and replace backslashes by forward slashes.
+            # SG doesn't seem to accept backslashes when creating
+            # PublishedFiles with relative paths to local storage
+            version_relative_file_path = os.path.normpath(version_relative_file_path)
+            version_relative_file_path = version_relative_file_path.replace("\\", "/")
+            publish_path = {
+                "relative_path": version_relative_file_path,
+                "local_storage": local_storage,
+            }
+            published_file_data = {
+                "code": version_name,
+                "name": version_name,
+                "project": sg_project,
+                "entity": sg_shot,
+                "path": publish_path,
+                "published_file_type": sg_published_file_type,
+                "version_number": 1,
+                "path_cache": version_relative_file_path,
+                "version": None,  # Will be set after the Version is created
+            }
+            if sg_user:
+                published_file_data["created_by"] = sg_user
+                published_file_data["updated_by"] = sg_user
+            published_file_dependency_data = None
+            if cut_published_file:
+                published_file_dependency_data = {
+                    "published_file": None,  # Will be set after the PublishedFile is created
+                    "dependent_published_file": {
+                        "type": "PublishedFile",
+                        "id": cut_published_file["id"],
+                    }
+                }
+            versions_data[version_data["code"]] = {
+                "version": version_data,
+                "published_file": published_file_data,
+                "published_file_dependency": published_file_dependency_data,
+                "version_file_path": version_file_path,
+            }
+        # Create the Versions and PublishedFiles and their dependencies,
+        # and upload the movies for each Version.
+        if versions_data:
+            versions_batch_data = [
+                {
+                    "request_type": "create",
+                    "entity_type": "Version",
+                    "data": version_data["version"],
+                } for version_data in versions_data.values()
+            ]
+            sg_versions = self._sg.batch(versions_batch_data)
+            # Update the versions_data with the newly created versions.
+            for sg_version in sg_versions:
+                version_data = versions_data[sg_version["code"]]
+                version_data["version"] = sg_version
+                version_data["published_file"]["version"] = sg_version
+            published_files_batch_data = [
+                {
+                    "request_type": "create",
+                    "entity_type": "PublishedFile",
+                    "data": version_data["published_file"]
+                } for version_data in versions_data.values()
+            ]
+            sg_published_files = self._sg.batch(published_files_batch_data)
+            # Update the versions_data with the newly created PublishedFiles.
+            for sg_published_file in sg_published_files:
+                version_data = versions_data[sg_published_file["version"]["name"]]
+                version_data["published_file"] = sg_published_file
+                if version_data["published_file_dependency"]:
+                    version_data["published_file_dependency"]["published_file"] = sg_published_file
+            # Create the PublishedFileDependencies.
+            published_file_dependencies_batch_data = [
+                {
+                    "request_type": "create",
+                    "entity_type": "PublishedFileDependency",
+                    "data": version_data["published_file_dependency"]
+                } for version_data in versions_data.values() if version_data["published_file_dependency"]
+            ]
+            if published_file_dependencies_batch_data:
+                self._sg.batch(published_file_dependencies_batch_data)
+            # Upload a movie for each Version.
+            # TODO: Upload the movies in parallel.
+            for version_data in versions_data.values():
+                sg_version = version_data["version"]
+                version_file_path = version_data["version_file_path"]
+                logger.info("Uploading movie %s for Version %s..." % (version_file_path, sg_version["code"]))
+                self._sg.upload(
+                    "Version",
+                    sg_version["id"],
+                    version_file_path,
+                    "sg_uploaded_movie"
+                )
+        return [version_data["version"] for version_data in versions_data.values()]
+
     def _write_shots(self, cut_track, sg_project, sg_linked_entity, sg_user=None):
         """
         Gather information about SG Shots given a CutTrack, and create or update
@@ -353,6 +539,9 @@ class SGCutTrackWriter(object):
         :param sg_user: An optional user to provide when creating/updating Entities in SG.
         :returns: A list of SG Shot Entities.
         """
+        # If there are no shot names for the track, we can't do anything.
+        if not cut_track.shot_names:
+            return []
         sg_batch_data = []
         sg_shots = []
         existing_shots = self._sg.find(

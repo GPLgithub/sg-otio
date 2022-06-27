@@ -15,6 +15,7 @@ from .constants import _ALT_SHOT_CUT_ORDER_FIELD_TEMPLATE, _ALT_SHOT_STATUS_FIEL
 from .constants import _ALT_SHOT_FIELDS, _SHOT_FIELDS
 from .constants import _ALT_SHOT_HEAD_IN_FIELD_TEMPLATE, _ALT_SHOT_TAIL_OUT_FIELD_TEMPLATE
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
+from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +171,24 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._local_storage_name = value
 
+    @property
+    def versions_path_template(self):
+        """
+        Return the path template to use when publishing versions.
+
+        :returns: A string.
+        """
+        return self._versions_path_template
+
+    @versions_path_template.setter
+    def versions_path_template(self, value):
+        """
+        Set the path template to use when publishing versions.
+
+        :param str value: The path template to use.
+        """
+        self._versions_path_template = value
+
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -180,6 +199,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._use_clip_names_for_shot_names = False
         self._clip_name_shot_regexp = None
         self._local_storage_name = "primary"
+        self._versions_path_template = _DEFAULT_VERSIONS_PATH_TEMPLATE
 
 
 class SGShotFieldsConfig(object):
