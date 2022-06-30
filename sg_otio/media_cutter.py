@@ -14,7 +14,7 @@ from distutils.spawn import find_executable
 
 import opentimelineio as otio
 
-from .utils import get_available_filename, compute_clip_version_name, get_path_from_target_url
+from .utils import get_available_filename, compute_clip_version_name
 
 logger = logging.getLogger(__name__)
 
