@@ -106,7 +106,13 @@ class MediaCutter(object):
         # The function will return when any future finishes by raising an exception.
         # If no future raises an exception then it is equivalent to ALL_COMPLETED.
         # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
-        wait(futures, return_when=FIRST_EXCEPTION)
+        try:
+            _, not_done = wait(futures, return_when=FIRST_EXCEPTION)
+        except Exception:
+            # Cancel the remaining futures before re-raising the exception.
+            if not_done:
+                self.cancel()
+            raise
         logger.info("Finished extracting media from movie %s" % self._movie)
 
     def _get_media_filename(self, media_name):
