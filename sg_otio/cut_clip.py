@@ -7,14 +7,12 @@
 import logging
 
 import opentimelineio as otio
-import six
 from opentimelineio.opentime import RationalTime
 
 from .sg_settings import SGSettings
 from .utils import compute_clip_shot_name
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SGSettings().log_level)
 
 
 class CutClip(otio.schema.Clip):
@@ -48,11 +46,10 @@ class CutClip(otio.schema.Clip):
         self._head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
         self._head_in_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
         self._tail_out_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
-        self._shot_name = None
         self.effect = self._relevant_timing_effect(effects or [])
         self._markers = markers or []
-        self.shot_name = compute_clip_shot_name(self)
-        self._unique_name = self.name
+        self._shot_name = compute_clip_shot_name(self)
+        self._cut_item_name = self.name
 
     @classmethod
     def from_clip(
@@ -159,28 +156,28 @@ class CutClip(otio.schema.Clip):
         self._markers = value
 
     @property
-    def unique_name(self):
+    def cut_item_name(self):
         """
-        Return a unique name.
+        Return the cut item name.
 
         The only difference with the clip name is that this name is unique in the track, i.e.
         if two clips have the same name foo, their cut item names will be foo and foo_001
 
         :returns: A string.
         """
-        return self._unique_name
+        return self._cut_item_name
 
-    @unique_name.setter
-    def unique_name(self, value):
+    @cut_item_name.setter
+    def cut_item_name(self, value):
         """
-        Set a unique name.
+        Set a cut item name.
 
         The only difference with the clip name is that this name is unique in the track, i.e.
         if two clips have the same name foo, their cut item names will be foo and foo_001
 
         :param value: A string.
         """
-        self._unique_name = value
+        self._cut_item_name = value
 
     @property
     def shot_name(self):
@@ -190,18 +187,6 @@ class CutClip(otio.schema.Clip):
         :returns: A str or ``None``.
         """
         return self._shot_name
-
-    @shot_name.setter
-    def shot_name(self, value):
-        """
-        Set the name of the shot.
-
-        :param value: A str or ``None``.
-        """
-        self._shot_name = value
-        if self._shot_name:
-            # Make sure the shot name is not unicode.
-            self._shot_name = six.ensure_str(self._shot_name)
 
     @property
     def visible_duration(self):
@@ -247,29 +232,29 @@ class CutClip(otio.schema.Clip):
         """
         return self.source_in + self.visible_duration
 
-    @property
-    def media_cut_in(self):
-        """
-        Return the media cut in of the clip.
-
-        It is an arbitrary time.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self._head_in + self._head_in_duration
-
-    @property
-    def media_cut_out(self):
-        """
-        Return the media cut out of the clip.
-
-        It is an arbitrary time.
-        :returns: A :class:`RationalTime` instance.
-        """
-        if not self.media_reference.is_missing_reference and self.media_reference.available_range:
-            return self.media_cut_in + self.available_range().duration - RationalTime(1, self._frame_rate)
-        else:
-            return self.media_cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
+    # @property
+    # def media_cut_in(self):
+    #     """
+    #     Return the media cut in of the clip.
+    #
+    #     It is an arbitrary time.
+    #
+    #     :returns: A :class:`RationalTime` instance.
+    #     """
+    #     return self._head_in + self._head_in_duration
+    #
+    # @property
+    # def media_cut_out(self):
+    #     """
+    #     Return the media cut out of the clip.
+    #
+    #     It is an arbitrary time.
+    #     :returns: A :class:`RationalTime` instance.
+    #     """
+    #     if not self.media_reference.is_missing_reference and self.media_reference.available_range:
+    #         return self.media_cut_in + self.available_range().duration - RationalTime(1, self._frame_rate)
+    #     else:
+    #         return self.media_cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
 
     @property
     def cut_in(self):
@@ -279,20 +264,13 @@ class CutClip(otio.schema.Clip):
         The cut_in is an arbitrary start time of the clip,
         taking into account any handles.
 
-        It also has to take into account if there's a media reference in the clip.
-        If it has one, and it has an available range, take it into account comparing it to the visible range
-        of the clip.
-
-        For example, if a clip visible range starts at frame 5, and the media reference starts
-        at frame 0, it means that the media cut_in has to start 5 frames after the clip's cut_in
-
         :returns: A :class:`RationalTime` instance.
         """
-        cut_in = self._head_in + self._head_in_duration
-        if not self.media_reference.is_missing_reference and self.media_reference.available_range:
-            cut_in_offset = self.visible_range().start_time - self.media_reference.available_range.start_time
-            cut_in += cut_in_offset
-        return cut_in
+        return self._head_in + self._head_in_duration
+        # if not self.media_reference.is_missing_reference and self.media_reference.available_range:
+        #     cut_in_offset = self.visible_range().start_time - self.media_reference.available_range.start_time
+        #     cut_in += cut_in_offset
+        # return cut_in
 
     @property
     def cut_out(self):

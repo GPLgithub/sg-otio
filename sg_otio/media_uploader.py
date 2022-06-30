@@ -8,10 +8,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from .sg_settings import SGSettings
-
 logger = logging.getLogger(__name__)
-logger.setLevel(SGSettings().log_level)
 
 
 class MediaUploader(object):
@@ -58,4 +55,4 @@ class MediaUploader(object):
             movie,
             "sg_uploaded_movie"
         )
-        logger.info("Uploaded %s to %s" % (os.path.basename(movie), sg_version["code"]))
+        logger.debug("Uploaded %s to %s" % (os.path.basename(movie), sg_version["code"]))

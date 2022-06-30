@@ -17,7 +17,7 @@ from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.media_cutter import MediaCutter
 
-logging.basicConfig(level=SGSettings().log_level)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
 
 
@@ -94,7 +94,8 @@ def run():
                 raise ValueError(
                     "You must provide either a login, password, script name and API key or a session token."
                 )
-
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
     if args.command == "read":
         read_from_sg(args)
     elif args.command == "write":
@@ -153,7 +154,7 @@ def write_to_sg(args):
     if args.movie:
         if not os.path.isfile(args.movie):
             raise ValueError("%s does not exist" % args.movie)
-    if SGSettings().create_missing_versions:
+    if SGSettings().create_missing_versions and args.movie:
         sg = Shotgun(args.sg_site_url, session_token=session_token)
         media_cutter = MediaCutter(
             sg,
@@ -178,6 +179,11 @@ def add_common_args(parser):
     :param parser: An instance of :class:`argparse.ArgumentParser`.
     """
     # Common arguments to read and write
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Print debug information."
+    )
     parser.add_argument(
         "--sg-site-url", "-u",
         required=True,

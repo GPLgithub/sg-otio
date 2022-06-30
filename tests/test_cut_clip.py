@@ -74,29 +74,29 @@ class TestCutClip(unittest.TestCase):
 
         # Let's remove the locator. Comment starting with COMMENT: is used.
         clip.markers = []
-        clip.shot_name = compute_clip_shot_name(clip)
+        clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_002")
 
         # Remove the comment starting with COMMENT:. The bare comment is used.
         clip.metadata["cmx_3600"]["comments"].remove("COMMENT: shot_002")
-        clip.shot_name = compute_clip_shot_name(clip)
+        clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_003")
 
         # Remove the comments. We set use_clip_names_for_shot_names to True,
         # so we should get the reel name.
         clip.metadata["cmx_3600"]["comments"] = []
-        clip.shot_name = compute_clip_shot_name(clip)
+        clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "reel_name")
 
         # Set use_clip_names_for_shot_names to False, so we should get None.
         sg_settings.use_clip_names_for_shot_names = False
-        clip.shot_name = compute_clip_shot_name(clip)
+        clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, None)
 
         # Using reel names and a regex, the regex is used to find the first matching group.
         sg_settings.use_clip_names_for_shot_names = True
         sg_settings.clip_name_shot_regexp = r"(\w+)_(\w+)"
-        clip.shot_name = compute_clip_shot_name(clip)
+        clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "reel")
 
         # If there is some SG meta data and a Shot code it should be used
@@ -105,7 +105,7 @@ class TestCutClip(unittest.TestCase):
             "id": 123456,
             "shot": {"code": "shot_from_SG"}
         }
-        clip.shot_name = compute_clip_shot_name(clip)
+        clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_from_SG")
 
     def test_clip_values(self):

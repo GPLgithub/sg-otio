@@ -14,11 +14,9 @@ from distutils.spawn import find_executable
 
 import opentimelineio as otio
 
-from .sg_settings import SGSettings
 from .utils import get_available_filename, compute_clip_version_name
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SGSettings().log_level)
 
 
 class MediaCutter(object):
@@ -26,10 +24,14 @@ class MediaCutter(object):
     def __init__(self, sg, timeline, movie=None):
         super(MediaCutter, self).__init__()
         self._sg = sg
-        self._timeline = timeline
         self._movie = movie
         self._media_dir = None
         self._executor = ProcessPoolExecutor()
+        if not timeline.video_tracks:
+            raise ValueError("Timeline has no video tracks")
+        if len(timeline.video_tracks()) > 1:
+            logger.warning("Only one video track is supported, using the first one.")
+        self._video_track = timeline.video_tracks()[0]
 
     def cancel(self):
         self._executor.shutdown(wait=False)
@@ -41,49 +43,39 @@ class MediaCutter(object):
         return self._media_dir
 
     def cut_media_for_clips(self):
-        if not self._timeline.video_tracks:
-            raise ValueError("Timeline has no video tracks")
-        if len(self._timeline.video_tracks()) > 1:
-            logger.warning("Only one video track is supported, using the first one.")
-        video_track = self._timeline.video_tracks()[0]
         clips_with_no_media_references = []
-        for i, clip in enumerate(video_track.each_clip()):
+        clip_media_names = []
+        for i, clip in enumerate(self._video_track.each_clip()):
             if clip.media_reference.is_missing_reference:
-                if not self._movie:
-                    raise ValueError("Clip %s has no media reference, but no movie was provided" % clip.name)
-                clips_with_no_media_references.append((clip, i + 1))
+                clips_with_no_media_references.append(clip)
+                clip_media_names.append(compute_clip_version_name(clip, i + 1))
         if not clips_with_no_media_references:
             logger.info("No clips need extracting from movie.")
             return
         # Get the clips which have media names that already exist in SG, to avoid recreating Versions if
         # they already exist.
-        clip_media_names = [compute_clip_version_name(clip, index) for clip, index in clips_with_no_media_references]
         sg_versions = self._sg.find(
             "Version",
             [["code", "in", clip_media_names]],
             ["code"]
         )
         sg_version_codes = [version["code"] for version in sg_versions]
-        existing_clips = [
-            clip for clip, index in clips_with_no_media_references
-            if compute_clip_version_name(clip, index) in sg_version_codes
-        ]
-        if existing_clips:
-            logger.info("Clips %s already exist in SG, no need to extract them." % sg_version_codes)
-        # We can't use sets here, because the order of the list is important.
-        clips_to_extract = [
-            (clip, index) for clip, index in clips_with_no_media_references
-            if clip not in existing_clips
-        ]
-        if not clips_to_extract:
+        futures = []
+        clips_to_extract_names = []
+        for clip, media_name in zip(clips_with_no_media_references, clip_media_names):
+            if media_name in sg_version_codes:
+                logger.debug("Clip %s already exists in SG, skipping extraction." % media_name)
+            else:
+                futures.append(self._extract_clip_media(clip, media_name))
+                clips_to_extract_names.append(clip.name)
+        if not futures:
             logger.info("No clips need extracting from movie.")
             return
-        logger.info("Extracting %d clips media from movie %s..." % (len(clips_to_extract), self._movie))
-        futures = [self._extract_clip_media(clip, index) for clip, index in clips_to_extract]
+        logger.info("Extracting clips %s media from movie %s..." % (clips_to_extract_names, self._movie))
+        # The function will return when any future finishes by raising an exception.
+        # If no future raises an exception then it is equivalent to ALL_COMPLETED.
+        # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
         wait(futures, return_when=FIRST_EXCEPTION)
-        for future in futures:
-            if future.exception():
-                raise future.exception()
         logger.info("Finished extracting media from movie %s" % self._movie)
 
     def _get_media_filename(self, media_name):
@@ -92,12 +84,11 @@ class MediaCutter(object):
         open(filename, "w").close()
         return filename
 
-    def _extract_clip_media(self, clip, index):
+    def _extract_clip_media(self, clip, media_name):
         clip_range_in_track = clip.transformed_time_range(clip.visible_range(), clip.parent())
-        media_name = compute_clip_version_name(clip, index)
         media_filename = self._get_media_filename(media_name)
 
-        logger.info("Extracting clip %s" % media_name)
+        logger.debug("Extracting clip %s" % media_name)
         logger.debug("Extracting to %s" % media_filename)
 
         extractor = FFmpegExtractor(
@@ -113,6 +104,7 @@ class MediaCutter(object):
         # future.add_done_callback(self.progress_incremented)
         clip.media_reference = otio.schema.ExternalReference(
             target_url="file://" + media_filename,
+            available_range=clip.visible_range()
         )
         # Name is not in the constructor.
         clip.media_reference.name = media_name

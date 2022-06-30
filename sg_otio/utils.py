@@ -8,6 +8,7 @@ import os
 import random
 import re
 import string
+import sys
 
 from six.moves.urllib import parse
 
@@ -62,6 +63,27 @@ def get_read_url(sg_site_url, cut_id, session_token):
     return parsed_url._replace(
         scheme="https", query=query, path=path
     ).geturl()
+
+
+def get_platform_name():
+    """
+    Get the platform name.
+
+    This is used for fields in SG that are platform specific,
+    like the local storage paths, e.g. "mac_path", and the
+    published file paths, e.g. "local_path_mac".
+
+    :returns: A str.
+    """
+    platform = sys.platform
+    if platform == "win32":
+        return "windows"
+    elif platform == "darwin":
+        return "mac"
+    elif platform.startswith("linux"):
+        return "linux"
+    else:
+        raise RuntimeError("Platform %s is not supported" % platform)
 
 
 def compute_clip_shot_name(clip):

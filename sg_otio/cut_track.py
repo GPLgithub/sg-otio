@@ -11,10 +11,8 @@ import opentimelineio as otio
 
 from .clip_group import ClipGroup
 from .cut_clip import CutClip
-from .sg_settings import SGSettings
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SGSettings().log_level)
 
 
 class CutTrack(otio.schema.Track):
@@ -33,7 +31,7 @@ class CutTrack(otio.schema.Track):
         # Must be kept first, before adding any attributes
         super(CutTrack, self).__init__(*args, **kwargs)
         # Check if Clips have duplicate names and if they have, make sure their cut item names are unique.
-        clip_names = [clip.unique_name for clip in self.each_clip()]
+        clip_names = [clip.cut_item_name for clip in self.each_clip()]
         seen_names = set()
         duplicate_names = []
         for clip_name in clip_names:
@@ -45,8 +43,8 @@ class CutTrack(otio.schema.Track):
             for duplicate_name in duplicate_names:
                 clip_name_index = 1
                 for clip in self.each_clip():
-                    if clip.unique_name == duplicate_name:
-                        clip.unique_name = "%s_%03d" % (clip.unique_name, clip_name_index)
+                    if clip.cut_item_name == duplicate_name:
+                        clip.cut_item_name = "%s_%03d" % (clip.cut_item_name, clip_name_index)
                         clip_name_index += 1
 
         # Set the :class:`ClipGroup` objects for this track.
@@ -87,13 +85,15 @@ class CutTrack(otio.schema.Track):
         :param timeline: The :class:`otio.schema.Timeline` to convert.
         :returns: A :class:`otio.schema.Timeline` instance.
         """
-        # We need to deepcopy the timeline, because the different elements
-        # already have parents and otio will complain.
+        # We need to deepcopy the audio tracks, if not otio will complain
+        # when creating the new timeline that they already have a parent.
         audio_tracks = copy.deepcopy(timeline.audio_tracks())
-        video_tracks = copy.deepcopy(timeline.video_tracks())
+        video_tracks = timeline.video_tracks()
         if video_tracks:
             if len(video_tracks) > 1:
                 logger.warning("Only one video track is supported, using the first one.")
+                # We need to deepcopy the remaining video tracks.
+                video_tracks[1:] = copy.deepcopy(video_tracks[1:])
                 # We could flatten the timeline here by using otio.core.flatten_stack(input_otio.video_tracks())
                 # But we lose information, for example the track source_range becomes ``None``
             video_tracks[0] = cls.from_track(

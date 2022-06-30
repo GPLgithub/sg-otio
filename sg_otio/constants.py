@@ -57,6 +57,7 @@ _CUT_ITEM_FIELDS = [
     "cut_item_duration",
     "cut.Cut.fps",
     "version",
+    "version.Version.id",
     "version.Version.code",
     "version.Version.entity",
     "version.Version.image",
@@ -104,5 +105,8 @@ _ALT_SHOT_FIELDS = [
     _ALT_SHOT_WORKING_DURATION_FIELD_TEMPLATE,
 ]
 
+# When creating missing Versions, the default relative path template from the local storage chosen
+# to save the Versions to.
 _DEFAULT_VERSIONS_PATH_TEMPLATE = "{PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts"
+# When creating missing Versions, the default version name template.
 _DEFAULT_VERSION_NAMES_TEMPLATE = "{CLIP_NAME}_{UUID}"

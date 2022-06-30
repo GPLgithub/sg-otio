@@ -186,6 +186,16 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         Set the path template to use when publishing versions.
 
+        This is a relative path from the local storage chosen.
+
+        The following keys are available:
+        - PROJECT, CUT_TITLE, LINK, HH, DD, MM, YY, YYYY
+
+        Example valid templates:
+        - {PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts (default)
+        - {PROJECT}/{CUT_TITLE}/{YYYY}{MM}{DD}/
+
+
         :param str value: The path template to use.
         """
         self._versions_path_template = value
@@ -202,7 +212,29 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
     @version_names_template.setter
     def version_names_template(self, value):
         """
-        Set the template to use when naming versions.
+        Set the template to use for Version names when creating Versions.
+
+        The following keys are available:
+        - CLIP_NAME, CUT_ITEM_NAME, SHOT, CLIP_INDEX, UUID
+
+        The CLIP_NAME and CUT_ITEM_NAME are almost the same, but the CUT_ITEM_NAME
+        is guaranteed to be unique in a track.
+        For example, if there are two clips with the name "clip1", their cut item names
+        will be "clip1" and "clip1_001".
+
+        The CLIP_INDEX is the index of the clip in the track (starting from 1, and counting
+        only clips, not gaps or other elements).
+
+        The UUID is 6 digits long.
+
+        Even though versions with the same names are allowed, it is recommended to use keys that
+        guarantee the unicity of the names, like CUT_ITEM_NAME, CLIP_INDEX, or UUID.
+
+        Example valid templates:
+        - {CLIP_NAME}_{UUID} (default)
+        - {CUT_ITEM_NAME}
+        - {SHOT}_{CLIP_INDEX}
+        - {CLIP_NAME}_{CLIP_INDEX:04d} (adds some leading zeros)
 
         :param str value: The template to use.
         """
@@ -226,24 +258,6 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._create_missing_versions = value
 
-    @property
-    def log_level(self):
-        """
-        Return the log level to use.
-
-        :returns: A logging level.
-        """
-        return self._log_level
-
-    @log_level.setter
-    def log_level(self, value):
-        """
-        Set the log level to use.
-
-        :param int value: The logging level to use.
-        """
-        self._log_level = value
-
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -257,7 +271,6 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._versions_path_template = _DEFAULT_VERSIONS_PATH_TEMPLATE
         self._version_names_template = _DEFAULT_VERSION_NAMES_TEMPLATE
         self._create_missing_versions = True
-        self._log_level = logging.DEBUG
 
 
 class SGShotFieldsConfig(object):
