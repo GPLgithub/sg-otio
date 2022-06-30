@@ -96,14 +96,14 @@ class SGCutTrackWriter(object):
         sg_project, sg_cut, sg_linked_entity = self._get_cut_entities(
             entity_type, entity_id
         )
-        input_media_version = None
-        input_media_pf = None
+        sg_cut_version = None
+        sg_cut_pf = None
         if input_media:
-            input_media_version, input_media_pf = self._create_input_media_version(
+            sg_cut_version, sg_cut_pf = self._create_input_media_version(
                 input_media, cut_track.name, sg_project, sg_linked_entity, sg_user
             )
         sg_cut = self._write_cut(
-            video_track, cut_track, sg_project, sg_cut, sg_linked_entity, input_media_version, sg_user, description
+            video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_cut_version, sg_user, description
         )
         sg_shots = self._write_shots(
             cut_track,
@@ -112,7 +112,7 @@ class SGCutTrackWriter(object):
             sg_user
         )
         if SGSettings().create_missing_versions:
-            self._write_versions(cut_track, sg_project, sg_linked_entity, input_media_pf, sg_user)
+            self._write_versions(cut_track, sg_project, sg_linked_entity, sg_cut_pf, sg_user)
         self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user)
 
     def _write_cut(
@@ -137,7 +137,7 @@ class SGCutTrackWriter(object):
         :param sg_project: The SG Project to write the Cut to.
         :param sg_cut: If provided, the SG Cut to update.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
-        :param sg_media_version: If provided, the SG Version to link to the Cut.
+        :param sg_version: If provided, the SG Version to link to the Cut.
         :param sg_user: An optional user to provide when creating/updating Entities in SG.
         :param str description: An optional description for the Cut.
         :returns: The SG Cut entity created.
@@ -241,7 +241,7 @@ class SGCutTrackWriter(object):
         cut_item_clips = []
 
         # Loop over clips from the cut_track
-        # Keep references to original clips and their index in the cut_track
+        # Keep references to original clips
         video_clips = list(video_track.each_clip())
         for i, clip in enumerate(cut_track.each_clip()):
             if not isinstance(clip, CutClip):

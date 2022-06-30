@@ -18,7 +18,6 @@ from .constants import _EFFECTS_FIELD, _RETIME_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE, _DEFAULT_VERSION_NAMES_TEMPLATE
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class Singleton(type):
