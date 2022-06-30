@@ -232,30 +232,6 @@ class CutClip(otio.schema.Clip):
         """
         return self.source_in + self.visible_duration
 
-    # @property
-    # def media_cut_in(self):
-    #     """
-    #     Return the media cut in of the clip.
-    #
-    #     It is an arbitrary time.
-    #
-    #     :returns: A :class:`RationalTime` instance.
-    #     """
-    #     return self._head_in + self._head_in_duration
-    #
-    # @property
-    # def media_cut_out(self):
-    #     """
-    #     Return the media cut out of the clip.
-    #
-    #     It is an arbitrary time.
-    #     :returns: A :class:`RationalTime` instance.
-    #     """
-    #     if not self.media_reference.is_missing_reference and self.media_reference.available_range:
-    #         return self.media_cut_in + self.available_range().duration - RationalTime(1, self._frame_rate)
-    #     else:
-    #         return self.media_cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
-
     @property
     def cut_in(self):
         """
@@ -267,10 +243,6 @@ class CutClip(otio.schema.Clip):
         :returns: A :class:`RationalTime` instance.
         """
         return self._head_in + self._head_in_duration
-        # if not self.media_reference.is_missing_reference and self.media_reference.available_range:
-        #     cut_in_offset = self.visible_range().start_time - self.media_reference.available_range.start_time
-        #     cut_in += cut_in_offset
-        # return cut_in
 
     @property
     def cut_out(self):
