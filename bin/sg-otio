@@ -15,9 +15,9 @@ from shotgun_api3 import Shotgun
 
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_write_url, get_read_url
-from sg_otio.media_reference_creator import MediaReferenceCreator
+from sg_otio.media_cutter import MediaCutter
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=SGSettings().log_level)
 logger = logging.getLogger("sg-otio")
 
 
@@ -84,16 +84,6 @@ def run():
         help="An optional movie of the timeline so that it can be published as a Version and used to create Versions" \
              "for each clip"
     )
-    write_parser.add_argument(
-        "--create-missing-versions", "-c",
-        action="store_true",
-        help="If set, Versions will be created for Cut Items that don't have one in SG."
-    )
-    write_parser.add_argument(
-        "--version-names-template",
-        required=False,
-        help="If provided, and if some clips have no names, the template will be used to generate the name."
-    )
 
     args = parser.parse_args()
 
@@ -148,11 +138,12 @@ def write_to_sg(args):
 
     :param args: The command line arguments.
     """
+    session_token = _get_session_token(args)
     url = get_write_url(
         sg_site_url=args.sg_site_url,
         entity_type=args.entity_type,
         entity_id=args.entity_id,
-        session_token=_get_session_token(args)
+        session_token=session_token
     )
     timeline = otio.adapters.read_from_file(
         args.file, adapter_name=args.adapter
@@ -162,19 +153,14 @@ def write_to_sg(args):
     if args.movie:
         if not os.path.isfile(args.movie):
             raise ValueError("%s does not exist" % args.movie)
-    if args.create_missing_versions:
-        mediaref_creator = MediaReferenceCreator(
+    if SGSettings().create_missing_versions:
+        sg = Shotgun(args.sg_site_url, session_token=session_token)
+        media_cutter = MediaCutter(
+            sg,
             timeline,
             args.movie,
-            args.version_names_template
         )
-        mediaref_creator.create_media_references()
-    else:
-        # Since we will use media references to determine
-        # if Versions need to be created, if create_missing_versions is not set,
-        # we need to remove any media references from the clips.
-        for clip in timeline.each_clip():
-            clip.media_reference = None
+        media_cutter.cut_media_for_clips()
 
     otio.adapters.write_to_file(
         timeline,

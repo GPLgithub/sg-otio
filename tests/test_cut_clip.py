@@ -13,6 +13,7 @@ from opentimelineio.opentime import TimeRange, RationalTime
 from sg_otio.cut_clip import CutClip
 from sg_otio.cut_track import CutTrack
 from sg_otio.sg_settings import SGSettings
+from sg_otio.utils import compute_clip_shot_name
 
 
 class TestCutClip(unittest.TestCase):
@@ -73,29 +74,29 @@ class TestCutClip(unittest.TestCase):
 
         # Let's remove the locator. Comment starting with COMMENT: is used.
         clip.markers = []
-        clip._compute_shot_name()
+        clip.shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_002")
 
         # Remove the comment starting with COMMENT:. The bare comment is used.
         clip.metadata["cmx_3600"]["comments"].remove("COMMENT: shot_002")
-        clip._compute_shot_name()
+        clip.shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_003")
 
         # Remove the comments. We set use_clip_names_for_shot_names to True,
         # so we should get the reel name.
         clip.metadata["cmx_3600"]["comments"] = []
-        clip._compute_shot_name()
+        clip.shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "reel_name")
 
         # Set use_clip_names_for_shot_names to False, so we should get None.
-        clip._use_clip_names_for_shot_names = False
-        clip._compute_shot_name()
+        sg_settings.use_clip_names_for_shot_names = False
+        clip.shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, None)
 
         # Using reel names and a regex, the regex is used to find the first matching group.
-        clip._use_clip_names_for_shot_names = True
-        clip._clip_name_shot_regexp = r"(\w+)_(\w+)"
-        clip._compute_shot_name()
+        sg_settings.use_clip_names_for_shot_names = True
+        sg_settings.clip_name_shot_regexp = r"(\w+)_(\w+)"
+        clip.shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "reel")
 
         # If there is some SG meta data and a Shot code it should be used
@@ -104,7 +105,7 @@ class TestCutClip(unittest.TestCase):
             "id": 123456,
             "shot": {"code": "shot_from_SG"}
         }
-        clip._compute_shot_name()
+        clip.shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_from_SG")
 
     def test_clip_values(self):

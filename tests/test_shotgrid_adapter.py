@@ -1,15 +1,20 @@
+import datetime
 import logging
 import os
 import sys
 import tempfile
 import unittest
+from functools import partial
 
 import opentimelineio as otio
 import shotgun_api3
 from shotgun_api3.lib import mockgun
 
 from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
+from sg_otio.cut_track import CutTrack
+from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
+from sg_otio.utils import compute_clip_version_name
 
 try:
     # Python 3.3 forward includes the mock module
@@ -18,6 +23,7 @@ except ImportError:
     import mock
 
 logger = logging.getLogger(__name__)
+logger.setLevel(SGSettings().log_level)
 
 
 class ShotgridAdapterTest(unittest.TestCase):
@@ -34,6 +40,7 @@ class ShotgridAdapterTest(unittest.TestCase):
         self.maxDiff = None
         sg_settings = SGSettings()
         sg_settings.reset_to_defaults()
+        self.resources_dir = os.path.join(os.path.dirname(__file__), "resources")
         sg_settings.use_clip_names_for_shot_names = True
         # Retrieve SG credentials from the environment
         # The SG site
@@ -49,6 +56,10 @@ class ShotgridAdapterTest(unittest.TestCase):
 
         # Avoid NotImplementedError for mock_sg.upload
         self.mock_sg.upload = mock.MagicMock()
+        # Fix the mockgun update method since it returns a list instead of a dict
+        # We unfortunately also need to fix the batch method since it assumes a list
+        self.mock_sg.update = partial(self.mock_sg_update, self.mock_sg.update)
+        self.mock_sg.batch = self.mock_sg_batch
         project = {"type": "Project", "name": "project", "id": 1}
         self._add_to_sg_mock_db(
             self.mock_sg,
@@ -83,7 +94,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             "type": "LocalStorage",
             "code": "primary",
             "id": 1,
-            self.path_field: tempfile.gettempdir()}
+            self.path_field: tempfile.mkdtemp()}
         self._add_to_sg_mock_db(self.mock_sg, self.mock_local_storage)
         # Create some Shots
         self.mock_shots = []
@@ -162,6 +173,43 @@ class ShotgridAdapterTest(unittest.TestCase):
             self._SESSION_TOKEN,
             self.mock_sequence["id"]
         )
+
+    def mock_sg_update(self, update, entity_type, entity_id, data):
+        """
+        Update using mockgun.
+
+        Mockgun returns a list whereas shotgun returns a dict.
+
+        :param update: The mockgun update method.
+        :param entity_type: The entity type to update.
+        :param entity_id: The entity id to update.
+        :param data: The data to update.
+        """
+        return update(entity_type, entity_id, data)[0]
+
+    def mock_sg_batch(self, requests):
+        """
+        Mockgun batch method.
+
+        Mockgun update returns a list instead of a dict, since we patch it, we also need to
+        patch batch.
+
+        :param requests: A list of requests
+        :returns: A list of SG Entities.
+        """
+        # Same code as in mockgun.batch(), except for update we append the result and not the first item.
+        results = []
+        for request in requests:
+            if request["request_type"] == "create":
+                results.append(self.mock_sg.create(request["entity_type"], request["data"]))
+            elif request["request_type"] == "update":
+                # note: Shotgun.update returns a list of a single item
+                results.append(self.mock_sg.update(request["entity_type"], request["entity_id"], request["data"]))
+            elif request["request_type"] == "delete":
+                results.append(self.mock_sg.delete(request["entity_type"], request["entity_id"]))
+            else:
+                raise shotgun_api3.ShotgunError("Invalid request type %s in request %s" % (request["request_type"], request))
+        return results
 
     def _add_to_sg_mock_db(self, mock_sg, entities):
         """
@@ -433,7 +481,6 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertEqual(len(clips), 2)
             children = list(track.each_child())
             self.assertEqual(len(children), 3)
-            print("HERE", children)
             self.assertTrue(isinstance(children[0], otio.schema.Clip))
             self.assertTrue(isinstance(children[2], otio.schema.Clip))
             gap = children[1]
@@ -589,6 +636,147 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertEqual(len(sg_cut_items), 3)
             for i, clip in enumerate(track.each_clip()):
                 self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
+
+    def test_write_edl_creates_versions(self):
+        """
+        Test that when we write to SG, we create a new version for each CutItem.
+        :return:
+        """
+        settings = SGSettings()
+        # The default settings create Versions for each CutItem, e.g. settings.create_missing_versions = True
+        settings.reset_to_defaults()
+        # The default template uses UUID, let's test with a more simple template
+        settings.version_names_template = "{CLIP_NAME}_{CLIP_INDEX:04d}"
+        # Create a Version to check that the first Version is not added.
+        self._add_to_sg_mock_db(
+            self.mock_sg,
+            {
+                "type": "Version",
+                "code": "green_tape_0001",
+                "id": 1000,
+                "sg_first_frame": 1009,
+                "sg_last_frame": 1024,
+                "entity": self.mock_sequence,
+                "sg_path_to_movie": os.path.join(self.mock_local_storage[self.path_field], "green_tape_0001.mov"),
+            }
+        )
+        # Note that the first clip already has a Version, so it shouldn't create a new one.
+        edl = """
+        TITLE: Cut01
+        000001 green_tape     V     C        00:00:00:00 00:00:00:16 01:00:00:00 01:00:00:16
+        * FROM CLIP NAME: green.mov
+        000002 pink_tape      V     C        00:00:00:05 00:00:00:11 01:00:00:16 01:00:00:22
+        * FROM CLIP NAME: pink.mov
+        000003 green_tape     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
+        * FROM CLIP NAME: green.mov
+        000004 red_tape       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
+        * FROM CLIP NAME: red.mov
+        000005 blue_tape      V     C        00:00:00:00 00:00:02:00 01:00:01:21 01:00:03:21
+        * FROM CLIP NAME: blue.mov
+        000006 red_tape       V     C        00:00:00:00 00:00:00:13 01:00:03:21 01:00:04:10
+        * FROM CLIP NAME: red.mov
+        """
+        edl_movie = os.path.join(self.resources_dir, "media_cutter.mov")
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        media_cutter = MediaCutter(self.mock_sg, timeline, edl_movie)
+        media_cutter.cut_media_for_clips()
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid", input_media=edl_movie)
+        # TODO: test published file dependencies, but mockgun does not populate upstream_dependencies
+        #       so I did not have time.
+        # sg_cut = timeline.tracks[0].metadata["sg"]
+        # # We could find the published file through the Version, but mockgun doesn't support that,
+        # # i.e. normally if you create a PublishedFile with a version provided, Version.published_files
+        # # will be populated, but not in mockgun.
+        # sg_cut_published_file = self.mock_sg.find_one(
+        #     "PublishedFile",
+        #     [["version.Version.id", "is", sg_cut["version"]["id"]]],
+        #     ["code"]
+        # )
+        # Use our version of timeline to get access to cut_in, cut_out, etc.
+        timeline = CutTrack.from_timeline(timeline)
+        date = datetime.date.today().strftime('%Y%m%d')
+        for i, clip in enumerate(timeline.each_clip()):
+            clip_version_name = compute_clip_version_name(clip, i + 1)
+            sg_cut_item = clip.metadata["sg"]
+            if i == 0:
+                self.assertTrue(clip.media_reference.is_missing_reference)
+            else:
+                self.assertEqual(clip.media_reference.name, clip_version_name)
+            sg_version = self.mock_sg.find_one(
+                "Version",
+                [["id", "is", sg_cut_item["version"]["id"]]],
+                ["code", "sg_first_frame", "sg_last_frame", "entity", "sg_path_to_movie"]
+            )
+            self.assertEqual(sg_version["code"], clip_version_name)
+            self.assertEqual(sg_version["sg_first_frame"], clip.cut_in.to_frames())
+            self.assertEqual(sg_version["sg_last_frame"], clip.cut_out.to_frames())
+            self.assertEqual(sg_version["entity"]["id"], self.mock_sequence["id"])
+            if i != 0:
+                self.assertEqual(sg_version["sg_path_to_movie"], clip.media_reference.target_url.replace("file://", ""))
+
+                sg_published_file = self.mock_sg.find_one(
+                    "PublishedFile",
+                    [["version.Version.id", "is", sg_version["id"]]],
+                    ["code", "path", "published_file_type.PublishedFileType.code", "upstream_published_files"]
+                )
+                self.assertEqual(sg_published_file["code"], clip_version_name)
+                relative_path = "%s/%s/%s/cuts/" % (
+                    self.mock_project["name"], self.mock_sequence["code"], date
+                )
+                self.assertEqual(sg_published_file["path"]["relative_path"], os.path.join(relative_path, clip_version_name + ".mov"))
+
+    def test_write_premiere_xml_creates_versions(self):
+        """
+        Test that when we write to SG from a Premiere xml, we do create a Version.
+
+        The media is not extracted, it comes directly from Premiere.
+        The cut item's cut_in and cut_out are different than the Version's sg_first_frame and sg_last_frame,
+        since the available_range of the media is different.
+        """
+        settings = SGSettings()
+        # The default settings create Versions for each CutItem, e.g. settings.create_missing_versions = True
+        settings.reset_to_defaults()
+        # The default template uses UUID, let's test with a more simple template
+        settings.version_names_template = "{CLIP_NAME}_{CLIP_INDEX:04d}"
+        # The clip used in the Premiere xml is from frame 1 to frame 48,
+        # but only frames 5 to 25 are in the track.
+        xml_file = os.path.join(self.resources_dir, "blue_frame_5_to_25.xml")
+        timeline = otio.adapters.read_from_file(xml_file)
+        # The path to the media is relative to the machine, replace it.
+        clip = list(timeline.each_clip())[0]
+        file_path = os.path.join(self.resources_dir, "blue.mov")
+        # Premiere prepends its path with file://localhost, and then an absolute path.
+        # Keep it to test it would work properly.
+        clip.media_reference.target_url = "file://localhost" + file_path
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+        # Use our version of timeline to get access to cut_in, cut_out, etc.
+        timeline = CutTrack.from_timeline(timeline)
+        for i, clip in enumerate(timeline.each_clip()):
+            clip_version_name = compute_clip_version_name(clip, i + 1)
+            sg_cut_item = clip.metadata["sg"]
+            sg_version = self.mock_sg.find_one(
+                "Version",
+                [["id", "is", sg_cut_item["version"]["id"]]],
+                ["code", "sg_first_frame", "sg_last_frame", "sg_path_to_movie"]
+            )
+            self.assertFalse(clip.media_reference.is_missing_reference)
+            self.assertEqual(clip.media_reference.target_url.replace("file://", ""), sg_version["sg_path_to_movie"])
+            self.assertEqual(sg_version["code"], clip_version_name)
+            # The Version should have a first frame which is head_in + head_in_duration
+            version_first_frame = settings.default_head_in + settings.default_head_in_duration
+            version_last_frame = version_first_frame + clip.available_range().duration.to_frames() - 1
+            self.assertEqual(sg_version["sg_first_frame"], version_first_frame)
+            self.assertEqual(sg_version["sg_last_frame"], version_last_frame)
+            # The Cut starts five frames after the Version's media
+            cut_in = version_first_frame + 5
+            cut_out = cut_in + clip.visible_range().duration.to_frames() - 1
+            self.assertEqual(sg_cut_item["cut_item_in"], cut_in)
+            self.assertEqual(cut_in, clip.cut_in.to_frames())
+            self.assertEqual(sg_cut_item["cut_item_out"], cut_out)
+            self.assertEqual(cut_out, clip.cut_out.to_frames())
+
 
 #     def test_write(self):
 #         """

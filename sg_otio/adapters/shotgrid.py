@@ -12,8 +12,10 @@ import shotgun_api3
 
 from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS  # , _SHOT_FIELDS
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
-logging.basicConfig(level=logging.DEBUG)
+from sg_otio.sg_settings import SGSettings
+
 logger = logging.getLogger(__name__)
+logger.setLevel(SGSettings().log_level)
 
 
 def parse_sg_url(url):

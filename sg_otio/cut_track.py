@@ -11,8 +11,10 @@ import opentimelineio as otio
 
 from .clip_group import ClipGroup
 from .cut_clip import CutClip
+from .sg_settings import SGSettings
 
 logger = logging.getLogger(__name__)
+logger.setLevel(SGSettings().log_level)
 
 
 class CutTrack(otio.schema.Track):
@@ -24,17 +26,14 @@ class CutTrack(otio.schema.Track):
     - Names of clips are unique.
     - Clips are grouped by their shot, using :class:`ClipGroup` instances.
     """
-    def __init__(self, log_level=logging.INFO, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         Initialize an :class:`CutTrack` instance.
-
-        :param log_level: The log level to use.
         """
         # Must be kept first, before adding any attributes
         super(CutTrack, self).__init__(*args, **kwargs)
-        logger.setLevel(log_level)
-        # Check if Clips have duplicate names and if they have, make sure their names are unique.
-        clip_names = [clip.name for clip in self.each_clip()]
+        # Check if Clips have duplicate names and if they have, make sure their cut item names are unique.
+        clip_names = [clip.unique_name for clip in self.each_clip()]
         seen_names = set()
         duplicate_names = []
         for clip_name in clip_names:
@@ -46,8 +45,8 @@ class CutTrack(otio.schema.Track):
             for duplicate_name in duplicate_names:
                 clip_name_index = 1
                 for clip in self.each_clip():
-                    if clip.name == duplicate_name:
-                        clip.name = "%s_%03d" % (clip.name, clip_name_index)
+                    if clip.unique_name == duplicate_name:
+                        clip.unique_name = "%s_%03d" % (clip.unique_name, clip_name_index)
                         clip_name_index += 1
 
         # Set the :class:`ClipGroup` objects for this track.
@@ -80,26 +79,18 @@ class CutTrack(otio.schema.Track):
     def from_timeline(
         cls,
         timeline,
-        clip_class=CutClip,
-        log_level=logging.INFO,
     ):
         """
         Convenience method to Copy a Timeline and convert its video track
         from :class:`otio.schema.Track` to a :class:`sg_otio.CutTrack`.
 
         :param timeline: The :class:`otio.schema.Timeline` to convert.
-        :param track_class: The class to use for the tracks, e.g. :class:`sg_otio.CutTrack`.
-        :param int head_in: The default head in time of clips.
-        :param int head_in_duration: The default head in duration of clips.
-        :param int tail_out_duration: The default tail out duration of clips.
-        :param bool use_clip_names_for_shot_names: If ``True``, clip names can be used as shot names.
-        :param clip_name_shot_regexp: If given, and use_clip_names_for_shot_names is ``True``,
-                                      use this regexp to find the shot name from the clip name.
-        :param log_level: The log level to use.
         :returns: A :class:`otio.schema.Timeline` instance.
         """
-        audio_tracks = timeline.audio_tracks()
-        video_tracks = timeline.video_tracks()
+        # We need to deepcopy the timeline, because the different elements
+        # already have parents and otio will complain.
+        audio_tracks = copy.deepcopy(timeline.audio_tracks())
+        video_tracks = copy.deepcopy(timeline.video_tracks())
         if video_tracks:
             if len(video_tracks) > 1:
                 logger.warning("Only one video track is supported, using the first one.")
@@ -107,8 +98,6 @@ class CutTrack(otio.schema.Track):
                 # But we lose information, for example the track source_range becomes ``None``
             video_tracks[0] = cls.from_track(
                 video_tracks[0],
-                clip_class=clip_class,
-                log_level=log_level,
             )
 
         return otio.schema.Timeline(
@@ -122,20 +111,11 @@ class CutTrack(otio.schema.Track):
     def from_track(
         cls,
         track,
-        clip_class=CutClip,
-        log_level=logging.INFO,
     ):
         """
         Convenience method to create a :class:`CutTrack` from a :class:`otio.schema.Track`
 
         :param track: The track to convert.
-        :param int head_in: The default head in time of clips.
-        :param int head_in_duration: The default head in duration of clips.
-        :param int tail_out_duration: The default tail out duration of clips.
-        :param bool use_clip_names_for_shot_names: If ``True``, clip names can be used as shot names.
-        :param clip_name_shot_regexp: If given, and use_clip_names_for_shot_names is ``True``,
-                                      use this regexp to find the shot name from the clip name.
-        :param log_level: The log level to use.
         :returns: A :class:`CutTrack` instance
         :raises ValueError: If the track is not a :class:`otio.schema.Track`
                             of kind :class:`otio.schema.TrackKind.Video`.
@@ -148,10 +128,9 @@ class CutTrack(otio.schema.Track):
 
         for child in track.each_child():
             if isinstance(child, otio.schema.Clip):
-                clip = clip_class.from_clip(
+                clip = CutClip.from_clip(
                     child,
                     index=clip_index,
-                    log_level=log_level,
                 )
                 clip_index += 1
                 children.append(clip)
@@ -163,7 +142,6 @@ class CutTrack(otio.schema.Track):
             metadata=track.metadata,
             children=children,
             source_range=track.source_range,
-            log_level=log_level,
         )
 
     @property

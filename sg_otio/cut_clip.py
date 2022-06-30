@@ -5,15 +5,16 @@
 # accompanies this software in either electronic or hard copy form.
 #
 import logging
-import re
 
 import opentimelineio as otio
 import six
 from opentimelineio.opentime import RationalTime
 
 from .sg_settings import SGSettings
+from .utils import compute_clip_shot_name
 
 logger = logging.getLogger(__name__)
+logger.setLevel(SGSettings().log_level)
 
 
 class CutClip(otio.schema.Clip):
@@ -26,7 +27,6 @@ class CutClip(otio.schema.Clip):
         index=1,
         effects=None,
         markers=None,
-        log_level=logging.INFO,
         *args,
         **kwargs
     ):
@@ -36,10 +36,8 @@ class CutClip(otio.schema.Clip):
         :param int index: The index of the clip in the track.
         :param effects: A list of :class:`otio.schema.Effect` instances.
         :param markers: A list of :class:`otio.schema.Marker` instances.
-        :param int log_level: The logging level to use.
         """
         super(CutClip, self).__init__(*args, **kwargs)
-        logger.setLevel(log_level)
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
         if self.metadata.get("cmx_3600", {}).get("reel"):
@@ -50,19 +48,17 @@ class CutClip(otio.schema.Clip):
         self._head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
         self._head_in_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
         self._tail_out_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
-        self._use_clip_names_for_shot_names = sg_settings.use_clip_names_for_shot_names
-        self._clip_name_shot_regexp = sg_settings.clip_name_shot_regexp
         self._shot_name = None
         self.effect = self._relevant_timing_effect(effects or [])
         self._markers = markers or []
-        self._compute_shot_name()
+        self.shot_name = compute_clip_shot_name(self)
+        self._unique_name = self.name
 
     @classmethod
     def from_clip(
         cls,
         clip,
         index=1,
-        log_level=logging.INFO,
     ):
         """
         Convenience method to create a :class:`CutClip` instance from a
@@ -70,7 +66,6 @@ class CutClip(otio.schema.Clip):
 
         :param clip: A :class:`otio.schema.Clip` instance.
         :param int index: The index of the clip in the track.
-        :param int log_level: The logging level to use.
         :returns: A :class:`CutClip` instance.
         """
         return cls(
@@ -81,7 +76,6 @@ class CutClip(otio.schema.Clip):
             metadata=clip.metadata,
             effects=clip.effects,
             markers=clip.markers,
-            log_level=log_level,
         )
 
     @property
@@ -165,6 +159,30 @@ class CutClip(otio.schema.Clip):
         self._markers = value
 
     @property
+    def unique_name(self):
+        """
+        Return a unique name.
+
+        The only difference with the clip name is that this name is unique in the track, i.e.
+        if two clips have the same name foo, their cut item names will be foo and foo_001
+
+        :returns: A string.
+        """
+        return self._unique_name
+
+    @unique_name.setter
+    def unique_name(self, value):
+        """
+        Set a unique name.
+
+        The only difference with the clip name is that this name is unique in the track, i.e.
+        if two clips have the same name foo, their cut item names will be foo and foo_001
+
+        :param value: A string.
+        """
+        self._unique_name = value
+
+    @property
     def shot_name(self):
         """
         Return the name of the shot.
@@ -230,6 +248,30 @@ class CutClip(otio.schema.Clip):
         return self.source_in + self.visible_duration
 
     @property
+    def media_cut_in(self):
+        """
+        Return the media cut in of the clip.
+
+        It is an arbitrary time.
+
+        :returns: A :class:`RationalTime` instance.
+        """
+        return self._head_in + self._head_in_duration
+
+    @property
+    def media_cut_out(self):
+        """
+        Return the media cut out of the clip.
+
+        It is an arbitrary time.
+        :returns: A :class:`RationalTime` instance.
+        """
+        if not self.media_reference.is_missing_reference and self.media_reference.available_range:
+            return self.media_cut_in + self.available_range().duration - RationalTime(1, self._frame_rate)
+        else:
+            return self.media_cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
+
+    @property
     def cut_in(self):
         """
         Return the cut in time of the clip.
@@ -237,9 +279,19 @@ class CutClip(otio.schema.Clip):
         The cut_in is an arbitrary start time of the clip,
         taking into account any handles.
 
+        It also has to take into account if there's a media reference in the clip.
+        If it has one, and it has an available range, take it into account comparing it to the visible range
+        of the clip.
+
+        For example, if a clip visible range starts at frame 5, and the media reference starts
+        at frame 0, it means that the media cut_in has to start 5 frames after the clip's cut_in
+
         :returns: A :class:`RationalTime` instance.
         """
         cut_in = self._head_in + self._head_in_duration
+        if not self.media_reference.is_missing_reference and self.media_reference.available_range:
+            cut_in_offset = self.visible_range().start_time - self.media_reference.available_range.start_time
+            cut_in += cut_in_offset
         return cut_in
 
     @property
@@ -255,54 +307,6 @@ class CutClip(otio.schema.Clip):
         return self.cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
 
     @property
-    def media_cut_in(self):
-        """
-        Return the cut in time of the media reference.
-
-        If the clip has no media reference, return ``None``.
-
-        If it has one, but it has no available range, then the cut_in is the same as the clip's.
-
-        If it has an available range, take it into account comparing it to the visible range
-        of the clip.
-
-        For example, if a clip visible range starts at frame 5, and the media reference starts
-        at frame 0, it means that the media cut_in has to start 5 frames before the clip's cut_in
-
-        :returns: A :class:`RationalTime` instance or ``None``.
-        """
-        if self.media_reference.is_missing_reference:
-            return None
-        if self.media_reference.available_range is None:
-            return self.cut_in
-        media_cut_in_offset = self.media_reference.available_range.start_time - self.visible_range().start_time
-        return self.cut_in + media_cut_in_offset
-
-    @property
-    def media_cut_out(self):
-        """
-        Return the cut out time of the media reference.
-
-        If the clip has no media reference, return ``None``.
-
-        If it has one, but it has no available range, then the cut_out is the same as the clip's.
-
-        If it has an available range, take it into account comparing it to the visible range
-        of the clip.
-
-        For example, if a clip visible range ends at frame 10, and the media reference ends
-        at frame 20, it means that the media cut_out has to end 10 frames after the clip's cut_out
-
-        :returns: A :class:`RationalTime` instance or ``None``.
-        """
-        if self.media_reference.is_missing_reference:
-            return None
-        if self.media_reference.available_range is None:
-            return self.cut_out
-        media_cut_out_offset = self.media_reference.available_range.end_time - self.visible_range().end_time
-        return self.cut_out + media_cut_out_offset
-
-    @property
     def record_in(self):
         """
         Return the record in time of the clip.
@@ -316,10 +320,6 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-#        range_in_timeline = clip.transformed_time_range(
-#            clip.trimmed_range(),
-#            tracks
-#        )
         # We use visible_range wich adds adjacents transitions ranges to the Clip
         # trimmed_range
         # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
@@ -346,8 +346,6 @@ class CutClip(otio.schema.Clip):
         """
         # We use visible_range wich adds adjacents transitions ranges to the Clip
         # trimmed_range
-        # We use visible_range wich adds adjacents transitions ranges to the Clip
-        # trimmed_range
         # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
         return self.record_in + self.visible_range().duration
 
@@ -362,7 +360,8 @@ class CutClip(otio.schema.Clip):
         :returns: A :class:`RationalTime` instance.
         """
         edit_in = self.transformed_time_range(self.visible_range(), self.parent()).start_time
-        # We add one frame here, because the edit in is exclusive.
+        # We add one frame here, because the edit in starts at frame 1 for the first clip,
+        # not frame 0.
         edit_in += RationalTime(1, self._frame_rate)
         return edit_in
 
@@ -548,71 +547,3 @@ class CutClip(otio.schema.Clip):
         :returns: A bool.
         """
         return bool(self.effect)
-
-    def _compute_shot_name(self):
-        r"""
-        Processes the clip to find information about the shot name
-
-        The ClipGroup name can be found in the following places, in order of preference:
-        - SG metadata about the Cut Item, if it has a shot field.
-        - A :class:`otio.schema.Marker`, in an EDL it would be
-          * LOC: 00:00:02:19 YELLOW  053_CSC_0750_PC01_V0001 997 // 8-8 Match to edit,
-          which otio would convert to a marker with name "name='053_CSC_0750_PC01_V0001 997 // 8-8 Match to edit".
-          We would only consider the first part of the name, split by " ".
-        - In an EDL "pure" comment, e.g. "* COMMENT : 053_CSC_0750_PC01_V0001"
-        - In an EDL comment, e.g. "* 053_CSC_0750_PC01_V0001"
-        - The reel name.
-
-        The reel name is only used if `_use_clip_names_for_shot_names` is True.
-        If a `_clip_name_shot_regexp` is set, it will be used to extract the shot name from the reel name.
-        """
-        sg_metadata = self.metadata.get("sg", {}) or {}
-        shot_metadata = sg_metadata.get("shot", {}) or {}
-        if shot_metadata.get("code"):
-            self.shot_name = self.metadata["sg"]["shot"]["code"]
-            return
-        if self.markers:
-            self.shot_name = self.markers[0].name.split()[0]
-            return
-        comment_match = None
-        if self.metadata.get("cmx_3600") and self.metadata["cmx_3600"].get("comments"):
-            comments = self.metadata["cmx_3600"]["comments"]
-            if comments:
-                pure_comment_regexp = r"\*?(\s*COMMENT\s*:)?\s*([a-z0-9A-Z_-]+)$"
-                pure_comment_match = None
-                for comment in comments:
-                    m = re.match(pure_comment_regexp, comment)
-                    if m:
-                        if m.group(1):
-                            # Priority is given to matches from line beginning with
-                            # * COMMENT
-                            pure_comment_match = m.group(2)
-                        # If we already matched one, no need to rematch
-                        elif not comment_match:
-                            comment_match = m.group(2)
-                    if pure_comment_match:
-                        comment_match = pure_comment_match
-                        break
-        if comment_match:
-            self.shot_name = comment_match
-            return
-        if not self._use_clip_names_for_shot_names:
-            self.shot_name = None
-            return
-        if not self._clip_name_shot_regexp:
-            self.shot_name = self.name
-            return
-        # Support both pre-compiled regexp and strings
-        regexp = self._clip_name_shot_regexp
-        if isinstance(self._clip_name_shot_regexp, str):
-            regexp = re.compile(self._clip_name_shot_regexp)
-        m = regexp.search(
-            self.name
-        )
-        if m:
-            # If we have capturing groups, use the first one
-            # otherwise use the whole match.
-            if len(m.groups()):
-                self.shot_name = m.group(1)
-            else:
-                self.shot_name = m.group()

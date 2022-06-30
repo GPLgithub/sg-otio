@@ -15,9 +15,10 @@ from .constants import _ALT_SHOT_CUT_ORDER_FIELD_TEMPLATE, _ALT_SHOT_STATUS_FIEL
 from .constants import _ALT_SHOT_FIELDS, _SHOT_FIELDS
 from .constants import _ALT_SHOT_HEAD_IN_FIELD_TEMPLATE, _ALT_SHOT_TAIL_OUT_FIELD_TEMPLATE
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
-from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE
+from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE, _DEFAULT_VERSION_NAMES_TEMPLATE
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class Singleton(type):
@@ -189,6 +190,60 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._versions_path_template = value
 
+    @property
+    def version_names_template(self):
+        """
+        Return the template to use when naming versions.
+
+        :returns: A string.
+        """
+        return self._version_names_template
+
+    @version_names_template.setter
+    def version_names_template(self, value):
+        """
+        Set the template to use when naming versions.
+
+        :param str value: The template to use.
+        """
+        self._version_names_template = value
+
+    @property
+    def create_missing_versions(self):
+        """
+        Return ``True`` if missing versions should be created.
+
+        :returns: A boolean.
+        """
+        return self._create_missing_versions
+
+    @create_missing_versions.setter
+    def create_missing_versions(self, value):
+        """
+        Set whether missing versions should be created.
+
+        :param bool value: The value to set.
+        """
+        self._create_missing_versions = value
+
+    @property
+    def log_level(self):
+        """
+        Return the log level to use.
+
+        :returns: A logging level.
+        """
+        return self._log_level
+
+    @log_level.setter
+    def log_level(self, value):
+        """
+        Set the log level to use.
+
+        :param int value: The logging level to use.
+        """
+        self._log_level = value
+
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -200,6 +255,9 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._clip_name_shot_regexp = None
         self._local_storage_name = "primary"
         self._versions_path_template = _DEFAULT_VERSIONS_PATH_TEMPLATE
+        self._version_names_template = _DEFAULT_VERSION_NAMES_TEMPLATE
+        self._create_missing_versions = True
+        self._log_level = logging.DEBUG
 
 
 class SGShotFieldsConfig(object):
