@@ -156,6 +156,15 @@ class CutClip(otio.schema.Clip):
         self._markers = value
 
     @property
+    def shot_name(self):
+        """
+        Return the name of the shot.
+
+        :returns: A str or ``None``.
+        """
+        return self._shot_name
+
+    @property
     def cut_item_name(self):
         """
         Return the cut item name.
@@ -178,15 +187,6 @@ class CutClip(otio.schema.Clip):
         :param value: A string.
         """
         self._cut_item_name = value
-
-    @property
-    def shot_name(self):
-        """
-        Return the name of the shot.
-
-        :returns: A str or ``None``.
-        """
-        return self._shot_name
 
     @property
     def visible_duration(self):
