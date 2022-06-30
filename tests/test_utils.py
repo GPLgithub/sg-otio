@@ -48,7 +48,7 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(sg_settings.use_clip_names_for_shot_names)
         self.assertEqual(sg_settings.clip_name_shot_regexp, r"\d+")
 
-    @mock.patch('sg_otio.utils.get_uuid', return_value="123456")
+    @mock.patch("sg_otio.utils.get_uuid", return_value="123456")
     def test_compute_version_name(self, _):
         """
         Test computing media names.
