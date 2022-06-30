@@ -335,7 +335,7 @@ class SGShotFieldsConfig(object):
                 missing.append(sg_field)
         if missing:
             raise ValueError(
-                "Following Shotgun Shot fields are missing %s" % missing
+                "Following SG Shot fields are missing %s" % missing
             )
 
     @property

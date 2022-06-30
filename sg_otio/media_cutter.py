@@ -26,11 +26,18 @@ class MediaCutter(object):
     A timeline is provided (we only consider the first video track), along with a movie representing
     the video track.
 
-    For each clip that does not have a Media Reference
-
+    For each clip that does not have a Media Reference, use ffmpeg to extract the media from the movie.
+    These extractions are done in parallel.
     """
 
     def __init__(self, sg, timeline, movie):
+        """
+        Initialize the Media Cutter.
+
+        :param sg: A SG API session handle.
+        :param timeline: An instance of :class:`otio.schema.Timeline`.
+        :param str movie: The path to the movie to extract media from.
+        """
         super(MediaCutter, self).__init__()
         self._sg = sg
         self._movie = movie
@@ -43,15 +50,29 @@ class MediaCutter(object):
         self._video_track = timeline.video_tracks()[0]
 
     def cancel(self):
+        """
+        Cancel the extraction.
+        """
         self._executor.shutdown(wait=False)
 
     @property
     def media_dir(self):
+        """
+        Return a temporary directory to store extracted media.
+
+        :returns: A temporary directory path.
+        """
         if not self._media_dir:
             self._media_dir = tempfile.mkdtemp()
         return self._media_dir
 
     def cut_media_for_clips(self):
+        """
+        Extract media for clips in the timeline that don't have a media reference.
+
+        If all clips have a media reference, this method does nothing.
+        The extraction is done in parallel, but this method waits for all the extractions to finish.
+        """
         clips_with_no_media_references = []
         clip_media_names = []
         for i, clip in enumerate(self._video_track.each_clip()):
@@ -89,12 +110,27 @@ class MediaCutter(object):
         logger.info("Finished extracting media from movie %s" % self._movie)
 
     def _get_media_filename(self, media_name):
+        """
+        Return the path to the media file for the given media name.
+
+        It checks for name collisions and appends a number to the name if necessary.
+
+        :param str media_name: The name of the media file.
+        :returns: The path to the media file.
+        """
         filename = get_available_filename(self.media_dir, media_name, "mov")
         # Create an empty file to be able to get available filenames if some clips have the same media name.
         open(filename, "w").close()
         return filename
 
     def _extract_clip_media(self, clip, media_name):
+        """
+        Submit a future to extract the media for the given clip.
+
+        :param clip: An instance of :class:`otio.schema.Clip`
+        :param str media_name: The name of the media to extract.
+        :returns: An instance of :class:`concurrent.futures.Future`.
+        """
         clip_range_in_track = clip.transformed_time_range(clip.visible_range(), clip.parent())
         media_filename = self._get_media_filename(media_name)
 
@@ -111,7 +147,6 @@ class MediaCutter(object):
         future = self._executor.submit(
             extractor,
         )
-        # future.add_done_callback(self.progress_incremented)
         clip.media_reference = otio.schema.ExternalReference(
             target_url="file://" + media_filename,
             available_range=clip.visible_range()
@@ -122,7 +157,19 @@ class MediaCutter(object):
 
 
 class FFmpegExtractor(object):
+    """
+    Class to extract media from a movie using ffmpeg.
+    """
     def __init__(self, input_media, output_media, start_time, end_time, nb_frames):
+        """
+        Initialize the FFmpeg extractor.
+
+        :param str input_media: The path to the movie to extract media from.
+        :param str output_media: The path to the media file to extract to.
+        :param int start_time: The start time of the media to extract in seconds.
+        :param int end_time: The end time of the media to extract in seconds.
+        :param int nb_frames: The number of frames to extract.
+        """
         self._input_media = input_media
         self._output_media = output_media
         self._start_time = start_time
@@ -131,16 +178,36 @@ class FFmpegExtractor(object):
         self._progress_max = nb_frames
 
     def __call__(self):
+        """
+        Extract the media.
+
+        This is needed in Python 2 so that we can submit this class to a ProcessPoolExecutor.
+        In Python 3, we could just submit the call to extract() to the executor.
+        """
         return self.extract()
 
     @property
     def ffmpeg(self):
+        """
+        Return the path to the ffmpeg executable.
+
+        :returns: A string.
+        :raises RuntimeError: If ffmpeg is not found.
+        """
         ffmpeg = find_executable("ffmpeg")
         if not ffmpeg:
             raise RuntimeError("Could not find executable ffmpeg.")
         return ffmpeg
 
     def progress_changed(self, line):
+        """
+        Update the progress of the extraction.
+
+        Called for each line of output from ffmpeg, and finds lines that contain "frame=XXX"
+        to update the progress.
+
+        :param str line: A ffmpeg output line.
+        """
         if "frame=" in line:
             self._progress = int(line.split("=")[1].strip())
             logger.debug(
@@ -156,7 +223,11 @@ class FFmpegExtractor(object):
 
     @property
     def _movie_extract_command(self):
-        # Movie extract command
+        """
+        Return the ffmpeg command arguments to extract the media.
+
+        :returns: A list of arguments.
+        """
         # Why -ss is added after -i? From the docs:
         # "When used as an input option (before -i), seeks in this input file to position.
         # Note that in most formats it is not possible to seek exactly, so ffmpeg will seek
@@ -169,6 +240,7 @@ class FFmpegExtractor(object):
         # and the stipulated start time.
         return [
             self.ffmpeg,
+            # These settings allow getting only progress stats or errors in the output.
             "-y", "-nostdin", "-progress", "-", "-loglevel", "error", "-nostats",
             "-i", self._input_media,
             "-ss", str(self._start_time),
@@ -178,11 +250,8 @@ class FFmpegExtractor(object):
 
     def extract(self):
         """
-        Run the given command in a subprocess and parse the output with the
-        given parser.
+        Run the ffmpeg command to extract the media.
 
-        :param command_args: The command to run as a list suitable for :meth:`subprocess.Popen`.
-        :param line_parser: A callable accepting a string as unique parameter.
         :returns: A tuple, the subprocess exit code, as an integer, ``0`` meaning success,
                   and the output of the command as an array of output lines.
         """

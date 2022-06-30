@@ -12,8 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 class MediaUploader(object):
+    """
+    A class for uploading movies to Versions in SG, in parallel.
+    """
 
     def __init__(self, sg, sg_versions, movies):
+        """
+        Initialize a :class:`MediaUploader` instance.
+
+        :param sg: A SG API session handle.
+        :param sg_versions: A list of SG Versions to upload to.
+        :param movies: A list of movies to upload.
+        :raises ValueError: If the number of movies does not match the number of versions.
+        """
         if len(sg_versions) != len(movies):
             raise ValueError(
                 "sg_versions and movies must be the same length, not %d and %d" % (
@@ -29,18 +40,39 @@ class MediaUploader(object):
 
     @property
     def progress_max(self):
+        """
+        Returns the maximum number of progress steps.
+
+        Since there's no way to know the status of an upload, this is the number of
+        versions to upload movies to.
+
+        :returns: An integer.
+        """
         return self._progress_max
 
     @property
     def progress(self):
+        """
+        Returns the current progress step.
+
+        :returns: An integer.
+        """
         return self._progress
 
     @progress.setter
     def progress(self, value):
+        """
+        Sets the current progress step.
+
+        :param value: An integer.
+        """
         logger.debug("Progress: %d/%d" % (value, self._progress_max))
         self._progress = value
 
     def upload_versions(self):
+        """
+        Uploads movies to Versions in SG, in parallel.
+        """
         self._progress = 0
         results = self._executor.map(
             self.upload_version, self._sg_versions, self._movies
@@ -49,6 +81,12 @@ class MediaUploader(object):
             self.progress += 1
 
     def upload_version(self, sg_version, movie):
+        """
+        Uploads a movie to a SG Version.
+
+        :param sg_version: The SG Version to upload to.
+        :param movie: The movie to upload.
+        """
         self._sg.upload(
             "Version",
             sg_version["id"],
