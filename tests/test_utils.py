@@ -53,11 +53,11 @@ class TestUtils(unittest.TestCase):
         """
         Test computing media names.
         """
-        # If there's no version name template, it just returns the clip name
         settings = SGSettings()
         settings.reset_to_defaults()
         settings.version_names_template = None
         clip = otio.schema.Clip(name="foo")
+        # If there's no version name template, it just returns the clip name
         self.assertEqual(
             compute_clip_version_name(clip, 1),
             "foo"
@@ -65,6 +65,7 @@ class TestUtils(unittest.TestCase):
         # If there's a version name template, it uses it
         # First test the default template, {CLIP_NAME}_{UUID}
         settings.reset_to_defaults()
+        settings.version_names_template = "{CLIP_NAME}_{UUID}"
         self.assertEqual(
             compute_clip_version_name(clip, 1),
             "foo_123456"
