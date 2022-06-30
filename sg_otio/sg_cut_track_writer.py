@@ -18,7 +18,7 @@ from .cut_clip import CutClip
 from .cut_track import CutTrack
 from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
-from .utils import get_available_filename, compute_clip_version_name, get_platform_name
+from .utils import get_available_filename, compute_clip_version_name, get_platform_name, get_path_from_target_url
 
 try:
     # For Python 3.4 or later
@@ -408,11 +408,7 @@ class SGCutTrackWriter(object):
                         clip.name, clip.media_reference
                     ))
                 continue
-            media_reference_path = clip.media_reference.target_url
-            # Premiere XMLs start with file://localhost followed by an absolute path.
-            media_reference_path = media_reference_path.replace("file://localhost", "")
-            # EDLs start with file:// followed by an absolute path.
-            media_reference_path = media_reference_path.replace("file://", "")
+            media_reference_path = get_path_from_target_url(clip.media_reference.target_url)
             if not os.path.exists(media_reference_path):
                 logger.warning(
                     "Clip %s has a Media Reference %s not found locally, skipping Version creation." % (
@@ -484,11 +480,7 @@ class SGCutTrackWriter(object):
             if not os.path.exists(version_path):
                 os.makedirs(version_path)
             # Copy the file to the right path
-            media_reference_path = clip.media_reference.target_url
-            # Premiere XMLs start with file://localhost followed by an absolute path.
-            media_reference_path = media_reference_path.replace("file://localhost", "")
-            # EDLs start with file:// followed by an absolute path.
-            media_reference_path = media_reference_path.replace("file://", "")
+            media_reference_path = get_path_from_target_url(clip.media_reference.target_url)
             shutil.copyfile(
                 media_reference_path,
                 version_file_path

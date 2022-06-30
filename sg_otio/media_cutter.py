@@ -14,14 +14,23 @@ from distutils.spawn import find_executable
 
 import opentimelineio as otio
 
-from .utils import get_available_filename, compute_clip_version_name
+from .utils import get_available_filename, compute_clip_version_name, get_path_from_target_url
 
 logger = logging.getLogger(__name__)
 
 
 class MediaCutter(object):
+    """
+    Class to extract media from a movie using ffmpeg.
 
-    def __init__(self, sg, timeline, movie=None):
+    A timeline is provided (we only consider the first video track), along with a movie representing
+    the video track.
+
+    For each clip that does not have a Media Reference
+
+    """
+
+    def __init__(self, sg, timeline, movie):
         super(MediaCutter, self).__init__()
         self._sg = sg
         self._movie = movie
@@ -49,6 +58,7 @@ class MediaCutter(object):
             if clip.media_reference.is_missing_reference:
                 clips_with_no_media_references.append(clip)
                 clip_media_names.append(compute_clip_version_name(clip, i + 1))
+            # TODO: Deal with clips with media references with local filepaths that cannot be found.
         if not clips_with_no_media_references:
             logger.info("No clips need extracting from movie.")
             return

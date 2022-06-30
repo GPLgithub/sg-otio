@@ -213,3 +213,23 @@ def get_uuid(length):
     _ALPHABET = string.ascii_lowercase + string.digits
     r = random.SystemRandom()
     return "".join([r.choice(_ALPHABET) for _ in range(length)])
+
+
+def get_path_from_target_url(url):
+    """
+    Get the path from a target URL.
+
+    The URLs in Media References that represent local files can be:
+    - file:///path/to/file
+    - file://localhost/path/to/file (coming from Premiere XML)
+
+    Return a local filepath instead.
+
+    :param str url: The target URL.
+    :returns: A string, the path.
+    """
+    # Premiere XMLs start with file://localhost followed by an absolute path.
+    path = url.replace("file://localhost", "")
+    # EDLs start with file:// followed by an absolute path.
+    path = path.replace("file://", "")
+    return path
