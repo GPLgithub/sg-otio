@@ -76,6 +76,30 @@ class CutClip(otio.schema.Clip):
         )
 
     @property
+    def cut_item_name(self):
+        """
+        Return the cut item name.
+
+        The only difference with the clip name is that this name is unique in the track, i.e.
+        if two clips have the same name foo, their cut item names will be foo and foo_001
+
+        :returns: A string.
+        """
+        return self._cut_item_name
+
+    @cut_item_name.setter
+    def cut_item_name(self, value):
+        """
+        Set a cut item name.
+
+        The only difference with the clip name is that this name is unique in the track, i.e.
+        if two clips have the same name foo, their cut item names will be foo and foo_001
+
+        :param value: A string.
+        """
+        self._cut_item_name = value
+
+    @property
     def effect(self):
         """
         Return the effect.
@@ -163,30 +187,6 @@ class CutClip(otio.schema.Clip):
         :returns: A str or ``None``.
         """
         return self._shot_name
-
-    @property
-    def cut_item_name(self):
-        """
-        Return the cut item name.
-
-        The only difference with the clip name is that this name is unique in the track, i.e.
-        if two clips have the same name foo, their cut item names will be foo and foo_001
-
-        :returns: A string.
-        """
-        return self._cut_item_name
-
-    @cut_item_name.setter
-    def cut_item_name(self, value):
-        """
-        Set a cut item name.
-
-        The only difference with the clip name is that this name is unique in the track, i.e.
-        if two clips have the same name foo, their cut item names will be foo and foo_001
-
-        :param value: A string.
-        """
-        self._cut_item_name = value
 
     @property
     def visible_duration(self):
