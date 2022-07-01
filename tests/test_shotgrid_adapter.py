@@ -11,7 +11,7 @@ from shotgun_api3.lib import mockgun
 from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import compute_clip_version_name, get_platform_name
+from sg_otio.utils import compute_clip_version_name, get_platform_name, get_write_url
 from utils import add_to_sg_mock_db
 
 try:
@@ -148,15 +148,17 @@ class ShotgridAdapterTest(unittest.TestCase):
                 }
             )
         add_to_sg_mock_db(self.mock_sg, self.mock_cut_items)
-        self._SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+        self._SG_CUT_URL = get_write_url(
             self.mock_sg.base_url,
-            self._SESSION_TOKEN,
-            self.mock_cut_id
+            "Cut",
+            self.mock_cut_id,
+            self._SESSION_TOKEN
         )
-        self._SG_SEQ_URL = "{}/Sequence?session_token={}&id={}".format(
+        self._SG_SEQ_URL = get_write_url(
             self.mock_sg.base_url,
-            self._SESSION_TOKEN,
-            self.mock_sequence["id"]
+            "Sequence",
+            self.mock_sequence["id"],
+            self._SESSION_TOKEN
         )
 
     def mock_sg_update(self, update, entity_type, entity_id, data):
@@ -582,10 +584,11 @@ class ShotgridAdapterTest(unittest.TestCase):
             "code": "Cut_with_versions",
             "project": self.mock_project,
         }
-        mock_cut_url = "{}/Cut?session_token={}&id={}".format(
+        mock_cut_url = get_write_url(
             self.mock_sg.base_url,
-            self._SESSION_TOKEN,
+            "Cut",
             mock_cut["id"],
+            self._SESSION_TOKEN
         )
         add_to_sg_mock_db(self.mock_sg, mock_cut)
         try:
@@ -606,7 +609,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             """
             edl_movie = os.path.join(self.resources_dir, "media_cutter.mov")
             timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-            media_cutter = MediaCutter(self.mock_sg, timeline, edl_movie)
+            media_cutter = MediaCutter(timeline, edl_movie)
             media_cutter.cut_media_for_clips()
             with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
                 otio.adapters.write_to_file(timeline, mock_cut_url, "ShotGrid", input_media=edl_movie)
@@ -620,23 +623,16 @@ class ShotgridAdapterTest(unittest.TestCase):
                 self.assertEqual(orig_clip.media_reference.name, clip.media_reference.name)
                 self.assertEqual(orig_clip.media_reference.target_url, clip.media_reference.target_url)
                 self.assertEqual(orig_clip.media_reference.available_range, clip.media_reference.available_range)
-                orig_clip_version = orig_clip.media_reference.metadata["sg"]
-                clip_version = clip.media_reference.metadata["sg"]
-                # TODO: we don't have the same data when reading than when writing. Should we consolidate this?
-                for field in ["code", "sg_first_frame", "sg_last_frame", "id"]:
-                    self.assertEqual(orig_clip_version[field], clip_version[field])
+                orig_clip_pf = orig_clip.media_reference.metadata["sg"]
+                clip_pf = clip.media_reference.metadata["sg"]
+                all_fields = list(set(orig_clip_pf.keys()) | set(clip_pf.keys()))
+                for field in all_fields:
+                    # The only fields that we don't have when we write compared to when we read are the
+                    # version.Version fields
+                    if not field.startswith("version.Version"):
+                        self.assertEqual(orig_clip_pf[field], clip_pf[field])
                 self.assertEqual(orig_clip.metadata["sg"]["version"], clip.metadata["sg"]["version"])
                 # TODO: test published file dependencies, but mockgun does not populate upstream_dependencies
-                sg_published_file = self.mock_sg.find_one(
-                    "PublishedFile",
-                    [["version.Version.id", "is", clip_version["id"]]],
-                    ["code", "path", "published_file_type.PublishedFileType.code"]
-                )
-                self.assertEqual(sg_published_file["code"], clip_version_name)
-                self.assertEqual(
-                    sg_published_file["path"]["local_path_%s" % get_platform_name()],
-                    clip.media_reference.target_url.replace("file://", "")
-                )
         finally:
             self.mock_sg.delete("Cut", mock_cut["id"])
 
@@ -667,10 +663,11 @@ class ShotgridAdapterTest(unittest.TestCase):
             "code": "Cut_with_versions",
             "project": self.mock_project,
         }
-        mock_cut_url = "{}/Cut?session_token={}&id={}".format(
+        mock_cut_url = get_write_url(
             self.mock_sg.base_url,
-            self._SESSION_TOKEN,
+            "Cut",
             mock_cut["id"],
+            self._SESSION_TOKEN
         )
         add_to_sg_mock_db(self.mock_sg, mock_cut)
         try:
@@ -688,10 +685,14 @@ class ShotgridAdapterTest(unittest.TestCase):
                 self.assertEqual(orig_clip.available_range(), clip.available_range())
                 self.assertEqual(orig_clip.available_range().start_time.to_frames(), 0)
                 self.assertEqual(orig_clip.available_range().duration.to_frames(), 48)
-                orig_version = orig_clip.media_reference.metadata["sg"]
-                clip_version = clip.media_reference.metadata["sg"]
-                for field in ["code", "sg_first_frame", "sg_last_frame", "id"]:
-                    self.assertEqual(orig_version[field], clip_version[field])
+                orig_clip_pf = orig_clip.media_reference.metadata["sg"]
+                clip_pf = clip.media_reference.metadata["sg"]
+                all_fields = list(set(orig_clip_pf.keys()) | set(clip_pf.keys()))
+                for field in all_fields:
+                    # The only fields that we don't have when we write compared to when we read are the
+                    # version.Version fields
+                    if not field.startswith("version.Version"):
+                        self.assertEqual(orig_clip_pf[field], clip_pf[field])
         finally:
             self.mock_sg.delete("Cut", mock_cut["id"])
 

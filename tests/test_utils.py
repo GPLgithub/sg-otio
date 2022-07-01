@@ -4,14 +4,19 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
-
+import os
+import tempfile
 import unittest
+from functools import partial
 
 import opentimelineio as otio
+from shotgun_api3.lib import mockgun
 
 from sg_otio.constants import _DEFAULT_HEAD_IN
 from sg_otio.sg_settings import SGSettings
+from sg_otio.utils import add_media_references_from_sg, get_platform_name
 from sg_otio.utils import compute_clip_version_name
+from utils import add_to_sg_mock_db
 
 try:
     # Python 3.3 forward includes the mock module
@@ -24,6 +29,50 @@ class TestUtils(unittest.TestCase):
     """
     Test various utilities provided by the package
     """
+
+    def setUp(self):
+        sg_settings = SGSettings()
+        sg_settings.reset_to_defaults()
+
+        # Setup mockgun.
+        self.mock_sg = mockgun.Shotgun(
+            "https://mysite.shotgunstudio.com",
+            "foo",
+            "xxxx"
+        )
+        self.mock_sg.find = mock.Mock(side_effect=partial(self.mock_find, self.mock_sg.find))
+        self.mock_project = {"type": "Project", "name": "project", "id": 1}
+        add_to_sg_mock_db(
+            self.mock_sg,
+            self.mock_project
+        )
+        self.path_field = "%s_path" % get_platform_name()
+        self.mock_local_storage = {
+            "type": "LocalStorage",
+            "code": "primary",
+            "id": 1,
+            self.path_field: tempfile.mkdtemp()}
+        add_to_sg_mock_db(self.mock_sg, self.mock_local_storage)
+
+    def mock_find(self, mockgun_find, *args, **kwargs):
+        """
+        Mock the find method to add the URL of a sg uploaded movie if needed
+
+        :param mockgun_find: The mockgun find method
+        :returns: A list of Entities.
+        """
+        entities = mockgun_find(*args, **kwargs)
+        for entity in entities:
+            for fields in entity.keys():
+                if fields == "sg_uploaded_movie":
+                    attachment = self.mock_sg.find_one(
+                        "Attachment",
+                        [["id", "is", entity["sg_uploaded_movie"]["id"]]],
+                        ["url"]
+                    )
+                    entity["sg_uploaded_movie"]["url"] = attachment["url"]
+        return entities
+
     def test_sg_settings(self):
         """
         Test retrieving and setting SG settings.
@@ -97,6 +146,175 @@ class TestUtils(unittest.TestCase):
             compute_clip_version_name(clip, 4),
             "foo_0004"
         )
+
+    def test_add_media_reference_from_sg_non_existing(self):
+        """
+        Test that add media references from SG does nothing if the
+        clip has no corresponding Published File or Version in SG.
+        """
+        settings = SGSettings()
+        settings.reset_to_defaults()
+        # Don't use a template, so it's easy to infer the Version/PublishedFile name.
+        settings.version_names_template = None
+        # Create a clip and add it to a Track
+        track = otio.schema.Track()
+        clip = otio.schema.Clip(name="foo")
+        track.append(clip)
+        add_media_references_from_sg(track, self.mock_sg, self.mock_project)
+        self.assertTrue(clip.media_reference.is_missing_reference)
+
+    def test_add_media_reference_from_sg_version(self):
+        """
+        Test that add media references from SG adds a reference from a sg_uploaded_movie
+        If it finds a corresponding Version but not a PublishedFile
+        """
+        settings = SGSettings()
+        settings.reset_to_defaults()
+        # Don't use a template, so it's easy to infer the Version/PublishedFile name.
+        settings.version_names_template = None
+        # Create a clip and add it to a Track
+        track = otio.schema.Track()
+        # The name of the media should be the name of the clip
+        clip = otio.schema.Clip(name="foo")
+        # The clip needs a source range to calculate the media reference available range
+        clip.source_range = otio.opentime.TimeRange(
+            otio.opentime.RationalTime(5, 24),
+            otio.opentime.RationalTime(10, 24)
+        )
+        track.append(clip)
+        try:
+            # Add a Version to the mock DB
+            # first add a dummy uploaded movie
+            attachment = {
+                "url": "https://foo.com",
+                "type": "Attachment",
+                "id": 1
+            }
+            add_to_sg_mock_db(self.mock_sg, attachment)
+            version = {
+                "type": "Version",
+                "code": "foo",
+                "id": 123,
+                "project": self.mock_project,
+                "sg_first_frame": 1000,
+                "sg_last_frame": 1019,
+                "sg_uploaded_movie": attachment,
+            }
+            add_to_sg_mock_db(self.mock_sg, version)
+            # We also need a Cut Item.
+            cut_item = {
+                "type": "CutItem",
+                "id": 234,
+                "version": version,
+                "cut_item_in": 1005,
+                "cut_item_out": 1009,
+                "project": self.mock_project,
+            }
+            add_to_sg_mock_db(self.mock_sg, cut_item)
+            add_media_references_from_sg(track, self.mock_sg, self.mock_project)
+            self.assertFalse(clip.media_reference.is_missing_reference)
+            self.assertEqual(clip.media_reference.name, version["code"])
+            self.assertEqual(clip.media_reference.target_url, attachment["url"])
+            # We set the source range from 5 to 10, to represent the cut item that goes
+            # from 1005 to 1009 (5 frames).
+            # The Version goes from 1000 to 1019, so the available range should be
+            # 0 to 20
+            available_range = otio.opentime.TimeRange(
+                otio.opentime.RationalTime(0, 24),
+                otio.opentime.RationalTime(20, 24)
+            )
+            self.assertEqual(clip.media_reference.available_range, available_range)
+            self.assertEqual(
+                clip.media_reference.metadata["sg"]["version.Version.id"],
+                version["id"]
+            )
+
+        finally:
+            # Remove the version from the mock DB
+            self.mock_sg.delete("Version", version["id"])
+            self.mock_sg.delete("Attachment", attachment["id"])
+            self.mock_sg.delete("CutItem", cut_item["id"])
+
+    def test_add_media_reference_from_sg_published_file(self):
+        """
+        Test that add media references from SG adds a reference from a Published File.
+        """
+        settings = SGSettings()
+        settings.reset_to_defaults()
+        # Don't use a template, so it's easy to infer the Version/PublishedFile name.
+        settings.version_names_template = None
+        # Create a clip and add it to a Track
+        track = otio.schema.Track()
+        # The name of the media should be the name of the clip
+        clip = otio.schema.Clip(name="foo")
+        # The clip needs a source range to calculate the media reference available range
+        clip.source_range = otio.opentime.TimeRange(
+            otio.opentime.RationalTime(5, 24),
+            otio.opentime.RationalTime(10, 24)
+        )
+        track.append(clip)
+
+        try:
+            version = {
+                "type": "Version",
+                "code": "foo",
+                "id": 123,
+                "project": self.mock_project,
+                "sg_first_frame": 1000,
+                "sg_last_frame": 1019,
+            }
+            add_to_sg_mock_db(self.mock_sg, version)
+            published_file_data = {
+                "code": "foo",
+                "project": self.mock_project,
+                "version": version,
+                "path": {
+                    "relative_path": "foo.mov",
+                    "local_path": os.path.join(self.mock_local_storage[self.path_field], "foo.mov"),
+                    "local_storage": self.mock_local_storage
+                }
+            }
+            # We don't add it with add_to_sg_mock_db,
+            # because mockgun adds the "local_path_XXX" fields on create.
+            published_file = self.mock_sg.create("PublishedFile", published_file_data)
+
+            # We also need a Cut Item.
+            cut_item = {
+                "type": "CutItem",
+                "id": 234,
+                "version": version,
+                "cut_item_in": 1005,
+                "cut_item_out": 1009,
+                "project": self.mock_project,
+            }
+            add_to_sg_mock_db(self.mock_sg, cut_item)
+            add_media_references_from_sg(track, self.mock_sg, self.mock_project)
+            self.assertFalse(clip.media_reference.is_missing_reference)
+            self.assertEqual(clip.media_reference.name, published_file["code"])
+            self.assertEqual(
+                clip.media_reference.target_url,
+                "file://%s" % os.path.join(self.mock_local_storage[self.path_field], "foo.mov")
+            )
+            # We set the source range from 5 to 10, to represent the cut item that goes
+            # from 1005 to 1009 (5 frames).
+            # The Version goes from 1000 to 1019, so the available range should be
+            # 0 to 20
+            available_range = otio.opentime.TimeRange(
+                otio.opentime.RationalTime(0, 24),
+                otio.opentime.RationalTime(20, 24)
+            )
+            self.assertEqual(clip.media_reference.available_range, available_range)
+            self.assertEqual(clip.media_reference.metadata["sg"]["id"], published_file["id"])
+            self.assertEqual(
+                clip.media_reference.metadata["sg"]["version.Version.id"],
+                version["id"]
+            )
+
+        finally:
+            # Remove the version from the mock DB
+            self.mock_sg.delete("Version", version["id"])
+            self.mock_sg.delete("PublishedFile", published_file["id"])
+            self.mock_sg.delete("CutItem", cut_item["id"])
 
 
 if __name__ == "__main__":

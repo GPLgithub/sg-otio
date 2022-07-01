@@ -10,9 +10,10 @@ from six.moves.urllib import parse
 import opentimelineio as otio
 import shotgun_api3
 
-from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS  # , _SHOT_FIELDS
+from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
+from sg_otio.constants import _PUBLISHED_FILE_FIELDS, _VERSION_FIELDS
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
-from sg_otio.utils import get_platform_name
+from sg_otio.utils import get_platform_name, add_pf_media_reference_to_clip, add_version_media_reference_to_clip
 
 logger = logging.getLogger(__name__)
 
@@ -107,14 +108,7 @@ def read_from_file(filepath):
             ["version.Version.id", "in", cut_item_version_ids],
             ["published_file_type.PublishedFileType.code", "is", "mov"]
         ],
-        [
-            "code",
-            "path",
-            "version.Version.id",
-            "version.Version.code",
-            "version.Version.sg_first_frame",
-            "version.Version.sg_last_frame"
-        ],
+        _PUBLISHED_FILE_FIELDS,
         order=[{"field_name": "id", "direction": "desc"}]
     )
     # If there are multiple published files for the same Version, we take the first one.
@@ -129,7 +123,7 @@ def read_from_file(filepath):
         versions_with_no_published_files = sg.find(
             "Version",
             [["id", "in", versions_with_no_published_files_ids]],
-            ["code", "sg_uploaded_movie", "sg_first_frame", "sg_last_frame"],
+            _VERSION_FIELDS
         )
         versions_with_no_published_files_by_id = {version["id"]: version for version in versions_with_no_published_files}
 
@@ -181,60 +175,15 @@ def read_from_file(filepath):
         )
         # Check if the Cut Item has a published file, and create a media reference if it does.
         cut_item_version_id = cut_item["version.Version.id"]
+        platform_name = get_platform_name()
         if cut_item_version_id in published_files_by_version_id.keys():
             published_file = published_files_by_version_id[cut_item_version_id]
-            path_field = "local_path_%s" % get_platform_name()
-            url = "file://%s" % published_file["path"][path_field]
-            first_frame = published_file.pop("version.Version.sg_first_frame")
-            last_frame = published_file.pop("version.Version.sg_last_frame")
-            name = published_file.pop("version.Version.code")
-            media_available_range = None
-            if first_frame and last_frame:
-                # The available range depends on the diff between
-                # first frame and cut_item_in, and last frame and cut_item_out
-                # TODO: If this is not available, maybe we could set the start time to the same
-                #       as the clip start time, and use ffprobe to determine the end time?
-                start_time_offset = cut_item["cut_item_in"] - first_frame
-                duration = last_frame - first_frame
-                media_available_range = otio.opentime.TimeRange(
-                    clip.source_range.start_time - otio.opentime.RationalTime(start_time_offset, cut["fps"]),
-                    otio.opentime.RationalTime(duration, cut["fps"])
-                )
-            clip.media_reference = otio.schema.ExternalReference(
-                target_url=url,
-                available_range=media_available_range,
-            )
-            clip.media_reference.name = name
-            version = {
-                "type": "Version",
-                "id": cut_item_version_id,
-                "code": name,
-                "sg_first_frame": first_frame,
-                "sg_last_frame": last_frame,
-                "published_file": published_file,
-            }
-            clip.media_reference.metadata["sg"] = version
+            add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name)
         elif cut_item_version_id in versions_with_no_published_files_by_id.keys():
             version = versions_with_no_published_files_by_id[cut_item_version_id]
             # If there's no uploaded movie, we can't create a media reference.
             if version["sg_uploaded_movie"]:
-                media_available_range = None
-                if version["sg_first_frame"] and version["sg_last_frame"]:
-                    # The available range depends on the diff between
-                    # first frame and cut_item_in, and last frame and cut_item_out
-                    start_time_offset = cut_item["cut_item_in"] - version["sg_first_frame"]
-                    duration = version["sg_last_frame"] - version["sg_first_frame"] + 1
-                    media_available_range = otio.opentime.TimeRange(
-                        clip.source_range.start_time - otio.opentime.RationalTime(start_time_offset, cut["fps"]),
-                        otio.opentime.RationalTime(duration, cut["fps"])
-                    )
-                # TODO: what can be done with AWS links expiring? should we download the movie somewhere?
-                clip.media_reference = otio.schema.ExternalReference(
-                    target_url=version["sg_uploaded_movie"],
-                    available_range=media_available_range,
-                )
-                clip.media_reference.name = version["code"]
-                clip.media_reference.metadata["sg"] = version
+                add_version_media_reference_to_clip(clip, version, cut_item)
         track.append(clip)
     return timeline
 

@@ -14,7 +14,7 @@ from distutils.spawn import find_executable
 
 import opentimelineio as otio
 
-from .utils import get_available_filename, compute_clip_version_name
+from .utils import compute_clip_version_name
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class MediaCutter(object):
     These extractions are done in parallel.
     """
 
-    def __init__(self, sg, timeline, movie):
+    def __init__(self, timeline, movie):
         """
         Initialize the Media Cutter.
 
@@ -39,21 +39,30 @@ class MediaCutter(object):
         :param str movie: The path to the movie to extract media from.
         """
         super(MediaCutter, self).__init__()
-        self._sg = sg
         self._movie = movie
         self._media_dir = None
         self._executor = ProcessPoolExecutor()
-        if not timeline.video_tracks:
-            raise ValueError("Timeline has no video tracks")
         if len(timeline.video_tracks()) > 1:
             logger.warning("Only one video track is supported, using the first one.")
+        if not self.ffmpeg:
+            raise RuntimeError("ffmpeg cannot be found.")
         self._video_track = timeline.video_tracks()[0]
+        self._media_filenames = []
 
     def cancel(self):
         """
         Cancel the extraction.
         """
         self._executor.shutdown(wait=False)
+
+    @property
+    def ffmpeg(self):
+        """
+        Return the path to the ffmpeg executable, if any.
+
+        :returns: A string.
+        """
+        return find_executable("ffmpeg")
 
     @property
     def media_dir(self):
@@ -79,26 +88,15 @@ class MediaCutter(object):
             if clip.media_reference.is_missing_reference:
                 clips_with_no_media_references.append(clip)
                 clip_media_names.append(compute_clip_version_name(clip, i + 1))
-            # TODO: Deal with clips with media references with local filepaths that cannot be found.
         if not clips_with_no_media_references:
             logger.info("No clips need extracting from movie.")
             return
-        # Get the clips which have media names that already exist in SG, to avoid recreating Versions if
-        # they already exist.
-        sg_versions = self._sg.find(
-            "Version",
-            [["code", "in", clip_media_names]],
-            ["code"]
-        )
-        sg_version_codes = [version["code"] for version in sg_versions]
         futures = []
         clips_to_extract_names = []
+        FFmpegExtractor.ffmpeg = self.ffmpeg
         for clip, media_name in zip(clips_with_no_media_references, clip_media_names):
-            if media_name in sg_version_codes:
-                logger.debug("Clip %s already exists in SG, skipping extraction." % media_name)
-            else:
-                futures.append(self._extract_clip_media(clip, media_name))
-                clips_to_extract_names.append(clip.name)
+            futures.append(self._extract_clip_media(clip, media_name))
+            clips_to_extract_names.append(clip.name)
         if not futures:
             logger.info("No clips need extracting from movie.")
             return
@@ -124,10 +122,14 @@ class MediaCutter(object):
         :param str media_name: The name of the media file.
         :returns: The path to the media file.
         """
-        filename = get_available_filename(self.media_dir, media_name, "mov")
-        # Create an empty file to be able to get available filenames if some clips have the same media name.
-        open(filename, "w").close()
-        return filename
+        filename = os.path.join(self.media_dir, "%s.mov" % media_name)
+        i = 1
+        while True:
+            if filename not in self._media_filenames:
+                self._media_filenames.append(filename)
+                return filename
+            filename = os.path.join(self._media_dir, "%s_%03d.mov" % (media_name, i))
+            i += 1
 
     def _extract_clip_media(self, clip, media_name):
         """
@@ -137,6 +139,9 @@ class MediaCutter(object):
         :param str media_name: The name of the media to extract.
         :returns: An instance of :class:`concurrent.futures.Future`.
         """
+        # We're looking for the range of the clip in the track, without taking
+        # into account the track offset, since the movie provided for cutting
+        # starts at frame 0.
         clip_range_in_track = clip.transformed_time_range(clip.visible_range(), clip.parent())
         media_filename = self._get_media_filename(media_name)
 
@@ -166,6 +171,8 @@ class FFmpegExtractor(object):
     """
     Class to extract media from a movie using ffmpeg.
     """
+    ffmpeg = None
+
     def __init__(self, input_media, output_media, start_time, end_time, nb_frames):
         """
         Initialize the FFmpeg extractor.
@@ -173,7 +180,7 @@ class FFmpegExtractor(object):
         :param str input_media: The path to the movie to extract media from.
         :param str output_media: The path to the media file to extract to.
         :param int start_time: The start time of the media to extract in seconds.
-        :param int end_time: The end time of the media to extract in seconds.
+        :param int end_time: The end time of the media to extract in seconds (exclusive).
         :param int nb_frames: The number of frames to extract.
         """
         self._input_media = input_media
@@ -191,19 +198,6 @@ class FFmpegExtractor(object):
         In Python 3, we could just submit the call to extract() to the executor.
         """
         return self.extract()
-
-    @property
-    def ffmpeg(self):
-        """
-        Return the path to the ffmpeg executable.
-
-        :returns: A string.
-        :raises RuntimeError: If ffmpeg is not found.
-        """
-        ffmpeg = find_executable("ffmpeg")
-        if not ffmpeg:
-            raise RuntimeError("Could not find executable ffmpeg.")
-        return ffmpeg
 
     def progress_changed(self, line):
         """

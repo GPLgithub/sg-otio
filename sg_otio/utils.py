@@ -4,15 +4,20 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import logging
 import os
 import random
 import re
 import string
 import sys
 
+import opentimelineio as otio
 from six.moves.urllib import parse
 
+from .constants import _PUBLISHED_FILE_FIELDS, _VERSION_FIELDS
 from .sg_settings import SGSettings
+
+logger = logging.getLogger(__name__)
 
 
 def get_write_url(sg_site_url, entity_type, entity_id, session_token):
@@ -175,6 +180,20 @@ def get_available_filename(folder, name, extension):
 
 
 def compute_clip_version_name(clip, clip_index):
+    """
+    Compute the version name for a clip.
+
+    The name of the version is, in order of preference:
+    - If a name template is provided, the name computed from the template.
+    - The reel name if it's available (only for EDLs).
+    - The clip name.
+
+    ..seealso::sg_settings.SGSettings.version_names_template
+
+    :param clip: A :class:`otio.schema.Clip` or :class:`CutClip`.
+    :param int clip_index: The index of the clip in the Track.
+    :returns: A string containing the version name.
+    """
     settings = SGSettings()
     # Clip names cannot be None, only empty strings.
     clip_name = clip.name
@@ -233,3 +252,145 @@ def get_path_from_target_url(url):
     # EDLs start with file:// followed by an absolute path.
     path = path.replace("file://", "")
     return path
+
+
+def add_media_references_from_sg(track, sg, project):
+    """
+    Add Media References from Shotgun to clips in a track.
+
+    For clips that don't have a Media Reference, try to find one in Shotgun.
+
+    :param track: A :class:`otio.schema.Track` or :class:`CutTrack` instance.
+    :param sg: A SG session handle.
+    :param project: A SG Project entity.
+    """
+    clips_with_no_media_references = []
+    clip_media_names = []
+    for i, clip in enumerate(track.each_clip()):
+        if clip.media_reference.is_missing_reference:
+            clips_with_no_media_references.append(clip)
+            clip_media_names.append(compute_clip_version_name(clip, i + 1))
+        # TODO: Deal with clips with media references with local filepaths that cannot be found.
+    if not clips_with_no_media_references:
+        return
+    sg_published_files = sg.find(
+        "PublishedFile",
+        [["project", "is", project], ["code", "in", clip_media_names]],
+        _PUBLISHED_FILE_FIELDS,
+        order=[{"field_name": "id", "direction": "desc"}]
+    )
+    # If there are multiple published files with the same name, take the first one only.
+    sg_published_files_by_code = {}
+    for published_file in sg_published_files:
+        if published_file["code"] not in sg_published_files_by_code:
+            sg_published_files_by_code[published_file["code"]] = published_file
+    # If a published file is not found, maybe a Version can be used.
+    missing_names = list(set(clip_media_names) - set(sg_published_files_by_code.keys()))
+    sg_versions = sg.find(
+        "Version",
+        [["project", "is", project], ["code", "in", missing_names]],
+        _VERSION_FIELDS
+    )
+    sg_versions_by_code = {v["code"]: v for v in sg_versions}
+    all_versions = sg_versions + [pf["version"] for pf in sg_published_files]
+    sg_cut_items = sg.find(
+        "CutItem",
+        [["project", "is", project], ["version", "in", all_versions]],
+        ["cut_item_in", "cut_item_out", "version.Version.id"]
+    )
+    sg_cut_items_by_version_id = {
+        cut_item["version.Version.id"]: cut_item for cut_item in sg_cut_items
+    }
+    platform_name = get_platform_name()
+    for clip, media_name in zip(clips_with_no_media_references, clip_media_names):
+        published_file = sg_published_files_by_code.get(media_name)
+        if published_file:
+            cut_item = sg_cut_items_by_version_id.get(published_file["version.Version.id"])
+            if cut_item:
+                add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name)
+        else:
+            version = sg_versions_by_code.get(media_name)
+            if version and version["sg_uploaded_movie"]:
+                cut_item = sg_cut_items_by_version_id.get(version["id"])
+                if cut_item:
+                    add_version_media_reference_to_clip(clip, version, cut_item)
+
+
+def add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name):
+    """
+    Add a Media Reference to a clip from a PublishedFile.
+
+    :param clip: A :class:`otio.schema.Clip` or :class:`CutClip` instance.
+    :param published_file: A SG PublishedFile entity.
+    :param cut_item: A SG CutItem entity.
+    :param platform_name: The platform name.
+    """
+    path_field = "local_path_%s" % platform_name
+    url = "file://%s" % published_file["path"][path_field]
+    first_frame = published_file["version.Version.sg_first_frame"]
+    last_frame = published_file["version.Version.sg_last_frame"]
+    name = published_file["version.Version.code"]
+    media_available_range = None
+    if first_frame and last_frame:
+        # The visible range of the clip is taken from
+        # timecode_cut_item_in_text and timecode_cut_item_out_text,
+        # but cut_item_in, cut_item_out (on CutItem) and first_frame,
+        # last_frame (on Version) have an offset of head_in + head_in_duration.
+        # Since we cannot know what the offset is, we check the offset between cut_item_in and first_frame,
+        # and that tells us what is the offset between visible range and available range.
+        start_time_offset = cut_item["cut_item_in"] - first_frame
+        duration = last_frame - first_frame + 1
+        rate = clip.source_range.start_time.rate
+        media_available_range = otio.opentime.TimeRange(
+            clip.source_range.start_time - otio.opentime.RationalTime(start_time_offset, rate),
+            otio.opentime.RationalTime(duration, rate)
+        )
+    clip.media_reference = otio.schema.ExternalReference(
+        target_url=url,
+        available_range=media_available_range,
+    )
+    clip.media_reference.name = name
+    clip.media_reference.metadata["sg"] = published_file
+
+
+def add_version_media_reference_to_clip(clip, version, cut_item):
+    """
+    Add a Media Reference to a clip from a Version.
+
+    :param clip: A :class:`otio.schema.Clip` or :class:`CutClip` instance.
+    :param version: A SG Version entity.
+    :param cut_item: A SG CutItem entity.
+    """
+    media_available_range = None
+    rate = clip.source_range.start_time.rate
+    if version["sg_first_frame"] and version["sg_last_frame"]:
+        # The visible range of the clip is taken from
+        # timecode_cut_item_in_text and timecode_cut_item_out_text,
+        # but cut_item_in, cut_item_out (on CutItem) and first_frame,
+        # last_frame (on Version) have an offset of head_in + head_in_duration.
+        # Since we cannot know what the offset is, we check the offset between cut_item_in and first_frame,
+        # and that tells us what is the offset between visible range and available range.
+        start_time_offset = cut_item["cut_item_in"] - version["sg_first_frame"]
+        duration = version["sg_last_frame"] - version["sg_first_frame"] + 1
+        media_available_range = otio.opentime.TimeRange(
+            clip.source_range.start_time - otio.opentime.RationalTime(start_time_offset, rate),
+            otio.opentime.RationalTime(duration, rate)
+        )
+    # TODO: what can be done with AWS links expiring? should we download the movie somewhere?
+    clip.media_reference = otio.schema.ExternalReference(
+        target_url=version["sg_uploaded_movie"]["url"],
+        available_range=media_available_range,
+    )
+    clip.media_reference.name = version["code"]
+    # The SG metadata should be a published file, but since we only have the Version,
+    # set all Published File fields as None, except the version.Version.XXX fields.
+    pf_data = {
+        "type": "PublishedFile",
+        "id": None,
+    }
+    for field in _PUBLISHED_FILE_FIELDS:
+        if field.startswith("version.Version"):
+            pf_data[field] = version[field.replace("version.Version.", "")]
+        else:
+            pf_data[field] = None
+    clip.media_reference.metadata["sg"] = pf_data

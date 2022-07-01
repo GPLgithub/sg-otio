@@ -4,6 +4,7 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import copy
 import logging
 
 import opentimelineio as otio
@@ -65,6 +66,7 @@ class CutClip(otio.schema.Clip):
         :param int index: The index of the clip in the track.
         :returns: A :class:`CutClip` instance.
         """
+        clip = copy.deepcopy(clip)
         return cls(
             name=clip.name,
             source_range=clip.source_range,
@@ -80,8 +82,8 @@ class CutClip(otio.schema.Clip):
         """
         Return the cut item name.
 
-        The only difference with the clip name is that this name is unique in the track, i.e.
-        if two clips have the same name foo, their cut item names will be foo and foo_001
+        It can be different from the Clip name if for example
+        uniqueness of names needs to be enforced in a Cut.
 
         :returns: A string.
         """
@@ -92,8 +94,8 @@ class CutClip(otio.schema.Clip):
         """
         Set a cut item name.
 
-        The only difference with the clip name is that this name is unique in the track, i.e.
-        if two clips have the same name foo, their cut item names will be foo and foo_001
+        It can be different from the Clip name if for example
+        uniqueness of names needs to be enforced in a Cut.
 
         :param value: A string.
         """

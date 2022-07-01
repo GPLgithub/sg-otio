@@ -84,6 +84,32 @@ _SHOT_FIELDS = [
     "image"
 ]
 
+# Fields we need to retrieve on Versions
+_VERSION_FIELDS = [
+    "code",
+    "sg_first_frame",
+    "sg_last_frame",
+    "sg_path_to_movie",
+    "sg_uploaded_movie",
+]
+
+# Fields we need to retrieve on Published Files
+_PUBLISHED_FILE_FIELDS = [
+    "code",
+    "path",
+    "path_cache",
+    "project",
+    "published_file_type",
+    "version_number",
+    "version",
+    "entity",
+    "version.Version.id",
+    "version.Version.code",
+    "version.Version.sg_first_frame",
+    "version.Version.sg_last_frame",
+    "version.Version.sg_path_to_movie"
+]
+
 # Shot field templates used for alternate Shot cut fields
 _ALT_SHOT_STATUS_FIELD_TEMPLATE = "sg_%s_status_list"
 _ALT_SHOT_HEAD_IN_FIELD_TEMPLATE = "sg_%s_head_in"

@@ -14,7 +14,7 @@ import opentimelineio as otio
 from shotgun_api3 import Shotgun
 
 from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import get_write_url, get_read_url
+from sg_otio.utils import get_write_url, get_read_url, add_media_references_from_sg
 from sg_otio.media_cutter import MediaCutter
 
 logging.basicConfig(level=logging.INFO)
@@ -149,6 +149,8 @@ def write_to_sg(args):
     timeline = otio.adapters.read_from_file(
         args.file, adapter_name=args.adapter
     )
+    if not timeline.video_tracks():
+        raise ValueError("The input file does not contain any video tracks.")
     if args.settings:
         SGSettings.from_file(args.settings)
     if args.movie:
@@ -156,8 +158,9 @@ def write_to_sg(args):
             raise ValueError("%s does not exist" % args.movie)
     if SGSettings().create_missing_versions and args.movie:
         sg = Shotgun(args.sg_site_url, session_token=session_token)
+        sg_entity = sg.find_one(args.entity_type, [["id", "is", args.entity_id]], ["project"])
+        add_media_references_from_sg(timeline.video_tracks()[0], sg, sg_entity["project"])
         media_cutter = MediaCutter(
-            sg,
             timeline,
             args.movie,
         )

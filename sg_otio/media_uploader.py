@@ -43,9 +43,6 @@ class MediaUploader(object):
         """
         Returns the maximum number of progress steps.
 
-        Since there's no way to know the status of an upload, this is the number of
-        versions to upload movies to.
-
         :returns: An integer.
         """
         return self._progress_max

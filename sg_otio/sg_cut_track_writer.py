@@ -112,7 +112,7 @@ class SGCutTrackWriter(object):
             sg_user
         )
         if SGSettings().create_missing_versions:
-            self._write_versions(cut_track, sg_project, sg_linked_entity, sg_cut_pf, sg_user)
+            self._write_versions(video_track, cut_track, sg_project, sg_linked_entity, sg_cut_pf, sg_user)
         self._write_cut_items(video_track, cut_track, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user)
 
     def _write_cut(
@@ -246,15 +246,9 @@ class SGCutTrackWriter(object):
         for i, clip in enumerate(cut_track.each_clip()):
             if not isinstance(clip, CutClip):
                 continue
-            # Get the SG Shot for this clip
+            # Get the SG Shot and Version for this clip
             sg_shot = shots_by_name.get(clip.shot_name)
-            sg_version = clip.media_reference.metadata.get("sg")
-            # Add the Version metadata to the OTIO Clip
-            if sg_version:
-                video_clips[i].metadata["sg"] = sg_version
-                logger.debug("Updating %s SG Version metadata with %s" % (
-                    clip.name, sg_version
-                ))
+            sg_version = clip.media_reference.metadata.get("sg", {}).get("version")
             sg_data = self.get_sg_cut_item_payload(clip, sg_shot=sg_shot, sg_version=sg_version, sg_user=sg_user)
             sg_cut_items_data.append(sg_data)
 
@@ -380,10 +374,11 @@ class SGCutTrackWriter(object):
         cut_item_payload["description"] = description
         return cut_item_payload
 
-    def _write_versions(self, cut_track, sg_project, sg_linked_entity, cut_published_file=None, sg_user=None):
+    def _write_versions(self, video_track, cut_track, sg_project, sg_linked_entity, cut_published_file=None, sg_user=None):
         """
         For Clips which have a Media Reference, create a Version and a Published file for each one.
 
+        :param video_track: An OTIO Video Track.
         :param cut_track: An instance of :class:`CutTrack`.
         :param sg_project: The SG Project to write the Cut to.
         :param sg_cut: If provided, the SG Cut to update.
@@ -394,6 +389,8 @@ class SGCutTrackWriter(object):
         """
         clips_with_media_refs = []
         clips_version_names = []
+        # Keep a reference to the original clips
+        video_clips = list(video_track.each_clip())
         for i, clip in enumerate(cut_track.each_clip()):
             # Only treat clips with a Media Reference.
             if clip.media_reference.is_missing_reference:
@@ -485,13 +482,17 @@ class SGCutTrackWriter(object):
                 media_reference_path,
                 version_file_path
             )
-            # Replace the media reference with the proper file path.
+            # Replace the media reference with the proper file path for both the clip and the video clip.
             clip.media_reference.target_url = "file://%s" % version_file_path
+            video_clips[clip.index - 1].media_reference.target_url = "file://%s" % version_file_path
             # The first frame and the last frame depend on the cut in and the media's available range.
             # This is because the media can be shorter or longer than the cut in and out.
             first_frame_offset = clip.available_range().start_time - clip.visible_range().start_time
             first_frame = clip.cut_in + first_frame_offset
             last_frame = first_frame + clip.available_range().duration
+            # Last frame is inclusive, meaning that if first frame is 1 and last frame is 2,
+            # the duration is 2.
+            last_frame -= otio.opentime.RationalTime(1, first_frame.rate)
             # The Version always starts at head_in + head_in_duration.
             version_data = {
                 "code": version_name,
@@ -518,7 +519,6 @@ class SGCutTrackWriter(object):
             }
             published_file_data = {
                 "code": version_name,
-                "name": version_name,
                 "project": sg_project,
                 "entity": sg_shot,
                 "path": publish_path,
@@ -567,15 +567,6 @@ class SGCutTrackWriter(object):
                 ]
                 version_data["version"] = sg_version
                 version_data["published_file"]["version"] = sg_version
-                # Also update the clip's media_reference metadata with the sg_version.
-                for clip in clips_with_media_refs:
-                    clip_path = clip.media_reference.target_url.replace("file://", "")
-                    if (
-                            clip.media_reference.name == sg_version["code"]
-                            and clip_path == sg_version["sg_path_to_movie"]
-                    ):
-                        clip.media_reference.metadata["sg"] = sg_version
-                        break
 
             # Create the PublishedFiles.
             published_files_batch_data = [
@@ -595,6 +586,21 @@ class SGCutTrackWriter(object):
                 version_data["published_file"] = sg_published_file
                 if version_data["published_file_dependency"]:
                     version_data["published_file_dependency"]["published_file"] = sg_published_file
+                # Also update the clip's media_reference metadata with the sg_published_file.
+                sg_version = version_data["version"]
+                for clip in clips_with_media_refs:
+                    clip_path = clip.media_reference.target_url.replace("file://", "")
+                    if (
+                            clip.media_reference.name == sg_version["code"]
+                            and clip_path == sg_version["sg_path_to_movie"]
+                    ):
+                        logger.debug("Updating %s SG Published File metadata with %s" % (
+                            clip.name, sg_published_file
+                        ))
+                        clip.media_reference.metadata["sg"] = sg_published_file
+                        clip.media_reference.metadata["sg"]["version"] = sg_version
+                        video_clips[clip.index - 1].media_reference.metadata["sg"] = sg_published_file
+                        break
             # Create the PublishedFileDependencies.
             published_file_dependencies_batch_data = [
                 {
