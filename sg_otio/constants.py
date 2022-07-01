@@ -134,5 +134,3 @@ _ALT_SHOT_FIELDS = [
 # When creating missing Versions, the default relative path template from the local storage chosen
 # to save the Versions to.
 _DEFAULT_VERSIONS_PATH_TEMPLATE = "{PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts"
-# When creating missing Versions, the default version name template.
-_DEFAULT_VERSION_NAMES_TEMPLATE = "{CLIP_NAME}_{UUID}"

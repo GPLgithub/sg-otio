@@ -275,7 +275,14 @@ def add_media_references_from_sg(track, sg, project):
         return
     sg_published_files = sg.find(
         "PublishedFile",
-        [["project", "is", project], ["code", "in", clip_media_names]],
+        [
+            ["project", "is", project],
+            ["code", "in", clip_media_names],
+            # If there is no Version linked to the PublishedFile,
+            # we don't want to consider it
+            ["version", "is_not", None],
+            ["published_file_type.PublishedFileType.code", "is", "mov"]
+        ],
         _PUBLISHED_FILE_FIELDS,
         order=[{"field_name": "id", "direction": "desc"}]
     )
@@ -286,13 +293,21 @@ def add_media_references_from_sg(track, sg, project):
             sg_published_files_by_code[published_file["code"]] = published_file
     # If a published file is not found, maybe a Version can be used.
     missing_names = list(set(clip_media_names) - set(sg_published_files_by_code.keys()))
-    sg_versions = sg.find(
-        "Version",
-        [["project", "is", project], ["code", "in", missing_names]],
-        _VERSION_FIELDS
-    )
+    sg_versions = []
+    if missing_names:
+        sg_versions = sg.find(
+            "Version",
+            [
+                ["project", "is", project],
+                ["code", "in", missing_names],
+            ],
+            _VERSION_FIELDS
+        )
+    if not sg_published_files and not sg_versions:
+        # Nothing was found to link to the clips.
+        return
     sg_versions_by_code = {v["code"]: v for v in sg_versions}
-    all_versions = sg_versions + [pf["version"] for pf in sg_published_files]
+    all_versions = sg_versions + [pf["version"] for pf in sg_published_files if pf["version"]]
     sg_cut_items = sg.find(
         "CutItem",
         [["project", "is", project], ["version", "in", all_versions]],
@@ -306,32 +321,40 @@ def add_media_references_from_sg(track, sg, project):
         published_file = sg_published_files_by_code.get(media_name)
         if published_file:
             cut_item = sg_cut_items_by_version_id.get(published_file["version.Version.id"])
-            if cut_item:
-                add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name)
+            add_pf_media_reference_to_clip(clip, published_file, platform_name, cut_item)
+            logger.debug(
+                "Added Media Reference to clip %s from Published File %s" % (
+                    clip.name, published_file["code"]
+                )
+            )
         else:
             version = sg_versions_by_code.get(media_name)
             if version and version["sg_uploaded_movie"]:
                 cut_item = sg_cut_items_by_version_id.get(version["id"])
-                if cut_item:
-                    add_version_media_reference_to_clip(clip, version, cut_item)
+                add_version_media_reference_to_clip(clip, version, cut_item)
+                logger.debug(
+                    "Added Media Reference to clip %s from Version %s" % (
+                        clip.name, version["code"]
+                    )
+                )
 
 
-def add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name):
+def add_pf_media_reference_to_clip(clip, published_file, platform_name, cut_item=None):
     """
     Add a Media Reference to a clip from a PublishedFile.
 
     :param clip: A :class:`otio.schema.Clip` or :class:`CutClip` instance.
     :param published_file: A SG PublishedFile entity.
-    :param cut_item: A SG CutItem entity.
+    :param cut_item: A SG CutItem entity or ``None``.
     :param platform_name: The platform name.
     """
     path_field = "local_path_%s" % platform_name
     url = "file://%s" % published_file["path"][path_field]
     first_frame = published_file["version.Version.sg_first_frame"]
     last_frame = published_file["version.Version.sg_last_frame"]
-    name = published_file["version.Version.code"]
+    name = published_file["code"]
     media_available_range = None
-    if first_frame and last_frame:
+    if cut_item and first_frame and last_frame:
         # The visible range of the clip is taken from
         # timecode_cut_item_in_text and timecode_cut_item_out_text,
         # but cut_item_in, cut_item_out (on CutItem) and first_frame,
@@ -353,17 +376,17 @@ def add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name
     clip.media_reference.metadata["sg"] = published_file
 
 
-def add_version_media_reference_to_clip(clip, version, cut_item):
+def add_version_media_reference_to_clip(clip, version, cut_item=None):
     """
     Add a Media Reference to a clip from a Version.
 
     :param clip: A :class:`otio.schema.Clip` or :class:`CutClip` instance.
     :param version: A SG Version entity.
-    :param cut_item: A SG CutItem entity.
+    :param cut_item: A SG CutItem entity or ``None``.
     """
     media_available_range = None
     rate = clip.source_range.start_time.rate
-    if version["sg_first_frame"] and version["sg_last_frame"]:
+    if cut_item and version["sg_first_frame"] and version["sg_last_frame"]:
         # The visible range of the clip is taken from
         # timecode_cut_item_in_text and timecode_cut_item_out_text,
         # but cut_item_in, cut_item_out (on CutItem) and first_frame,

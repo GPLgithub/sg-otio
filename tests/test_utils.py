@@ -53,6 +53,12 @@ class TestUtils(unittest.TestCase):
             "id": 1,
             self.path_field: tempfile.mkdtemp()}
         add_to_sg_mock_db(self.mock_sg, self.mock_local_storage)
+        self.published_file_type = {
+            "type": "PublishedFileType",
+            "code": "mov",
+            "id": 1,
+        }
+        add_to_sg_mock_db(self.mock_sg, self.published_file_type)
 
     def mock_find(self, mockgun_find, *args, **kwargs):
         """
@@ -63,14 +69,14 @@ class TestUtils(unittest.TestCase):
         """
         entities = mockgun_find(*args, **kwargs)
         for entity in entities:
-            for fields in entity.keys():
-                if fields == "sg_uploaded_movie":
+            for field in entity.keys():
+                if field == "sg_uploaded_movie" and entity[field]:
                     attachment = self.mock_sg.find_one(
                         "Attachment",
-                        [["id", "is", entity["sg_uploaded_movie"]["id"]]],
+                        [["id", "is", entity[field]["id"]]],
                         ["url"]
                     )
-                    entity["sg_uploaded_movie"]["url"] = attachment["url"]
+                    entity[field]["url"] = attachment["url"]
         return entities
 
     def test_sg_settings(self):
@@ -272,7 +278,8 @@ class TestUtils(unittest.TestCase):
                     "relative_path": "foo.mov",
                     "local_path": os.path.join(self.mock_local_storage[self.path_field], "foo.mov"),
                     "local_storage": self.mock_local_storage
-                }
+                },
+                "published_file_type": self.published_file_type,
             }
             # We don't add it with add_to_sg_mock_db,
             # because mockgun adds the "local_path_XXX" fields on create.

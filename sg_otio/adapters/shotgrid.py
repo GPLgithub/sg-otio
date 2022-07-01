@@ -178,12 +178,17 @@ def read_from_file(filepath):
         platform_name = get_platform_name()
         if cut_item_version_id in published_files_by_version_id.keys():
             published_file = published_files_by_version_id[cut_item_version_id]
-            add_pf_media_reference_to_clip(clip, published_file, cut_item, platform_name)
+            add_pf_media_reference_to_clip(clip, published_file, platform_name, cut_item)
         elif cut_item_version_id in versions_with_no_published_files_by_id.keys():
             version = versions_with_no_published_files_by_id[cut_item_version_id]
             # If there's no uploaded movie, we can't create a media reference.
             if version["sg_uploaded_movie"]:
                 add_version_media_reference_to_clip(clip, version, cut_item)
+        # If it was linked to a Version or a published file, prefer that as the reel name.
+        pf = clip.media_reference.metadata.get("sg")
+        if pf:
+            pf_name = pf["code"] or pf["version.Version.code"]
+            clip.metadata["cmx_3600"]["reel"] = pf_name
         track.append(clip)
     return timeline
 

@@ -92,7 +92,6 @@ class SGCutTrackWriter(object):
             stack = otio.schema.Stack()
             cut_track = CutTrack.from_track(video_track)
             stack.append(cut_track)
-
         sg_project, sg_cut, sg_linked_entity = self._get_cut_entities(
             entity_type, entity_id
         )
@@ -290,6 +289,7 @@ class SGCutTrackWriter(object):
                         "data": sg_cut_item_data
                     })
             else:
+                logger.info("Creating Cut Item %s..." % sg_cut_item_data["code"])
                 batch_data.append({
                     "request_type": "create",
                     "entity_type": "CutItem",
@@ -352,7 +352,7 @@ class SGCutTrackWriter(object):
             cut_item_payload["version"] = {
                 "type": sg_version["type"],
                 "id": sg_version["id"],
-                "code": sg_version["code"],
+                "code": sg_version.get("code") or sg_version.get("name") or None,
             }
         if sg_user:
             cut_item_payload["created_by"] = sg_user
@@ -398,16 +398,40 @@ class SGCutTrackWriter(object):
                     "Clip %s has no Media Reference, skipping Version creation" % clip.name
                 )
                 continue
+            # Only treat clips which have Media References with no SG metadata.
+            sg_metadata = clip.media_reference.metadata.get("sg")
+            if sg_metadata and sg_metadata.get("version.Version.id"):
+                if sg_metadata.get("id"):
+                    logger.debug(
+                        "Clip %s is already linked to Published File %s (ID: %s)"
+                        " and Version %s (ID %s), skipping Version creation" % (
+                            clip.name,
+                            sg_metadata["code"],
+                            sg_metadata["id"],
+                            sg_metadata["version.Version.code"],
+                            sg_metadata["version.Version.id"]
+                        )
+                    )
+                else:
+                    logger.debug(
+                        "Clip %s is already linked to Version %s (ID %s), "
+                        "skipping Version creation" % (
+                            clip.name,
+                            sg_metadata["version.Version.code"],
+                            sg_metadata["version.Version.id"]
+                        )
+                    )
+                continue
             # Only treat clips that have an available range.
             if not clip.media_reference.available_range:
-                logger.warning(
+                logger.debug(
                     "Clip %s has a Media Reference %s with no available range, skipping Version creation." % (
                         clip.name, clip.media_reference
                     ))
                 continue
             media_reference_path = get_path_from_target_url(clip.media_reference.target_url)
             if not os.path.exists(media_reference_path):
-                logger.warning(
+                logger.debug(
                     "Clip %s has a Media Reference %s not found locally, skipping Version creation." % (
                         clip.name, clip.media_reference
                     ))
@@ -417,10 +441,12 @@ class SGCutTrackWriter(object):
             clips_version_names.append(version_name)
             clip.media_reference.name = version_name
             clips_with_media_refs.append(clip)
+        if not clips_with_media_refs:
+            return []
         # Skip the creation of Versions if they already exist in SG.
         existing_sg_versions = self._sg.find(
             "Version",
-            [["code", "in", clips_version_names]],
+            [["code", "in", clips_version_names], ["project", "is", sg_project]],
             ["code"]
         )
         sg_version_codes = [version["code"] for version in existing_sg_versions]
@@ -520,7 +546,8 @@ class SGCutTrackWriter(object):
             published_file_data = {
                 "code": version_name,
                 "project": sg_project,
-                "entity": sg_shot,
+                # If no shot is provided, link the Version to the linked entity.
+                "entity": sg_shot or linked_entity,
                 "path": publish_path,
                 "published_file_type": sg_published_file_type,
                 "version_number": 1,

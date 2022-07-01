@@ -15,7 +15,7 @@ from .constants import _ALT_SHOT_CUT_ORDER_FIELD_TEMPLATE, _ALT_SHOT_STATUS_FIEL
 from .constants import _ALT_SHOT_FIELDS, _SHOT_FIELDS
 from .constants import _ALT_SHOT_HEAD_IN_FIELD_TEMPLATE, _ALT_SHOT_TAIL_OUT_FIELD_TEMPLATE
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
-from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE, _DEFAULT_VERSION_NAMES_TEMPLATE
+from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +268,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._clip_name_shot_regexp = None
         self._local_storage_name = "primary"
         self._versions_path_template = _DEFAULT_VERSIONS_PATH_TEMPLATE
-        self._version_names_template = _DEFAULT_VERSION_NAMES_TEMPLATE
+        self._version_names_template = None
         self._create_missing_versions = True
 
 
