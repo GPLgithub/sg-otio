@@ -391,7 +391,7 @@ class SGCutTrackWriter(object):
         clips_version_names = []
         # Keep a reference to the original clips
         video_clips = list(video_track.each_clip())
-        for i, clip in enumerate(cut_track.each_clip()):
+        for clip in cut_track.each_clip():
             # Only treat clips with a Media Reference.
             if clip.media_reference.is_missing_reference:
                 logger.debug(
@@ -437,7 +437,7 @@ class SGCutTrackWriter(object):
                     ))
                 continue
             # Make sure that the clip's media reference has a proper computed name.
-            version_name = compute_clip_version_name(clip, i + 1)
+            version_name = compute_clip_version_name(clip, clip.index)
             clips_version_names.append(version_name)
             clip.media_reference.name = version_name
             clips_with_media_refs.append(clip)
@@ -511,15 +511,14 @@ class SGCutTrackWriter(object):
             # Replace the media reference with the proper file path for both the clip and the video clip.
             clip.media_reference.target_url = "file://%s" % version_file_path
             video_clips[clip.index - 1].media_reference.target_url = "file://%s" % version_file_path
-            # The first frame and the last frame depend on the cut in and the media's available range.
-            # This is because the media can be shorter or longer than the cut in and out.
+            # The first frame and the last frame depend on the cut in and the media's available range,
+            # because we apply a cut in offset based on the head in and the head in duration.
             first_frame_offset = clip.available_range().start_time - clip.visible_range().start_time
             first_frame = clip.cut_in + first_frame_offset
             last_frame = first_frame + clip.available_range().duration
             # Last frame is inclusive, meaning that if first frame is 1 and last frame is 2,
             # the duration is 2.
             last_frame -= otio.opentime.RationalTime(1, first_frame.rate)
-            # The Version always starts at head_in + head_in_duration.
             version_data = {
                 "code": version_name,
                 "project": sg_project,

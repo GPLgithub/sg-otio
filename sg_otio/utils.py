@@ -321,7 +321,7 @@ def add_media_references_from_sg(track, sg, project):
         published_file = sg_published_files_by_code.get(media_name)
         if published_file:
             cut_item = sg_cut_items_by_version_id.get(published_file["version.Version.id"])
-            add_pf_media_reference_to_clip(clip, published_file, platform_name, cut_item)
+            add_publish_file_media_reference_to_clip(clip, published_file, platform_name, cut_item)
             logger.debug(
                 "Added Media Reference to clip %s from Published File %s" % (
                     clip.name, published_file["code"]
@@ -339,7 +339,7 @@ def add_media_references_from_sg(track, sg, project):
                 )
 
 
-def add_pf_media_reference_to_clip(clip, published_file, platform_name, cut_item=None):
+def add_publish_file_media_reference_to_clip(clip, published_file, platform_name, cut_item=None):
     """
     Add a Media Reference to a clip from a PublishedFile.
 

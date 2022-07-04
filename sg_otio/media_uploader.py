@@ -74,6 +74,9 @@ class MediaUploader(object):
         results = self._executor.map(
             self.upload_version, self._sg_versions, self._movies
         )
+        # map executes the calls to upload version in parallel, and returns the results as
+        # soon as available. That's why we can loop over them and increment the progress.
+        # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Executor.map
         for _ in results:
             self.progress += 1
 

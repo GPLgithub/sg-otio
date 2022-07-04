@@ -25,6 +25,34 @@ class TestCutClip(unittest.TestCase):
         sg_settings = SGSettings()
         sg_settings.reset_to_defaults()
 
+    def test_no_shared_pointers(self):
+        """
+        Test that when we create a CutClip from an OTIO clip,
+        we don't have shared pointers between the two.
+        """
+        clip = otio.schema.Clip(name="foo")
+        # The media_reference is a good case to show no shared pointers.
+        clip.media_reference = otio.schema.ExternalReference(
+            target_url="https://example.com/foo.mp4",
+            available_range=otio.opentime.TimeRange(
+                otio.opentime.RationalTime(0, 24),
+                otio.opentime.RationalTime(5, 24)
+            )
+        )
+        clip.media_reference.metadata["foo"] = "bar"
+        cut_clip = CutClip.from_clip(clip)
+        self.assertFalse(cut_clip.media_reference.is_missing_reference)
+        self.assertEqual(cut_clip.media_reference.metadata, {"foo": "bar"})
+        # Now let's change the cut_clip and make sure the original clip does not
+        # change
+        cut_clip.name = "bar"
+        cut_clip.media_reference = otio.schema.MissingReference()
+        cut_clip.media_reference.metadata["bar"] = "baz"
+        self.assertEqual(clip.name, "foo")
+        self.assertFalse(clip.media_reference.is_missing_reference)
+        self.assertEqual(clip.media_reference.target_url, "https://example.com/foo.mp4")
+        self.assertEqual(clip.media_reference.metadata, {"foo": "bar"})
+
     def test_clip_name(self):
         """
         Test that the name does come from the reel name if available,

@@ -34,7 +34,6 @@ class MediaCutter(object):
         """
         Initialize the Media Cutter.
 
-        :param sg: A SG API session handle.
         :param timeline: An instance of :class:`otio.schema.Timeline`.
         :param str movie: The path to the movie to extract media from.
         """
@@ -42,6 +41,8 @@ class MediaCutter(object):
         self._movie = movie
         self._media_dir = None
         self._executor = ProcessPoolExecutor()
+        if not timeline.video_tracks():
+            raise ValueError("Timeline must have a video track.")
         if len(timeline.video_tracks()) > 1:
             logger.warning("Only one video track is supported, using the first one.")
         if not self.ffmpeg:

@@ -13,7 +13,7 @@ import shotgun_api3
 from sg_otio.constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
 from sg_otio.constants import _PUBLISHED_FILE_FIELDS, _VERSION_FIELDS
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
-from sg_otio.utils import get_platform_name, add_pf_media_reference_to_clip, add_version_media_reference_to_clip
+from sg_otio.utils import get_platform_name, add_publish_file_media_reference_to_clip, add_version_media_reference_to_clip
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ def read_from_file(filepath):
         platform_name = get_platform_name()
         if cut_item_version_id in published_files_by_version_id.keys():
             published_file = published_files_by_version_id[cut_item_version_id]
-            add_pf_media_reference_to_clip(clip, published_file, platform_name, cut_item)
+            add_publish_file_media_reference_to_clip(clip, published_file, platform_name, cut_item)
         elif cut_item_version_id in versions_with_no_published_files_by_id.keys():
             version = versions_with_no_published_files_by_id[cut_item_version_id]
             # If there's no uploaded movie, we can't create a media reference.

@@ -66,6 +66,8 @@ class CutClip(otio.schema.Clip):
         :param int index: The index of the clip in the track.
         :returns: A :class:`CutClip` instance.
         """
+        # We have to make a copy of the clip to avoid "shared" pointers
+        # between the Clip and the CutClip.
         clip = copy.deepcopy(clip)
         return cls(
             name=clip.name,
