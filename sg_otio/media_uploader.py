@@ -71,13 +71,13 @@ class MediaUploader(object):
         Uploads movies to Versions in SG, in parallel.
         """
         self._progress = 0
-        results = self._executor.map(
-            self.upload_version, self._sg_versions, self._movies
-        )
-        # map executes the calls to upload version in parallel, and returns the results as
+
+        # map executes the calls to upload version in parallel, and yields the results as
         # soon as available. That's why we can loop over them and increment the progress.
         # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Executor.map
-        for _ in results:
+        for _ in self._executor.map(
+            self.upload_version, self._sg_versions, self._movies
+        ):
             self.progress += 1
 
     def upload_version(self, sg_version, movie):

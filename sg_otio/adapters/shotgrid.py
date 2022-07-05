@@ -127,6 +127,7 @@ def read_from_file(filepath):
         )
         versions_with_no_published_files_by_id = {version["id"]: version for version in versions_with_no_published_files}
 
+    platform_name = get_platform_name()
     # Check for gaps and overlaps
     for i, cut_item in enumerate(cut_items):
         if i > 0:
@@ -175,7 +176,6 @@ def read_from_file(filepath):
         )
         # Check if the Cut Item has a published file, and create a media reference if it does.
         cut_item_version_id = cut_item["version.Version.id"]
-        platform_name = get_platform_name()
         if cut_item_version_id in published_files_by_version_id.keys():
             published_file = published_files_by_version_id[cut_item_version_id]
             add_publish_file_media_reference_to_clip(clip, published_file, platform_name, cut_item)

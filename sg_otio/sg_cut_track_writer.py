@@ -513,8 +513,7 @@ class SGCutTrackWriter(object):
             video_clips[clip.index - 1].media_reference.target_url = "file://%s" % version_file_path
             # The first frame and the last frame depend on the cut in and the media's available range,
             # because we apply a cut in offset based on the head in and the head in duration.
-            first_frame_offset = clip.available_range().start_time - clip.visible_range().start_time
-            first_frame = clip.cut_in + first_frame_offset
+            first_frame = clip.available_range().start_time + clip.cut_in - clip.visible_range().start_time
             last_frame = first_frame + clip.available_range().duration
             # Last frame is inclusive, meaning that if first frame is 1 and last frame is 2,
             # the duration is 2.
