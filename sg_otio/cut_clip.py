@@ -241,8 +241,9 @@ class CutClip(otio.schema.Clip):
         """
         Return the cut in time of the clip.
 
-        The cut_in is an arbitrary start time of the clip,
-        taking into account any handles.
+        The cut_in is the source_in converted to a frame number for image sequences.
+        It represents the first frame in the image sequence for this clip, without
+        handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -251,10 +252,12 @@ class CutClip(otio.schema.Clip):
     @property
     def cut_out(self):
         """
-        Return the cut out time of the clip. It's exclusive.
+        Return the cut out time of the clip.
 
-        The cut_out is an arbitrary end time of the clip,
-        taking into account any handles.
+        The cut_out is the source_out, minus one frame, converted to a frame number
+        for image sequences.
+        It represents the last frame in the image sequence for this clip, without
+        handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -329,6 +332,8 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
+        # The edit out is inclusive but since we start numbering at 1, we use
+        # the exclusive end time which adds 1 frame for us.
         return self.transformed_time_range(self.visible_range(), self.parent()).end_time_exclusive()
 
     @property
@@ -336,7 +341,7 @@ class CutClip(otio.schema.Clip):
         """
         Return head in value.
 
-        This is an arbitrary start time of the clip.
+        This is the very first frame number for this clip, including handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -347,8 +352,7 @@ class CutClip(otio.schema.Clip):
         """
         Return head out value.
 
-        It is an arbitrary time, which corresponds to
-        head_in + head_in_duration - 1 (one frame before cut_in).
+        This is the last frame number for this clip head handle.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -357,9 +361,7 @@ class CutClip(otio.schema.Clip):
     @property
     def head_in_duration(self):
         """
-        Return the head in duration.
-
-        It is an arbitrary duration corresponding to the handles from the head_in to the cut_in.
+        Return the head handle duration.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -368,7 +370,7 @@ class CutClip(otio.schema.Clip):
     @head_in_duration.setter
     def head_in_duration(self, value):
         """
-        Sets the head in duration.
+        Sets the head handle duration.
 
         :param value: A :class:`RationalTime` instance.
         """
@@ -379,7 +381,7 @@ class CutClip(otio.schema.Clip):
         """
         Returns the tail in value.
 
-        It is an arbitrary value which corresponds to when the out handles of the clip start.
+        This is the first frame number for this clip tail handle.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -390,9 +392,7 @@ class CutClip(otio.schema.Clip):
         """
         Return tail out value.
 
-        It is an arbitrary time, which corresponds to when the clip ends, after its out handles.
-
-        It is equal to cut_out + tail_out_duration
+        This is the very last frame number for this clip, including handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -401,16 +401,14 @@ class CutClip(otio.schema.Clip):
     @property
     def tail_out_duration(self):
         """
-        Return the tail out duration.
-
-        It is an arbitrary time, corresponding to the out handles from the cut_out to the tail_out.
+        Return the tail handle duration.
         """
         return self._tail_out_duration
 
     @tail_out_duration.setter
     def tail_out_duration(self, value):
         """
-        Sets the tail out duration.
+        Sets the tail handle duration.
 
         :param value: A :class:`RationalTime` instance.
         """

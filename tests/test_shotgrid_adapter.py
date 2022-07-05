@@ -583,6 +583,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             "id": 1000,
             "code": "Cut_with_versions",
             "project": self.mock_project,
+            "entity": self.mock_sequence,
         }
         mock_cut_url = get_write_url(
             self.mock_sg.base_url,
@@ -595,12 +596,16 @@ class ShotgridAdapterTest(unittest.TestCase):
             edl = """
             TITLE: Cut01
             000001 green_tape     V     C        00:00:00:00 00:00:00:16 01:00:00:00 01:00:00:16
+            * COMMENT : 001
             * FROM CLIP NAME: green.mov
             000002 pink_tape      V     C        00:00:00:05 00:00:00:11 01:00:00:16 01:00:00:22
+            * COMMENT : 002
             * FROM CLIP NAME: pink.mov
             000003 green_tape     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
+            * COMMENT : 003
             * FROM CLIP NAME: green.mov
             000004 red_tape       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
+            * COMMENT : 004
             * FROM CLIP NAME: red.mov
             000005 blue_tape      V     C        00:00:00:00 00:00:02:00 01:00:01:21 01:00:03:21
             * FROM CLIP NAME: blue.mov
@@ -630,7 +635,12 @@ class ShotgridAdapterTest(unittest.TestCase):
                     # The only fields that we don't have when we write compared to when we read are the
                     # version.Version fields
                     if not field.startswith("version.Version"):
-                        self.assertEqual(orig_clip_pf[field], clip_pf[field])
+                        if isinstance(orig_clip_pf[field], dict):
+                            self.assertEqual(orig_clip_pf[field]["type"], clip_pf[field]["type"])
+                            self.assertEqual(orig_clip_pf[field]["id"], clip_pf[field]["id"])
+                            self.assertEqual(orig_clip_pf[field]["code"], clip_pf[field]["code"])
+                        else:
+                            self.assertEqual(orig_clip_pf[field], clip_pf[field])
                 self.assertEqual(orig_clip.metadata["sg"]["version"], clip.metadata["sg"]["version"])
                 # TODO: test published file dependencies, but mockgun does not populate upstream_dependencies
         finally:

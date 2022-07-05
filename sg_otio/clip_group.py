@@ -17,7 +17,7 @@ class ClipGroup(object):
     start time and the latest end time of all clips).
     """
 
-    def __init__(self, name, clips):
+    def __init__(self, name, clips=None):
         """
         Initializes a new instance of the :class:`ClipGroup` class.
 
@@ -226,7 +226,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the head_out of the group is the largest head_out of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.head_out`
+        ..seealso:: :attr:`sg_otio.CutClip.head_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
