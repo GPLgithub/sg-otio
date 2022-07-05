@@ -41,7 +41,7 @@ class TestClipGroup(unittest.TestCase):
             004  clip_4 V     C        01:00:00:00 01:00:01:00 01:00:16:00 01:00:17:00
             * FROM CLIP NAME: shot_002_v001
             * COMMENT: shot_002
-            004  clip_5 V     C        01:00:00:00 01:00:01:00 01:00:17:00 01:00:18:00
+            005  clip_5 V     C        01:00:00:00 01:00:01:00 01:00:17:00 01:00:18:00
             * FROM CLIP NAME: shot_003_v001
             * COMMENT: shot_003
         """

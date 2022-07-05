@@ -16,6 +16,7 @@ from .constants import _ALT_SHOT_FIELDS, _SHOT_FIELDS
 from .constants import _ALT_SHOT_HEAD_IN_FIELD_TEMPLATE, _ALT_SHOT_TAIL_OUT_FIELD_TEMPLATE
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE
+from .constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,36 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._create_missing_versions = value
 
+    @property
+    def timecode_in_to_frame_mapping(self):
+        """
+        Return how timecode in values should be mapped to frames.
+
+        Three modes are supported:
+        - Automatic: timecode in is mapped to the Shot head in.
+        - Absolute: timecode in is converted to an absolute frame
+                    number.
+        - Relative: timecode in is converted to an arbitrary frame
+                    number specified through settings.
+
+        :returns: An integer.
+        """
+        return self._timecode_in_to_frame_mapping
+
+    @timecode_in_to_frame_mapping.setter
+    def timecode_in_to_frame_mapping(self, value):
+        """
+        """
+        if value not in [
+            _TC2FRAME_ABSOLUTE_MODE,
+            _TC2FRAME_AUTOMATIC_MODE,
+            _TC2FRAME_RELATIVE_MODE
+        ]:
+            raise ValueError(
+                "%s is not a valid timecode to frame mapping value" % value
+            )
+        self._timecode_in_to_frame_mapping = value
+
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -270,6 +301,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._versions_path_template = _DEFAULT_VERSIONS_PATH_TEMPLATE
         self._version_names_template = None
         self._create_missing_versions = True
+        self._timecode_in_to_frame_mapping = _TC2FRAME_AUTOMATIC_MODE
 
 
 class SGShotFieldsConfig(object):

@@ -236,13 +236,11 @@ class TestCutClip(unittest.TestCase):
         )
         clips = list(timeline.tracks[0].each_clip())
         self.assertEqual(len(clips), 3)
-        # FIXME: the transition is added as a Clip in the CutTrack, with an empty
-        # Shot name.
         for clip in clips:
             self.assertIsNotNone(clip.shot_name)
         clip_1 = clips[0]
-        # The normal duration is 24 frames plus the in offset of the transition
-        self.assertEqual(clip_1.duration().to_frames(), 36)
+        # The normal duration is 24 frames
+        self.assertEqual(clip_1.duration().to_frames(), 24)
         # The visible duration takes into account the whole duration of the transition
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
         # All out values take into account the transition time
@@ -255,12 +253,12 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.edit_in.to_frames(), 1)
         self.assertEqual(clip_1.edit_out.to_frames(), 48)
         self.assertTrue(clip_1.has_effects)
-        self.assertEqual(clip_1.effects_str, "After: SMPTE_Dissolve (12 frames)")
+        self.assertEqual(clip_1.effects_str, "After: SMPTE_Dissolve (24 frames)")
         self.assertEqual(clip_1.shot_name, "shot_001")
         # This is the transition clip. It has a duration of 1 second.
         clip_2 = clips[1]
-        # The duration only takes into account the transition out_offset
-        self.assertEqual(clip_2.duration().to_frames(), 12)
+        # The duration is the whole duration of the transition
+        self.assertEqual(clip_2.duration().to_frames(), 24)
         # The visible duration takes into account the whole duration of the transition
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
         self.assertEqual(clip_2.source_in.to_timecode(), "01:00:01:00")
@@ -273,7 +271,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_in.to_frames(), 25)
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(clip_2.has_effects)
-        self.assertEqual(clip_2.effects_str, "Before: SMPTE_Dissolve (12 frames)")
+        self.assertEqual(clip_2.effects_str, "Before: SMPTE_Dissolve (0 frames)")
 
     def test_repeated_shots(self):
         """

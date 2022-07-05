@@ -134,3 +134,13 @@ _ALT_SHOT_FIELDS = [
 # When creating missing Versions, the default relative path template from the local storage chosen
 # to save the Versions to.
 _DEFAULT_VERSIONS_PATH_TEMPLATE = "{PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts"
+
+# Different timecode in values to frame mapping modes
+# Three mapping modes are available, which are only relevant for straight
+# imports (without comparing to a previous Cut):
+# - Automatic: timecode in is mapped to the Shot head in.
+# - Absolute: timecode in is converted to an absolute frame
+#             number.
+# - Relative: timecode in is converted to an arbitrary frame
+#             number specified through settings.
+_TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE = range(3)
