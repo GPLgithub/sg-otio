@@ -57,23 +57,42 @@ class SGCutClip(object):
     def media_reference(self):
         """
         Return the media reference of the linked Clip.
+
+        :returns: A otio MediaReference.
         """
         return self._clip.media_reference
 
     def duration(self):
         """
         Return the duration of the linked Clip.
+
+        :returns: A :class:`RationalTime` instance.
         """
         return self._clip.duration()
 
     def available_range(self):
+        """
+        Return the available range of the linked Clip.
+
+        :returns: A :class:`otio.opentime.TimeRange` instance.
+        """
         return self._clip.available_range()
 
     def visible_range(self):
+        """
+        Return the visible range of the linked Clip.
+
+        :returns: A :class:`otio.opentime.TimeRange` instance.
+        """
         return self._clip.visible_range()
 
     @property
     def metadata(self):
+        """
+        Return the meta data of the linked Clip.
+
+        :returns: A dictionary.
+        """
         return self._clip.metadata
 
     @property
@@ -87,6 +106,11 @@ class SGCutClip(object):
 
     @sg_shot.setter
     def sg_shot(self, value):
+        """
+        Set the SG Shot value associated with this Clip.
+
+        :param value: A SG Shot dictionary.
+        """
         self._sg_shot = value
         if self._sg_shot:
             self._shot_name = self._sg_shot["code"]
@@ -358,6 +382,15 @@ class SGCutClip(object):
         """
         return self._head_in
 
+    @head_in.setter
+    def head_in(self, value):
+        """
+        Set the head in value.
+
+        :param value: A :class:`RationalTime` instance.
+        """
+        self._head_in = value
+
     @property
     def head_out(self):
         """
@@ -510,7 +543,6 @@ class SGCutClip(object):
         :returns: A bool.
         """
         return bool(self.effect)
-
 
 
 class CutClip(otio.schema.Clip):

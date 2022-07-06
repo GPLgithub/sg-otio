@@ -88,15 +88,12 @@ class TestClipGroup(unittest.TestCase):
             sg_settings.default_head_in_duration = head_in_duration
             sg_settings.default_tail_out_duration = tail_out_duration
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-            timeline = CutTrack.from_timeline(
-                edl_timeline,
-            )
             track = edl_timeline.tracks[0]
             shot_groups = ClipGroup.groups_from_track(track)
 
             shot = shot_groups["shot_001"]
             self.assertEqual(shot.name, "shot_001")
-            self.assertEqual(shot.index, 1)
+            self.assertEqual(shot.index, 3)  # first clip is the last starting at 01:00:00:00
             self.assertEqual(shot.cut_in.to_frames(), head_in + head_in_duration)
             self.assertEqual(shot.cut_out.to_frames(), head_in + head_in_duration + 9 * 24 - 1)
             self.assertEqual(shot.head_in.to_frames(), head_in)

@@ -14,10 +14,25 @@ class ClipGroup(object):
     """
     A class representing group of clips in an OTIO timeline.
 
-    Clips can be grouped together when they reference the same source. For example, if multiple clips
-    in a timeline represent the same shot, they can be grouped together, and some information about them
-    can be inferred, like the source_in and source_out for all the clips in the shot (i.e. the earliest
-    start time and the latest end time of all clips).
+    Clips can be grouped together when they reference the same source. For example,
+    if multiple clips in a timeline represent the same shot, (e.g. for flashback effects)
+
+    A single "media item" is associated with all the entries in the same group.
+    All frame values are relative to the earliest entry head in value.
+        --------------------------
+        |       instance 1       |
+        --------------------------
+        ^   --------------------
+        |   |   instance 2     |
+            --------------------
+        |  ---------------------------------
+           |      instance 3               |
+        |  ---------------------------------
+                                           ^
+        |                                  |
+        ------------------------------------
+        |  media covering all instances    |
+        ------------------------------------
     """
 
     def __init__(self, name, clips=None, sg_shot=None):
@@ -42,6 +57,8 @@ class ClipGroup(object):
         self._has_effects = False
         self._has_retime = False
         self._frame_rate = None
+        self._earliest_clip = None
+        self._last_clip = None
         if clips:
             self.add_clips(clips)
         self.sg_shot = sg_shot
@@ -67,7 +84,24 @@ class ClipGroup(object):
 
         :param clip: A :class:`otio.schema.Clip` instance.
         """
-        self.add_clips([clip])
+        if not self._frame_rate:
+            self._frame_rate = clip.duration().rate
+        if clip.duration().rate != self._frame_rate:
+            raise ValueError(
+                "Clips must have the same frame rate. Clip: %s frame rate %s, group frame rate: %s" % (
+                    clip.name, clip.duration().rate, self._frame_rate
+                )
+            )
+        if self._earliest_clip is None or clip.source_in < self._earliest_clip.source_in:
+            self._earliest_clip = clip
+        if self._last_clip is None or clip.source_out > self._last_clip.source_out:
+            self._last_clip = clip
+        if not self._has_effects and clip.has_effects:
+            self._has_effects = True
+        if not self._has_retime and clip.has_retime:
+            self._has_retime = True
+        self._clips.append(clip)
+        self._compute_group_values(self._clips)
 
     def add_clips(self, clips):
         """
@@ -79,17 +113,8 @@ class ClipGroup(object):
         :param clips: A list of :class:`otio.schema.Clip` instances.
         :raises ValueError: If the clips do not have the same frame rate
         """
-        if not self._frame_rate:
-            self._frame_rate = clips[0].duration().rate
         for clip in clips:
-            if clip.duration().rate != self._frame_rate:
-                raise ValueError(
-                    "Clips must have the same frame rate. Clip: %s frame rate %s, group frame rate: %s" % (
-                        clip.name, clip.duration().rate, self._frame_rate
-                    )
-                )
-        self._clips.extend(clips)
-        self._compute_group_values(clips)
+            self.add_clip(clip)
 
     def _compute_group_values(self, clips):
         """
@@ -105,34 +130,34 @@ class ClipGroup(object):
 
         :param clips: A list of :class:`otio.schema.Clip` instances.
         """
-        for clip in clips:
-            if self._index is None or clip.index < self._index:
-                self._index = clip.index
-            if self._source_in is None or clip.source_in < self._source_in:
-                self._source_in = clip.source_in
-            if self._head_in is None or clip.head_in < self._head_in:
-                self._head_in = clip.head_in
-            if self._head_out is None or clip.head_out < self._head_out:
-                self._head_out = clip.head_out
-            if self._cut_in is None or clip.cut_in < self._cut_in:
-                self._cut_in = clip.cut_in
-            if self._source_out is None or clip.source_out > self._source_out:
-                self._source_out = clip.source_out
-            if self._cut_out is None or clip.cut_out > self._cut_out:
-                self._cut_out = clip.cut_out
-            if self._tail_in is None or clip.tail_in > self._tail_in:
-                self._tail_in = clip.tail_in
-            if self._tail_out is None or clip.tail_out > self._tail_out:
-                self._tail_out = clip.tail_out
-            if not self._has_effects and clip.has_effects:
-                self._has_effects = True
-            if not self._has_retime and clip.has_retime:
-                self._has_retime = True
-
+        if not self._clips:
+            return
         # Adjust the head_in_duration and tail_out_duration of all clips in the group
+        self._index = self._earliest_clip.index
+        self._source_in = self._earliest_clip.source_in
+        self._head_in = self._earliest_clip.head_in
+        self._head_out = self._earliest_clip.head_out
+
+        self._source_out = self._last_clip.source_out
+        self._tail_in = self._last_clip.tail_in
+        self._tail_out = self._last_clip.tail_out
+        # We have circular dependencies between the value we set and we retrieve :(
         for clip in self.clips:
+            clip.head_in = self._head_in
             clip.head_in_duration = clip.source_in - self.source_in + self.head_duration
             clip.tail_out_duration = self.source_out - clip.source_out + self.tail_duration
+
+        self._cut_in = self._earliest_clip.cut_in
+        self._cut_out = self._last_clip.cut_out
+        # Get back the value again
+        self._tail_in = self._last_clip.tail_in
+        self._tail_out = self._last_clip.tail_out
+
+        # Adjust the head_in_duration and tail_out_duration of all clips in the group
+#        for clip in self.clips:
+#            clip.head_in = self._head_in
+#            clip.head_in_duration = clip.source_in - self.source_in + self.head_duration
+#            clip.tail_out_duration = self.source_out - clip.source_out + self.tail_duration
 
     @property
     def sg_shot(self):
@@ -165,7 +190,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the index of the group is the smallest index of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.CutClip.index`
+        ..seealso:: :attr:`sg_otio.SGCutClip.index`
 
         :returns: An integer.
         """
@@ -249,7 +274,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the head_out of the group is the largest head_out of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.CutClip.head_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.head_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """

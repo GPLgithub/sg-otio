@@ -14,6 +14,7 @@ from sg_otio.cut_clip import SGCutClip
 from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import compute_clip_shot_name
+from sg_otio.constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 
 
 class TestCutClip(unittest.TestCase):
@@ -205,6 +206,7 @@ class TestCutClip(unittest.TestCase):
         # set non_default head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
         sg_settings = SGSettings()
+        sg_settings.timecode_in_to_frame_mapping = _TC2FRAME_AUTOMATIC_MODE
         sg_settings.use_clip_names_for_shot_names = False
         sg_settings.default_head_in = 555
         sg_settings.default_head_in_duration = 10
@@ -283,20 +285,57 @@ class TestCutClip(unittest.TestCase):
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
             track = edl_timeline.tracks[0]
             clip_group = ClipGroup("shot_001")
+            i = 1
             for clip in track.each_clip():
-                clip_group.add_clip(SGCutClip(clip))
-            # All we care about is to make sure that head_in_duration and tail_out_duration have been set in such
-            # a way that cut_in - head_in_duration = head_in and cut_out + tail_out_duration = tail_out
-            # The rest of the values are already tested in the other tests.
-            # The duration of the source used is 10 seconds.
+                clip_group.add_clip(SGCutClip(clip, index=i))
+                i += 1
+            self.assertEqual(clip_group.index, 3)  # First clip is the last starting at 01:00:00:00
+            # All clips are considered parts of a single big clip, so head in
+            # tail out values are identical for all clips, but the cut in and
+            # cut out values differ, with different handle durations.
             tail_out = RationalTime(head_in + head_in_duration + 10 * 30 + tail_out_duration - 1, 30)
             for clip in clip_group.clips:
+                self.assertEqual(clip.head_in.to_frames(), clip_group.head_in.to_frames())
+                self.assertEqual(clip.tail_out.to_frames(), clip_group.tail_out.to_frames())
                 self.assertEqual(
                     clip.cut_in - clip.head_in_duration,
                     clip.head_in,
                 )
                 self.assertEqual(clip.cut_out + clip.tail_out_duration, tail_out)
 
+
+    def test_in_out_values(self):
+        """
+        Test we get the expected frame values depending on mapping mode
+        """
+        sg_settings = SGSettings()
+        sg_settings.timecode_in_to_frame_mapping = _TC2FRAME_AUTOMATIC_MODE
+        clip = SGCutClip(
+            otio.schema.Clip(
+                name="test_clip",
+                source_range=TimeRange(
+                    RationalTime(0, 24),
+                    RationalTime(10, 24),  # exclusive, 10 frames.
+                )
+            )
+        )
+        self.assertEqual(clip.head_in.to_frames(), sg_settings.default_head_in)
+        self.assertEqual(clip.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
+        self.assertEqual(clip.cut_out.to_frames(), clip.cut_in.to_frames() + 10 -1)
+        self.assertEqual(clip.tail_in.to_frames(), clip.cut_out.to_frames() + 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration -1)
+        # If a Shot is associated with the Clip, and it has a head_in value, it
+        # is always used
+        sg_shot = {
+            "type": "Shot",
+            "id": -1,
+            "code": "Totally Faked",
+            "head_in": 123456
+        }
+        clip.sg_shot = sg_shot
+        #self.assertEqual(clip.head_in.to_frames(), sg_shot["head_in"])
+
+        #, _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 
 if __name__ == '__main__':
     unittest.main()
