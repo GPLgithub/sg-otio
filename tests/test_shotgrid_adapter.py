@@ -498,6 +498,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                         self.assertEqual(sg_cuts[0][field], self.mock_cut[field])
             sg_cut_items = self.mock_sg.find(
                 "CutItem", [["cut", "is", sg_cuts[0]]], _CUT_ITEM_FIELDS,
+                order=[{"field_name": "cut_order", "direction": "asc"}]
             )
             self.assertEqual(len(sg_cut_items), len(self.mock_cut_items))
             for i, sg_cut_item in enumerate(sg_cut_items):
@@ -562,7 +563,8 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertIsNotNone(sg_cut)
             # Retrieve the CutItems
             sg_cut_items = self.mock_sg.find(
-                "CutItem", [["cut", "is", sg_cut]], []
+                "CutItem", [["cut", "is", sg_cut]], [],
+                order=[{"field_name": "cut_order", "direction": "asc"}]
             )
             self.assertEqual(len(sg_cut_items), 3)
             for i, clip in enumerate(track.each_clip()):
