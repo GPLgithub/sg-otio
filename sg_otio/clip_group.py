@@ -6,6 +6,9 @@
 #
 from opentimelineio.opentime import RationalTime
 
+from .cut_clip import SGCutClip
+from .utils import compute_clip_shot_name
+
 
 class ClipGroup(object):
     """
@@ -17,7 +20,7 @@ class ClipGroup(object):
     start time and the latest end time of all clips).
     """
 
-    def __init__(self, name, clips=None):
+    def __init__(self, name, clips=None, sg_shot=None):
         """
         Initializes a new instance of the :class:`ClipGroup` class.
 
@@ -41,6 +44,7 @@ class ClipGroup(object):
         self._frame_rate = None
         if clips:
             self.add_clips(clips)
+        self.sg_shot = sg_shot
 
     @property
     def clips(self):
@@ -50,7 +54,9 @@ class ClipGroup(object):
         :returns: A list of :class:`otio.schema.Clip` instances.
         """
         # Don't return the original list, because it might be modified.
-        return list(self._clips)
+        for clip in self._clips:
+            yield(clip)
+        #return list(self._clips)
 
     def add_clip(self, clip):
         """
@@ -127,6 +133,29 @@ class ClipGroup(object):
         for clip in self.clips:
             clip.head_in_duration = clip.source_in - self.source_in + self.head_duration
             clip.tail_out_duration = self.source_out - clip.source_out + self.tail_duration
+
+    @property
+    def sg_shot(self):
+        """
+        Return the SG Shot associated with this ClipGroup.
+
+        :retruns: A dictionary or ``None``.
+        """
+        return self._sg_shot
+
+    @sg_shot.setter
+    def sg_shot(self, value):
+        """
+        Set the SG Shot associated with this ClipGroup.
+
+        Propagate it to contained clips.
+
+        :param value: A SG Shot dictionary or ``None``.
+        """
+        self._sg_shot = value
+        for clip in self.clips:
+            clip.sg_shot = self._sg_shot
+        self._compute_group_values(self._clips)
 
     @property
     def index(self):
@@ -328,3 +357,23 @@ class ClipGroup(object):
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
         return self.tail_out - self.head_in
+
+    @staticmethod
+    def groups_from_track(video_track):
+        """
+        Convenience method to generate :class:`ClipGroup` from a video track.
+
+        :param video_track: A class:`otio.schema.Track` instance.
+        :returns: A dictionary where keys are shot names and values :class:`ClipGroup`
+                  instances.
+        """
+        shots_by_name = {}
+        for i, clip in enumerate(video_track.each_clip()):
+            shot_name = compute_clip_shot_name(clip)
+            # Store a tuple with the clip index and the clip
+            if shot_name not in shots_by_name:
+                shots_by_name[shot_name] = ClipGroup(shot_name)
+            shots_by_name[shot_name].add_clip(
+                SGCutClip(clip, index=i + 1, sg_shot=None)
+            )
+        return shots_by_name

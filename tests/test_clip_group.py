@@ -9,6 +9,7 @@ import unittest
 
 import opentimelineio as otio
 from sg_otio.cut_track import CutTrack
+from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
 
 
@@ -47,16 +48,14 @@ class TestClipGroup(unittest.TestCase):
         """
 
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = CutTrack.from_timeline(
-            edl_timeline
-        )
-        track = timeline.tracks[0]
-        self.assertEqual(set(track.shot_names), {"shot_001", "shot_002", "shot_003"})
-        shot_001_clips = track.shot_clips("shot_001")
+        track = edl_timeline.tracks[0]
+        shot_groups = ClipGroup.groups_from_track(track)
+        self.assertEqual(shot_groups.keys(), {"shot_001", "shot_002", "shot_003"})
+        shot_001_clips = shot_groups["shot_001"].clips
         self.assertEqual({clip.name for clip in shot_001_clips}, {"clip_1", "clip_3"})
-        shot_002_clips = track.shot_clips("shot_002")
+        shot_002_clips = shot_groups["shot_002"].clips
         self.assertEqual({clip.name for clip in shot_002_clips}, {"clip_2", "clip_4"})
-        shot_003_clips = track.shot_clips("shot_003")
+        shot_003_clips = shot_groups["shot_003"].clips
         self.assertEqual({clip.name for clip in shot_003_clips}, {"clip_5"})
 
     def test_group_values(self):
@@ -92,8 +91,10 @@ class TestClipGroup(unittest.TestCase):
             timeline = CutTrack.from_timeline(
                 edl_timeline,
             )
-            track = timeline.tracks[0]
-            shot = track.shots_by_name["shot_001"]
+            track = edl_timeline.tracks[0]
+            shot_groups = ClipGroup.groups_from_track(track)
+
+            shot = shot_groups["shot_001"]
             self.assertEqual(shot.name, "shot_001")
             self.assertEqual(shot.index, 1)
             self.assertEqual(shot.cut_in.to_frames(), head_in + head_in_duration)

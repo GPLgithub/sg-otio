@@ -98,42 +98,17 @@ class SGCutTrackWriter(object):
             use_smart_fields=False,
             shot_cut_fields_prefix=None
         )
-        shots_by_name = {}
-        for i, clip in enumerate(video_track.each_clip()):
-            shot_name = compute_clip_shot_name(clip)
-            # Store a tuple with the clip index and the clip
-            if shot_name not in shots_by_name:
-                shots_by_name[shot_name] = [(i + 1, clip)]
-            else:
-                shots_by_name[shot_name].append((i + 1, clip))
-        shot_names = [x for x in shots_by_name.keys() if x]
+        clips_by_shots = ClipGroup.groups_from_track(video_track)
+        shot_names = [x for x in clips_by_shots.keys() if x]
         sg_shots = self._sg.find(
             "Shot",
             [["project", "is", sg_project], ["code", "in", shot_names]],
             sfg.all
         )
-        clips_by_shots = {}
+        # Apply retrieved Shots to ClipGroups
         for sg_shot in sg_shots:
             shot_name = sg_shot["code"]
-            if shot_name not in shots_by_name:
-                logger.warning("Found duplicated Shot %s" % shot_name)
-                continue
-            clips = shots_by_name.pop(shot_name)
-            if shot_name not in clips_by_shots:
-                clips_by_shots[shot_name] = ClipGroup(shot_name)
-            for clip_index, clip in clips:
-                clips_by_shots[shot_name].add_clip(
-                    SGCutClip(clip, index=clip_index, sg_shot=sg_shot),
-                )
-        for shot_name in shots_by_name:
-            logger.info("Shot %s was not found" % shot_name)
-            clips = shots_by_name[shot_name]
-            if shot_name not in clips_by_shots:
-                clips_by_shots[shot_name] = ClipGroup(shot_name)
-            for clip_index, clip in clips:
-                clips_by_shots[shot_name].add_clip(
-                    SGCutClip(clip, index=clip_index, sg_shot=None),
-                )
+            clips_by_shots[shot_name].sg_shot = sg_shot
 
         sg_cut_version = None
         sg_cut_pf = None
@@ -722,7 +697,7 @@ class SGCutTrackWriter(object):
         for shot_name, clip_group in clips_by_shots.items():
             if not shot_name:
                 continue
-            if not clip_group.clips[0].sg_shot:
+            if not clip_group.sg_shot:
                 logger.info("Creating Shot %s..." % clip_group.name)
                 shot_payload = self._get_shot_payload(
                     clip_group,
@@ -737,7 +712,7 @@ class SGCutTrackWriter(object):
                 })
             else:
                 logger.info("Updating Shot %s..." % clip_group.name)
-                sg_shot = clip_group.clips[0].sg_shot
+                sg_shot = clip_group.sg_shot
                 shot_payload = self._get_shot_payload(
                     clip_group,
                     sg_project,
