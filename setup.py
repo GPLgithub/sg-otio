@@ -34,6 +34,7 @@ setuptools.setup(
         "shotgun_api3 @ git+https://github.com/shotgunsoftware/python-api.git",
         "six",
         "pathlib2; python_version < '3.4'",
+        "futures; python_version < '3.2'",
     ],
     extras_require={
         "dev": [
