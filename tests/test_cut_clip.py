@@ -10,8 +10,8 @@ import unittest
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
 
-from sg_otio.cut_clip import CutClip
-from sg_otio.cut_track import CutTrack
+from sg_otio.cut_clip import SGCutClip
+from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import compute_clip_shot_name
 
@@ -25,44 +25,18 @@ class TestCutClip(unittest.TestCase):
         sg_settings = SGSettings()
         sg_settings.reset_to_defaults()
 
-    def test_no_shared_pointers(self):
-        """
-        Test that when we create a CutClip from an OTIO clip,
-        we don't have shared pointers between the two.
-        """
-        clip = otio.schema.Clip(name="foo")
-        # The media_reference is a good case to show no shared pointers.
-        clip.media_reference = otio.schema.ExternalReference(
-            target_url="https://example.com/foo.mp4",
-            available_range=otio.opentime.TimeRange(
-                otio.opentime.RationalTime(0, 24),
-                otio.opentime.RationalTime(5, 24)
-            )
-        )
-        clip.media_reference.metadata["foo"] = "bar"
-        cut_clip = CutClip.from_clip(clip)
-        self.assertFalse(cut_clip.media_reference.is_missing_reference)
-        self.assertEqual(cut_clip.media_reference.metadata, {"foo": "bar"})
-        # Now let's change the cut_clip and make sure the original clip does not
-        # change
-        cut_clip.name = "bar"
-        cut_clip.media_reference = otio.schema.MissingReference()
-        cut_clip.media_reference.metadata["bar"] = "baz"
-        self.assertEqual(clip.name, "foo")
-        self.assertFalse(clip.media_reference.is_missing_reference)
-        self.assertEqual(clip.media_reference.target_url, "https://example.com/foo.mp4")
-        self.assertEqual(clip.media_reference.metadata, {"foo": "bar"})
-
     def test_clip_name(self):
         """
         Test that the name does come from the reel name if available,
         otherwise it defaults to the clip name.
         """
-        clip = CutClip(
-            name="test_clip",
-            source_range=TimeRange(
-                RationalTime(0, 24),
-                RationalTime(0, 24),
+        clip = SGCutClip(
+                otio.schema.Clip(
+                name="test_clip",
+                source_range=TimeRange(
+                    RationalTime(0, 24),
+                    RationalTime(0, 24),
+                )
             )
         )
         self.assertEqual(clip.name, "test_clip")
@@ -75,7 +49,7 @@ class TestCutClip(unittest.TestCase):
          """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
-        clip = CutClip.from_clip(edl_clip)
+        clip = SGCutClip(edl_clip)
         self.assertEqual(clip.name, "clip_reel_name")
 
     def test_shot_name(self):
@@ -88,20 +62,27 @@ class TestCutClip(unittest.TestCase):
             * FROM CLIP NAME: clip_1
             * COMMENT: shot_002
             * shot_003
+            002  reel_name V     C        00:00:00:00 00:00:01:00 01:00:01:00 01:00:02:00
+            * FROM CLIP NAME: clip_1
+            * COMMENT: shot_002
+            * shot_003
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
         # Set use reel names to True to see it does not affect the outcome.
         sg_settings = SGSettings()
         sg_settings.use_clip_names_for_shot_names = True
-        clip = CutClip.from_clip(
+        clip = SGCutClip(
             edl_clip
         )
         # Locators and comments present, locator is used.
         self.assertEqual(clip.shot_name, "shot_001")
 
-        # Let's remove the locator. Comment starting with COMMENT: is used.
-        clip.markers = []
+        # Without a locator. Comment starting with COMMENT: is used.
+        edl_clip = list(timeline.tracks[0].each_clip())[1]
+        clip = SGCutClip(
+            edl_clip
+        )
         clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_002")
 
@@ -160,10 +141,8 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_head_in_duration = 10
         sg_settings.default_tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = CutTrack.from_timeline(
-            edl_timeline,
-        )
-        clips = list(timeline.tracks[0].each_clip())
+        video_track = edl_timeline.tracks[0]
+        clips = [SGCutClip(c) for c in video_track.each_clip()]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.
@@ -231,10 +210,8 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_head_in_duration = 10
         sg_settings.default_tail_out_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        timeline = CutTrack.from_timeline(
-            edl_timeline,
-        )
-        clips = list(timeline.tracks[0].each_clip())
+        video_track = edl_timeline.tracks[0]
+        clips = [SGCutClip(c) for c in video_track.each_clip()]
         self.assertEqual(len(clips), 3)
         for clip in clips:
             self.assertIsNotNone(clip.shot_name)
@@ -304,16 +281,16 @@ class TestCutClip(unittest.TestCase):
             sg_settings.default_head_in_duration = head_in_duration
             sg_settings.default_tail_out_duration = tail_out_duration
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
-            timeline = CutTrack.from_timeline(
-                edl_timeline,
-            )
-            track = timeline.tracks[0]
+            track = edl_timeline.tracks[0]
+            clip_group = ClipGroup("shot_001")
+            for clip in track.each_clip():
+                clip_group.add_clip(SGCutClip(clip))
             # All we care about is to make sure that head_in_duration and tail_out_duration have been set in such
             # a way that cut_in - head_in_duration = head_in and cut_out + tail_out_duration = tail_out
             # The rest of the values are already tested in the other tests.
             # The duration of the source used is 10 seconds.
             tail_out = RationalTime(head_in + head_in_duration + 10 * 30 + tail_out_duration - 1, 30)
-            for clip in track.shot_clips("shot_001"):
+            for clip in clip_group.clips:
                 self.assertEqual(
                     clip.cut_in - clip.head_in_duration,
                     clip.head_in,

@@ -635,10 +635,11 @@ class ShotgridAdapterTest(unittest.TestCase):
                     # The only fields that we don't have when we write compared to when we read are the
                     # version.Version fields
                     if not field.startswith("version.Version"):
-                        if isinstance(orig_clip_pf[field], dict):
+                        # If a dict and not "path" assume an Entity dict and only
+                        # check the type and id
+                        if isinstance(orig_clip_pf[field], (dict, otio._otio.AnyDictionary)) and field != "path":
                             self.assertEqual(orig_clip_pf[field]["type"], clip_pf[field]["type"])
                             self.assertEqual(orig_clip_pf[field]["id"], clip_pf[field]["id"])
-                            self.assertEqual(orig_clip_pf[field]["code"], clip_pf[field]["code"])
                         else:
                             self.assertEqual(orig_clip_pf[field], clip_pf[field])
                 self.assertEqual(orig_clip.metadata["sg"]["version"], clip.metadata["sg"]["version"])
@@ -702,7 +703,13 @@ class ShotgridAdapterTest(unittest.TestCase):
                     # The only fields that we don't have when we write compared to when we read are the
                     # version.Version fields
                     if not field.startswith("version.Version"):
-                        self.assertEqual(orig_clip_pf[field], clip_pf[field])
+                        # If a dict and not "path" assume an Entity dict and only
+                        # check the type and id
+                        if isinstance(orig_clip_pf[field], (dict, otio._otio.AnyDictionary)) and field != "path":
+                            self.assertEqual(orig_clip_pf[field]["type"], clip_pf[field]["type"])
+                            self.assertEqual(orig_clip_pf[field]["id"], clip_pf[field]["id"])
+                        else:
+                            self.assertEqual(orig_clip_pf[field], clip_pf[field])
         finally:
             self.mock_sg.delete("Cut", mock_cut["id"])
 

@@ -21,14 +21,8 @@ class ClipGroup(object):
         """
         Initializes a new instance of the :class:`ClipGroup` class.
 
-        .. note:: Ideally this should derive from a :class:`otio.schema.Stack`
-                  but :class:`CutClip` code has a strong assumption that everything
-                  is in a single Track, right under a Timeline.
-                  Also, some adapters like cmx_3600 don't really support anything
-                  else than simple composition.
-
         :param str name: The name of the group.
-        :param clips: A list of :class:`otio.schema.Clip` instances.
+        :param clips: A list of :class:`sg_otio.SGCutClip` instances.
         """
         super(ClipGroup, self).__init__()
         self.name = name

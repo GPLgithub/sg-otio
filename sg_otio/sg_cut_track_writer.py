@@ -16,8 +16,7 @@ from opentimelineio.opentime import RationalTime
 
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD
 from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
-from .cut_clip import CutClip
-from .cut_track import CutTrack
+from .cut_clip import SGCutClip
 from .clip_group import ClipGroup
 from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
@@ -32,494 +31,6 @@ except ImportError:
     import pathlib2 as pathlib
 
 logger = logging.getLogger(__name__)
-
-class SGCutClip(object):
-    """
-    A Clip in the context of a Cut.
-    """
-
-    def __init__(
-        self,
-        clip,
-        sg_shot,
-        index=1,
-        *args,
-        **kwargs
-    ):
-        """
-        Construct a :class:`CutClip` instance.
-
-        :param int index: The index of the clip in the track.
-        :param effects: A list of :class:`otio.schema.Effect` instances.
-        :param markers: A list of :class:`otio.schema.Marker` instances.
-        """
-        super(SGCutClip, self).__init__(*args, **kwargs)
-        self._clip = clip
-        self.sg_shot = sg_shot
-        # TODO: check what we should grab from the SG metadata, if any.
-        # If the clip has a reel name, override its name.
-        if self._clip.metadata.get("cmx_3600", {}).get("reel"):
-            self.name = self._clip.metadata["cmx_3600"]["reel"]
-        self._frame_rate = self._clip.duration().rate
-        self._index = index
-        sg_settings = SGSettings()
-        self._head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
-        self._head_in_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
-        self._tail_out_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
-        self.effect = self._relevant_timing_effect(clip.effects or [])
-        self._cut_item_name = self.name
-
-    @property
-    def media_reference(self):
-        return self._clip.media_reference
-
-    def duration(self):
-        return self._clip.duration()
-
-    def available_range(self):
-        return self._clip.available_range()
-
-    def visible_range(self):
-        return self._clip.visible_range()
-
-    @property
-    def metadata(self):
-        return self._clip.metadata
-
-    @property
-    def sg_shot(self):
-        """
-        Return the SG Shot associated with this Clip, if any.
-
-        :returns: A dictionary or ``None``.
-        """
-        return self._sg_shot
-
-    @sg_shot.setter
-    def sg_shot(self, value):
-        self._sg_shot = value
-        if self._sg_shot:
-            self._shot_name = self._sg_shot["code"]
-        else:
-            self._shot_name = compute_clip_shot_name(self._clip)
-
-    @property
-    def cut_item_name(self):
-        """
-        Return the cut item name.
-
-        It can be different from the Clip name if for example
-        uniqueness of names needs to be enforced in a Cut.
-
-        :returns: A string.
-        """
-        return self._cut_item_name
-
-    @cut_item_name.setter
-    def cut_item_name(self, value):
-        """
-        Set a cut item name.
-
-        It can be different from the Clip name if for example
-        uniqueness of names needs to be enforced in a Cut.
-
-        :param value: A string.
-        """
-        self._cut_item_name = value
-
-    @property
-    def effect(self):
-        """
-        Return the effect.
-        """
-        return self._effect
-
-    @effect.setter
-    def effect(self, value):
-        """
-        Set the effect for the clip.
-
-        We only support one effect per clip, and it must be either a
-        :class:`otio.schema.LinearTimeWarp` or a :class:`otio.schema.FreezeFrame`.
-        """
-        self._effect = value
-
-    @staticmethod
-    def _is_timing_effect_supported(effect):
-        """
-        Check if the effect is supported, return ``True`` if it is.
-
-        We only support LinearTimeWarp and FreezeFrame effects for now (same as cmx_3600).
-
-        :param effect: A :class:`otio.schema.Effect` instance.
-        :returns: A bool.
-        """
-        if isinstance(effect, otio.schema.LinearTimeWarp):
-            return True
-        return False
-
-    @staticmethod
-    def _relevant_timing_effect(effects):
-        """
-        Return the relevant timing effect for the given clip.
-
-        We only support one effect per clip, and it must be either a
-        :class:`otio.schema.LinearTimeWarp` or a :class:`otio.schema.FreezeFrame`.
-
-        :param effects: A list of :class:`otio.schema.Effect` instances.
-        :returns: An effect or ``None``.
-        """
-        # check to see if there is more than one timing effect
-        supported_effects = []
-        for effect in effects:
-            if SGCutClip._is_timing_effect_supported(effect):
-                supported_effects.append(effect)
-            else:
-                logger.warning(
-                    "Unsupported effect %s will be ignored" % effect
-                )
-        timing_effect = None
-        if supported_effects:
-            timing_effect = effects[0]
-        if len(supported_effects) > 1:
-            logger.warning(
-                "Only one timing effect / clip. is supported. Ignoring %s" % (
-                    ", ".join(supported_effects[1:])
-                )
-            )
-        return timing_effect
-
-    @property
-    def markers(self):
-        """
-        Return the markers.
-
-        :returns: A list of :class:`otio.schema.Marker` instances.
-        """
-        return self._clip.markers
-
-    @property
-    def shot_name(self):
-        """
-        Return the name of the shot.
-
-        :returns: A str or ``None``.
-        """
-        return self._shot_name
-
-    @property
-    def visible_duration(self):
-        """
-        Return the duration of the clip, taking into account the transitions
-        and the effects.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        duration = self._clip.visible_range().duration
-        if self.effect:
-            if isinstance(self.effect, otio.schema.LinearTimeWarp):
-                duration_value = duration.value * self.effect.time_scalar
-            elif isinstance(self.effect, otio.schema.FreezeFrame):
-                duration_value = duration.value + RationalTime(1, self._frame_rate)
-            duration = RationalTime(duration_value, self._frame_rate)
-        return duration
-
-    @property
-    def index(self):
-        """
-        Return the index of the clip in the track.
-
-        :returns: An int.
-        """
-        return self._index
-
-    @property
-    def source_in(self):
-        """
-        Return the source in of the clip, which is the source start time of the clip.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self._clip.visible_range().start_time
-
-    @property
-    def source_out(self):
-        """
-        Return the source out of the clip, which is the source end time of the clip.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self.source_in + self.visible_duration
-
-    @property
-    def cut_in(self):
-        """
-        Return the cut in time of the clip.
-
-        The cut_in is the source_in converted to a frame number for image sequences.
-        It represents the first frame in the image sequence for this clip, without
-        handles.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self._head_in + self._head_in_duration
-
-    @property
-    def cut_out(self):
-        """
-        Return the cut out time of the clip.
-
-        The cut_out is the source_out, minus one frame, converted to a frame number
-        for image sequences.
-        It represents the last frame in the image sequence for this clip, without
-        handles.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self.cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
-
-    @property
-    def record_in(self):
-        """
-        Return the record in time of the clip.
-
-        It is the time the clip starts in the track, taking into account
-        when a track starts.
-
-        For example, if the track starts at 01:00:00:00, and the relative
-        time the clip starts in the track is 00:00:01:00, then the record_in
-        is 01:00:01:00.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        # We use visible_range wich adds adjacents transitions ranges to the Clip
-        # trimmed_range
-        # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
-        # We need to evaluate the time in the parent of our parent track to get
-        # the track source_range applied as an offset to our values.
-        transformed_time_range = self._clip.transformed_time_range(
-            self._clip.visible_range(), self._clip.parent().parent(),
-        )
-        return transformed_time_range.start_time
-
-    @property
-    def record_out(self):
-        """
-        Return the record out time of the clip.
-
-        It is the time the clip ends in the track, taking into account
-        when a track starts.
-
-        For example, if the track starts at 01:00:00:00, and the relative
-        time the clip ends in the track is 00:00:01:00, then the record_out
-        is 01:00:01:00.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        # We use visible_range wich adds adjacents transitions ranges to the Clip
-        # trimmed_range
-        # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
-        return self.record_in + self.visible_range().duration
-
-    @property
-    def edit_in(self):
-        """
-        Return the edit in time of the clip.
-
-        It is the relative time the clip starts in the track, i.e. the time
-        when the clip starts in the track if the track starts at 00:00:00:00.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        edit_in = self._clip.transformed_time_range(
-            self._clip.visible_range(),
-            self._clip.parent()
-        ).start_time
-        # We add one frame here, because the edit in starts at frame 1 for the first clip,
-        # not frame 0.
-        edit_in += RationalTime(1, self._frame_rate)
-        return edit_in
-
-    @property
-    def edit_out(self):
-        """
-        Return the edit out time of the clip.
-
-        It is the relative time the clip ends in the track, i.e. the time
-        when the clip ends in the track if the track starts at 00:00:00:00.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        # The edit out is inclusive but since we start numbering at 1, we use
-        # the exclusive end time which adds 1 frame for us.
-        return self._clip.transformed_time_range(
-            self._clip.visible_range(),
-            self._clip.parent()
-        ).end_time_exclusive()
-
-    @property
-    def head_in(self):
-        """
-        Return head in value.
-
-        This is the very first frame number for this clip, including handles.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self._head_in
-
-    @property
-    def head_out(self):
-        """
-        Return head out value.
-
-        This is the last frame number for this clip head handle.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self.head_in + self.head_in_duration - RationalTime(1, self._frame_rate)
-
-    @property
-    def head_in_duration(self):
-        """
-        Return the head handle duration.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self._head_in_duration
-
-    @head_in_duration.setter
-    def head_in_duration(self, value):
-        """
-        Sets the head handle duration.
-
-        :param value: A :class:`RationalTime` instance.
-        """
-        self._head_in_duration = value
-
-    @property
-    def tail_in(self):
-        """
-        Returns the tail in value.
-
-        This is the first frame number for this clip tail handle.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self.cut_out + RationalTime(1, self._frame_rate)
-
-    @property
-    def tail_out(self):
-        """
-        Return tail out value.
-
-        This is the very last frame number for this clip, including handles.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self.cut_out + self._tail_out_duration
-
-    @property
-    def tail_out_duration(self):
-        """
-        Return the tail handle duration.
-        """
-        return self._tail_out_duration
-
-    @tail_out_duration.setter
-    def tail_out_duration(self, value):
-        """
-        Sets the tail handle duration.
-
-        :param value: A :class:`RationalTime` instance.
-        """
-        self._tail_out_duration = value
-
-    @property
-    def working_duration(self):
-        """
-        Return the working duration.
-
-        It is the duration of the clip including handles.
-        It takes into account transitions and effects, like :meth:`visible_duration`.
-
-        :returns: A :class:`RationalTime` instance.
-        """
-        return self.tail_out - self.head_in
-
-    @property
-    def transition_before(self):
-        """
-        Returns the transition before this Clip, if any.
-
-        :returns: A class :class:`otio.schema.Transition` instance or ``None``.
-        """
-        prev, _ = self._clip.parent().neighbors_of(self._clip)
-        if prev and isinstance(prev, otio.schema.Transition):
-            return prev
-
-    @property
-    def transition_after(self):
-        """
-        Returns the transition after this Clip, if any.
-
-        :returns: A class :class:`otio.schema.Transition` instance or ``None``.
-        """
-        _, next = self._clip.parent().neighbors_of(self._clip)
-        if next and isinstance(next, otio.schema.Transition):
-            return next
-
-    @property
-    def effects_str(self):
-        """
-        Return a string with the effects of the clip, if any.
-
-        :returns: A string.
-        """
-        effects = []
-        if self.transition_before:
-            effects.append("Before: %s (%s frames)" % (
-                self.transition_before.transition_type,
-                self.transition_before.in_offset.to_frames()
-            ))
-        if self.transition_after:
-            effects.append("After: %s (%s frames)" % (
-                self.transition_after.transition_type,
-                self.transition_after.out_offset.to_frames()
-            ))
-        return "\n".join(effects)
-
-    @property
-    def has_effects(self):
-        """
-        Returns whether or not the clip has effects.
-
-        :returns: A bool.
-        """
-        if self.transition_before or self.transition_after:
-            return True
-        return False
-
-    @property
-    def retime_str(self):
-        """
-        Returns a string with retime information, if any.
-
-        :returns: A string.
-        """
-
-        if self.effect:
-            return "%s (time scalar: %s)" % (self.effect.effect_name, self.effect.time_scalar)
-        return ""
-
-    @property
-    def has_retime(self):
-        """
-        Returns whether or not the clip has retime information.
-
-        :returns: A bool.
-        """
-        return bool(self.effect)
 
 
 class SGCutTrackWriter(object):
@@ -566,7 +77,7 @@ class SGCutTrackWriter(object):
 
         :param str entity_type: A SG Entity type.
         :param int entity_id: A SG Entity ID.
-        :param video_track: An OTIO Video Track or a CutTrack.
+        :param video_track: An OTIO Video Track.
         :param str input_media: An optional input media. If provided, a Version will be created for the Cut.
         :param sg_user: An optional SG User which will be registered when creating/updating Entities.
         :param description: An optional description for the Cut.
@@ -583,17 +94,18 @@ class SGCutTrackWriter(object):
         # Retrieve the existing Shots for the clips
         sfg = SGShotFieldsConfig(
             self._sg,
-            sg_linked_entity["type"],
+            sg_linked_entity["type"] if sg_linked_entity else None,
             use_smart_fields=False,
             shot_cut_fields_prefix=None
         )
         shots_by_name = {}
-        for clip in video_track.each_clip():
+        for i, clip in enumerate(video_track.each_clip()):
             shot_name = compute_clip_shot_name(clip)
+            # Store a tuple with the clip index and the clip
             if shot_name not in shots_by_name:
-                shots_by_name[shot_name] = [clip]
+                shots_by_name[shot_name] = [(i + 1, clip)]
             else:
-                shots_by_name[shot_name].append(clip)
+                shots_by_name[shot_name].append((i + 1, clip))
         shot_names = [x for x in shots_by_name.keys() if x]
         sg_shots = self._sg.find(
             "Shot",
@@ -609,27 +121,20 @@ class SGCutTrackWriter(object):
             clips = shots_by_name.pop(shot_name)
             if shot_name not in clips_by_shots:
                 clips_by_shots[shot_name] = ClipGroup(shot_name)
-            for clip in clips:
+            for clip_index, clip in clips:
                 clips_by_shots[shot_name].add_clip(
-                    SGCutClip(clip, sg_shot),
+                    SGCutClip(clip, index=clip_index, sg_shot=sg_shot),
                 )
         for shot_name in shots_by_name:
             logger.info("Shot %s was not found" % shot_name)
             clips = shots_by_name[shot_name]
             if shot_name not in clips_by_shots:
                 clips_by_shots[shot_name] = ClipGroup(shot_name)
-            for clip in clips:
+            for clip_index, clip in clips:
                 clips_by_shots[shot_name].add_clip(
-                    SGCutClip(clip, None),
+                    SGCutClip(clip, index=clip_index, sg_shot=None),
                 )
 
-        # Convert to a CutTrack if one was not provided.
-        if not isinstance(cut_track, CutTrack):
-            # We need to give the track a parent so time transforms from the Clip
-            # to the track are correctly evaluated.
-            stack = otio.schema.Stack()
-            cut_track = CutTrack.from_track(video_track)
-            stack.append(cut_track)
         sg_cut_version = None
         sg_cut_pf = None
         if input_media:
@@ -647,7 +152,7 @@ class SGCutTrackWriter(object):
         )
         if SGSettings().create_missing_versions:
             self._write_versions(
-                video_track,
+                video_track.name,
                 clips_by_shots,
                 sg_project,
                 sg_linked_entity,
@@ -655,7 +160,6 @@ class SGCutTrackWriter(object):
                 sg_user
             )
         self._write_cut_items(
-            video_track,
             clips_by_shots,
             sg_project,
             sg_cut,
@@ -728,30 +232,30 @@ class SGCutTrackWriter(object):
             video_track.metadata["sg"] = sg_cut
         return sg_cut
 
-    def _get_sg_cut_payload(self, cut_track, sg_version=None, sg_user=None, description=""):
+    def _get_sg_cut_payload(self, video_track, sg_version=None, sg_user=None, description=""):
         """
-        Gather information about a SG Cut given a CutTrack.
+        Gather information about a SG Cut given a Track.
 
-        :param cut_track: An instance of :class:`CutTrack`.
+        :param video_track: An OTIO Video Track.
         :param sg_version: If provided, the SG Version to link to the Cut.
         :param sg_user: An optional user to provide when creating/updating Entities in SG.
         :param str description: An optional description for the Cut.
         :returns: A dictionary with the SG Cut payload.
         """
         # If the track starts at 00:00:00:00, for some reason it does not have a source range.
-        if cut_track.source_range:
+        if video_track.source_range:
             # The source range is set with a negative offset to use it as an
             # offset when computing clips record times.
-            track_start = -cut_track.source_range.start_time
+            track_start = -video_track.source_range.start_time
         else:
-            track_start = RationalTime(0, cut_track.duration().rate)
-        track_end = track_start + cut_track.duration()
+            track_start = RationalTime(0, video_track.duration().rate)
+        track_end = track_start + video_track.duration()
         cut_payload = {
-            "code": cut_track.name,
-            "fps": cut_track.duration().rate,
+            "code": video_track.name,
+            "fps": video_track.duration().rate,
             "timecode_start_text": track_start.to_timecode(),
             "timecode_end_text": track_end.to_timecode(),
-            "duration": cut_track.duration().to_frames(),
+            "duration": video_track.duration().to_frames(),
         }
         if sg_version:
             cut_payload["version"] = {
@@ -766,14 +270,12 @@ class SGCutTrackWriter(object):
             cut_payload["description"] = description
         return cut_payload
 
-    def _write_cut_items(self, video_track, clips_by_shots, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user):
+    def _write_cut_items(self, clips_by_shots, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user):
         """
-        Gather information about the Cut Items given a CutTrack, and create or update the Cut Items in SG
-        accordingly.
+        Create or update Cut Items in SG for the given clips.
 
         Add metadata to the OTIO Clips in the Track about the SG Cut Items.
 
-        :param video_track: An OTIO Video Track.
         :param clips_by_shots: A dictionary where keys are Shot names and values
                                instances of :class:`ClipGroup`.
         :param sg_project: The SG Project to write the Cut to.
@@ -788,9 +290,7 @@ class SGCutTrackWriter(object):
         sg_cut_items_data = []
         cut_item_clips = []
 
-        # Loop over clips from the cut_track
-        # Keep references to original clips
-        video_clips = list(video_track.each_clip())
+        # Loop over all clips
         i = 0
         for shot_name, clip_group in clips_by_shots.items():
             for clip in clip_group.clips:
@@ -803,7 +303,7 @@ class SGCutTrackWriter(object):
                     sg_user=sg_user
                 )
                 sg_cut_items_data.append(sg_data)
-                cut_item_clips.append(video_clips[i])
+                cut_item_clips.append(clip)
                 i += 1
 
         batch_data = []
@@ -868,7 +368,7 @@ class SGCutTrackWriter(object):
 
     def get_sg_cut_item_payload(self, cut_clip, sg_shot=None, sg_version=None, sg_user=None):
         """
-        Get a SG CutItem payload for a given :class:`sg_otio.CutClip` instance.
+        Get a SG CutItem payload for a given :class:`sg_otio.SGCutClip` instance.
 
         An absolute cut order can be set on CutItems if the `sg_absolute_cut_order`
         integer field was added to the SG CutItem schema. This absolute cut order
@@ -877,7 +377,7 @@ class SGCutTrackWriter(object):
         imported against. The absolute cut order is then:
         `1000 * entity cut order + edit cut order`.
 
-        :param cut_clip: A :class:`sg_otio.CutClip` instance.
+        :param cut_clip: A :class:`sg_otio.SGCutClip` instance.
         :param sg_shot: An optional SG Shot to use for the CutItem.
         :param sg_version: An optional SG Version to use for the CutItem.
         :param sg_user: An optional user to provide when creating/updating Cut Items in SG.
@@ -931,11 +431,11 @@ class SGCutTrackWriter(object):
         cut_item_payload["description"] = description
         return cut_item_payload
 
-    def _write_versions(self, video_track, clips_by_shots, sg_project, sg_linked_entity, cut_published_file=None, sg_user=None):
+    def _write_versions(self, cut_title, clips_by_shots, sg_project, sg_linked_entity, cut_published_file=None, sg_user=None):
         """
         For Clips which have a Media Reference, create a Version and a Published file for each one.
 
-        :param video_track: An OTIO Video Track.
+        :param str cut_title: A name for the Cut.
         :param clips_by_shots: A dictionary where keys are Shot names and values
                                instances of :class:`ClipGroup`.
         :param sg_project: The SG Project to write the Cut to.
@@ -947,8 +447,6 @@ class SGCutTrackWriter(object):
         """
         clips_with_media_refs = []
         clips_version_names = []
-        # Keep a reference to the original clips
-        video_clips = list(video_track.each_clip())
         all_clips = []
         for _, clip_group in clips_by_shots.items():
             all_clips.extend(clip_group.clips)
@@ -1029,7 +527,7 @@ class SGCutTrackWriter(object):
             )
         data = {
             "PROJECT": sg_project["name"],
-            "CUT_TITLE": video_track.name,
+            "CUT_TITLE": cut_title,
             "LINK": linked_entity.get("code") or linked_entity.get("name") or "",
             "HH": date.strftime("%H"),
             "DD": date.strftime("%d"),
@@ -1071,7 +569,6 @@ class SGCutTrackWriter(object):
             )
             # Replace the media reference with the proper file path for both the clip and the video clip.
             clip.media_reference.target_url = "file://%s" % version_file_path
-            #video_clips[clip.index - 1].media_reference.target_url = "file://%s" % version_file_path
             # The first frame and the last frame depend on the cut in and the media's available range,
             # because we apply a cut in offset based on the head in and the head in duration.
             first_frame_offset = clip.available_range().start_time - clip.visible_range().start_time
@@ -1186,7 +683,6 @@ class SGCutTrackWriter(object):
                         ))
                         clip.media_reference.metadata["sg"] = sg_published_file
                         clip.media_reference.metadata["sg"]["version"] = sg_version
-                        #video_clips[clip.index - 1].media_reference.metadata["sg"] = sg_published_file
                         break
             # Create the PublishedFileDependencies.
             published_file_dependencies_batch_data = [
@@ -1222,6 +718,7 @@ class SGCutTrackWriter(object):
         :returns: A list of SG Shot Entities.
         """
         sg_batch_data = []
+        sg_shots = []
         for shot_name, clip_group in clips_by_shots.items():
             if not shot_name:
                 continue
