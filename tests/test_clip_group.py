@@ -8,7 +8,6 @@
 import unittest
 
 import opentimelineio as otio
-from sg_otio.cut_track import CutTrack
 from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
 

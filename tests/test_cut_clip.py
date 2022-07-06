@@ -32,7 +32,7 @@ class TestCutClip(unittest.TestCase):
         otherwise it defaults to the clip name.
         """
         clip = SGCutClip(
-                otio.schema.Clip(
+            otio.schema.Clip(
                 name="test_clip",
                 source_range=TimeRange(
                     RationalTime(0, 24),
@@ -303,7 +303,6 @@ class TestCutClip(unittest.TestCase):
                 )
                 self.assertEqual(clip.cut_out + clip.tail_out_duration, tail_out)
 
-
     def test_in_out_values(self):
         """
         Test we get the expected frame values depending on mapping mode
@@ -321,9 +320,9 @@ class TestCutClip(unittest.TestCase):
         )
         self.assertEqual(clip.head_in.to_frames(), sg_settings.default_head_in)
         self.assertEqual(clip.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
-        self.assertEqual(clip.cut_out.to_frames(), clip.cut_in.to_frames() + 10 -1)
+        self.assertEqual(clip.cut_out.to_frames(), clip.cut_in.to_frames() + 10 - 1)
         self.assertEqual(clip.tail_in.to_frames(), clip.cut_out.to_frames() + 1)
-        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration -1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
         # If a Shot is associated with the Clip, and it has a head_in value, it
         # is always used
         sg_shot = {
@@ -333,9 +332,10 @@ class TestCutClip(unittest.TestCase):
             "head_in": 123456
         }
         clip.sg_shot = sg_shot
-        #self.assertEqual(clip.head_in.to_frames(), sg_shot["head_in"])
+        # self.assertEqual(clip.head_in.to_frames(), sg_shot["head_in"])
 
-        #, _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+        # , _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+
 
 if __name__ == '__main__':
     unittest.main()
