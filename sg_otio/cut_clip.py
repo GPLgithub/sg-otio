@@ -4,7 +4,6 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
-import copy
 import logging
 
 import opentimelineio as otio
@@ -555,7 +554,7 @@ class SGCutClip(object):
             config = SGShotFieldsConfig(
                 None, None
             )
-            head_in_field = SGShotFieldsConfig(None, None).head_in
+            head_in_field = config.head_in
             return self.sg_shot.get(head_in_field)
         return None
 
@@ -571,7 +570,7 @@ class SGCutClip(object):
             config = SGShotFieldsConfig(
                 None, None
             )
-            tail_out_field = SGShotFieldsConfig(None, None).tail_out
+            tail_out_field = config.tail_out
             return self.sg_shot.get(tail_out_field)
         return None
 
@@ -593,7 +592,6 @@ class SGCutClip(object):
         else:
             head_in = RationalTime(sg_shot_head_in, self._frame_rate)
             head_duration = cut_in - head_in
-
 
         cut_out = cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
         sg_shot_tail_out = self.sg_shot_tail_out
@@ -623,7 +621,6 @@ class SGCutClip(object):
         if sg_cut_item:
             cut_item_in = sg_cut_item.get("cut_item_in")
             cut_item_source_in = sg_cut_item.get("timecode_cut_item_in_text")
-            source_in = self.source_in
             if cut_item_in is not None and cut_item_source_in is not None:
                 # Calculate the cut offset
                 offset = self.source_in - otio.opentime.from_timecode(cut_item_source_in, self._frame_rate)

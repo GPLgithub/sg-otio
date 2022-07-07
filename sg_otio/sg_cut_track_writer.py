@@ -4,7 +4,6 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
-from collections import defaultdict
 import copy
 import datetime
 import logging
@@ -14,13 +13,12 @@ import shutil
 import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
+from .clip_group import ClipGroup
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD
 from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
-from .cut_clip import SGCutClip
-from .clip_group import ClipGroup
 from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
-from .utils import get_available_filename, compute_clip_version_name, compute_clip_shot_name
+from .utils import get_available_filename, compute_clip_version_name
 from .utils import get_platform_name, get_path_from_target_url
 
 try:
@@ -82,7 +80,6 @@ class SGCutTrackWriter(object):
         :param sg_user: An optional SG User which will be registered when creating/updating Entities.
         :param description: An optional description for the Cut.
         """
-        cut_track = video_track
         sg_track_data = video_track.metadata.get("sg")
         if sg_track_data and sg_track_data["type"] != "Cut":
             raise ValueError(
@@ -258,7 +255,6 @@ class SGCutTrackWriter(object):
         :param sg_user: An optional user to provide when creating/updating Entities in SG.
         :returns: The SG Cut Items.
         """
-        shots_by_name = {x["code"]: x for x in sg_shots}
         shots_by_id = {x["id"]: x for x in sg_shots}
         sg_cut_items_data = []
         cut_item_clips = []
