@@ -95,8 +95,6 @@ class SGCutTrackWriter(object):
         sfg = SGShotFieldsConfig(
             self._sg,
             sg_linked_entity["type"] if sg_linked_entity else None,
-            use_smart_fields=False,
-            shot_cut_fields_prefix=None
         )
         clips_by_shots = ClipGroup.groups_from_track(video_track)
         shot_names = [x for x in clips_by_shots.keys() if x]
@@ -746,7 +744,7 @@ class SGCutTrackWriter(object):
         """
         sg_linked_entity = sg_linked_entity or sg_project
         # TODO: deal with smart fields and shot_cut_fields_prefix
-        sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"], use_smart_fields=False, shot_cut_fields_prefix=None)
+        sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
         shot_payload = {
             "project": sg_project,
             "code": shot.name,

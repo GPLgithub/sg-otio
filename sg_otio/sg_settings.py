@@ -259,7 +259,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._create_missing_versions = value
 
     @property
-    def timecode_in_to_frame_mapping(self):
+    def timecode_in_to_frame_mapping_mode(self):
         """
         Return how timecode in values should be mapped to frames.
 
@@ -272,11 +272,15 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
 
         :returns: An integer.
         """
-        return self._timecode_in_to_frame_mapping
+        return self._timecode_in_to_frame_mapping_mode
 
-    @timecode_in_to_frame_mapping.setter
-    def timecode_in_to_frame_mapping(self, value):
+    @timecode_in_to_frame_mapping_mode.setter
+    def timecode_in_to_frame_mapping_mode(self, value):
         """
+        Set how timecode in values should be mapped to frames.
+
+        :param int value: Either _TC2FRAME_ABSOLUTE_MODE, or _TC2FRAME_AUTOMATIC_MODE
+                          or _TC2FRAME_RELATIVE_MODE.
         """
         if value not in [
             _TC2FRAME_ABSOLUTE_MODE,
@@ -286,7 +290,44 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
             raise ValueError(
                 "%s is not a valid timecode to frame mapping value" % value
             )
-        self._timecode_in_to_frame_mapping = value
+        self._timecode_in_to_frame_mapping_mode = value
+
+    @property
+    def timecode_in_to_frame_relative_mapping(self):
+        """
+        Return the relative timecode to frame mapping.
+
+        :returns: A (timecode string, frame number) tuple.
+        """
+        return self._timecode_in_to_frame_relative_mapping
+
+    @timecode_in_to_frame_relative_mapping.setter
+    def timecode_in_to_frame_relative_mapping(self, tc_str, frame):
+        """
+        Set the relative timecode to frame mapping.
+
+        :param tc_str: A timecode, as a string.
+        :param int frame: A frame number.
+        """
+        self._timecode_in_to_frame_relative_mapping = (tc_str, frame)
+
+    @property
+    def use_smart_fields(self):
+        """
+        """
+        return self._use_smart_fields
+
+    @use_smart_fields.setter
+    def use_smart_fields(self, value):
+        self._use_smart_fields = value
+
+    @property
+    def shot_cut_fields_prefix(self):
+        return self._shot_cut_fields_prefix
+
+    @shot_cut_fields_prefix.setter
+    def shot_cut_fields_prefix(self, value):
+        self._shot_cut_fields_prefix = value
 
     def reset_to_defaults(self):
         """
@@ -301,7 +342,12 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._versions_path_template = _DEFAULT_VERSIONS_PATH_TEMPLATE
         self._version_names_template = None
         self._create_missing_versions = True
-        self._timecode_in_to_frame_mapping = _TC2FRAME_AUTOMATIC_MODE
+        self._timecode_in_to_frame_mapping_mode = _TC2FRAME_AUTOMATIC_MODE
+        self._timecode_in_to_frame_relative_mapping = (
+            "00:00:00:01", self._default_head_in
+        )
+        self._use_smart_fields = False
+        self._shot_cut_fields_prefix = None
 
 
 class SGShotFieldsConfig(object):
@@ -320,12 +366,13 @@ class SGShotFieldsConfig(object):
     _shot_schema = None
     _entity_schema = None
 
-    def __init__(self, sg, linked_entity_type=None, use_smart_fields=False, shot_cut_fields_prefix=None):
+    def __init__(self, sg, linked_entity_type=None):
         self._linked_entity_type = linked_entity_type
         self._sg = sg
-        self._use_smart_fields = use_smart_fields
-        self.validate_shot_cut_fields_prefix(shot_cut_fields_prefix)
-        self._shot_cut_fields_prefix = shot_cut_fields_prefix
+        sg_settings = SGSettings()
+        self._use_smart_fields = sg_settings.use_smart_fields
+        self.validate_shot_cut_fields_prefix(sg_settings.shot_cut_fields_prefix)
+        self._shot_cut_fields_prefix = sg_settings.shot_cut_fields_prefix
         self._sg_shot_link_field = None
         self._shot_schema = None
 

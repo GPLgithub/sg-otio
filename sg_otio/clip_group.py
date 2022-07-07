@@ -92,6 +92,7 @@ class ClipGroup(object):
                     clip.name, clip.duration().rate, self._frame_rate
                 )
             )
+        clip.sg_shot = self.sg_shot
         if self._earliest_clip is None or clip.source_in < self._earliest_clip.source_in:
             self._earliest_clip = clip
         if self._last_clip is None or clip.source_out > self._last_clip.source_out:
@@ -132,32 +133,27 @@ class ClipGroup(object):
         """
         if not self._clips:
             return
-        # Adjust the head_in_duration and tail_out_duration of all clips in the group
+        # Get some values from the first and last clips
         self._index = self._earliest_clip.index
         self._source_in = self._earliest_clip.source_in
-        self._head_in = self._earliest_clip.head_in
-        self._head_out = self._earliest_clip.head_out
+        head_in, head_duration, _ = self._earliest_clip.get_head_tail_values()
 
         self._source_out = self._last_clip.source_out
-        self._tail_in = self._last_clip.tail_in
-        self._tail_out = self._last_clip.tail_out
-        # We have circular dependencies between the value we set and we retrieve :(
-        for clip in self.clips:
-            clip.head_in = self._head_in
-            clip.head_in_duration = clip.source_in - self.source_in + self.head_duration
-            clip.tail_out_duration = self.source_out - clip.source_out + self.tail_duration
-
-        self._cut_in = self._earliest_clip.cut_in
-        self._cut_out = self._last_clip.cut_out
-        # Get back the value again
-        self._tail_in = self._last_clip.tail_in
-        self._tail_out = self._last_clip.tail_out
+        _, _, tail_duration = self._last_clip.get_head_tail_values()
 
         # Adjust the head_in_duration and tail_out_duration of all clips in the group
-#        for clip in self.clips:
-#            clip.head_in = self._head_in
-#            clip.head_in_duration = clip.source_in - self.source_in + self.head_duration
-#            clip.tail_out_duration = self.source_out - clip.source_out + self.tail_duration
+        for clip in self.clips:
+            clip.head_in = head_in
+            clip.head_in_duration = clip.source_in - self.source_in + head_duration
+            clip.tail_out_duration = self.source_out - clip.source_out + tail_duration
+
+        # Get other values from first and last clips now that they have been set.
+        self._head_in = self._earliest_clip.head_in
+        self._head_out = self._earliest_clip.head_out
+        self._cut_in = self._earliest_clip.cut_in
+        self._cut_out = self._last_clip.cut_out
+        self._tail_in = self._last_clip.tail_in
+        self._tail_out = self._last_clip.tail_out
 
     @property
     def sg_shot(self):

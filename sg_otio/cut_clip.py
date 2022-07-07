@@ -10,7 +10,8 @@ import logging
 import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
-from .sg_settings import SGSettings
+from .constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+from .sg_settings import SGShotFieldsConfig, SGSettings
 from .utils import compute_clip_shot_name
 
 logger = logging.getLogger(__name__)
@@ -46,11 +47,8 @@ class SGCutClip(object):
             self.name = self._clip.metadata["cmx_3600"]["reel"]
         self._frame_rate = self._clip.duration().rate
         self._index = index
-        sg_settings = SGSettings()
-        self._head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
-        self._head_in_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
-        self._tail_out_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
         self.effect = self._relevant_timing_effect(clip.effects or [])
+        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
         self._cut_item_name = self.name
 
     @property
@@ -543,6 +541,110 @@ class SGCutClip(object):
         :returns: A bool.
         """
         return bool(self.effect)
+
+    @property
+    def sg_shot_head_in(self):
+        """
+        Return the head in from the SG Shot, if any.
+
+        :returns: An integer or ``None``.
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its head in value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            head_in_field = SGShotFieldsConfig(None, None).head_in
+            return self.sg_shot.get(head_in_field)
+        return None
+
+    @property
+    def sg_shot_tail_out(self):
+        """
+        Return the tail out from the SG Shot, if any.
+
+        :returns: An integer or ``None``.
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its head in value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            tail_out_field = SGShotFieldsConfig(None, None).tail_out
+            return self.sg_shot.get(tail_out_field)
+        return None
+
+    def get_head_tail_values(self):
+        """
+        Compute head and tail values for this clip.
+
+        :returns: A head in, head duration, tail duration tuple of :class:`RationalTime`
+        """
+        sg_settings = SGSettings()
+        sg_shot_head_in = self.sg_shot_head_in
+        cut_in = self.get_cut_in()
+        if sg_shot_head_in is None:
+            head_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
+            if sg_settings.timecode_in_to_frame_mapping_mode == _TC2FRAME_AUTOMATIC_MODE:
+                head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
+            else:
+                head_in = cut_in - head_duration
+        else:
+            head_in = RationalTime(sg_shot_head_in, self._frame_rate)
+            head_duration = cut_in - head_in
+
+
+        cut_out = cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
+        sg_shot_tail_out = self.sg_shot_tail_out
+        if sg_shot_tail_out is None:
+            tail_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
+        else:
+            tail_out = RationalTime(sg_shot_tail_out, self._frame_rate)
+            # tail_in would be cut_out + 1, so tail_duration would be
+            # tail_out - (cut_out + 1) -1, we use a simplified formula below
+            tail_duration = tail_out - cut_out
+
+        return(
+            head_in,
+            head_duration,
+            tail_duration,
+        )
+
+    def get_cut_in(self):
+        """
+        Retrieve a cut in value for this Clip.
+
+        The value can be retrieved as an offset to a previous import, or computed.
+
+        :returns: A :class:`RationalTime`.
+        """
+        sg_cut_item = self.metadata.get("sg")
+        if sg_cut_item:
+            cut_item_in = sg_cut_item.get("cut_item_in")
+            cut_item_source_in = sg_cut_item.get("timecode_cut_item_in_text")
+            source_in = self.source_in
+            if cut_item_in is not None and cut_item_source_in is not None:
+                # Calculate the cut offset
+                offset = self.source_in - otio.opentime.from_timecode(cut_item_source_in, self._frame_rate)
+                # Just apply the offset to the old cut in
+                return RationalTime(cut_item_in, self._frame_rate) + offset
+
+        sg_settings = SGSettings()
+        timecode_in_to_frame_mapping_mode = sg_settings.timecode_in_to_frame_mapping_mode
+
+        if timecode_in_to_frame_mapping_mode == _TC2FRAME_ABSOLUTE_MODE:
+            return self.source_in.to_frames()
+
+        if timecode_in_to_frame_mapping_mode == _TC2FRAME_RELATIVE_MODE:
+            tc_base, frame = timecode_in_to_frame_relative_mapping
+            tc_base = otio.opentime.from_timecode(tc_base, self._frame_rate)
+            return self.source_in - tc_base + RationalTime(frame, self._frame_rate)
+
+        # Automatic mode
+        head_in = self.sg_shot_head_in
+        if head_in is None:
+            head_in = sg_settings.default_head_in
+        return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
 
 
 class CutClip(otio.schema.Clip):
