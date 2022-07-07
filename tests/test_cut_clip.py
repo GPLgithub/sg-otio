@@ -308,7 +308,7 @@ class TestCutClip(unittest.TestCase):
         Test we get the expected frame values depending on mapping mode
         """
         sg_settings = SGSettings()
-        sg_settings.timecode_in_to_frame_mapping = _TC2FRAME_AUTOMATIC_MODE
+        sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_AUTOMATIC_MODE
         clip = SGCutClip(
             otio.schema.Clip(
                 name="test_clip",
@@ -329,12 +329,50 @@ class TestCutClip(unittest.TestCase):
             "type": "Shot",
             "id": -1,
             "code": "Totally Faked",
-            "head_in": 123456
+            "sg_head_in": 123456,
+            "sg_tail_out": 123466
         }
         clip.sg_shot = sg_shot
-        # self.assertEqual(clip.head_in.to_frames(), sg_shot["head_in"])
+        self.assertEqual(clip.head_in.to_frames(), sg_shot["sg_head_in"])
+        self.assertEqual(clip.tail_out.to_frames(), sg_shot["sg_tail_out"])
 
-        # , _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+        sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_ABSOLUTE_MODE
+        clip.sg_shot = None  # Unsetting the Shot forces a recompute
+        # In absolute mode the source range is used directly
+        self.assertEqual(clip.head_in.to_frames(), -8)
+        self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
+        self.assertEqual(clip.cut_in.to_frames(), 0)
+        self.assertEqual(clip.cut_out.to_frames(), 9)
+        self.assertEqual(clip.tail_in.to_frames(), 9 + 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
+
+        sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_RELATIVE_MODE
+        sg_settings.timecode_in_to_frame_relative_mapping = ("00:00:00:00", 20000)
+        clip.sg_shot = None  # Unsetting the Shot forces a recompute
+        self.assertEqual(clip.get_cut_in().to_frames(), 20000)
+        self.assertEqual(clip.head_in.to_frames(), 20000 - 8)
+        self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
+        self.assertEqual(clip.cut_in.to_frames(), 20000)
+        self.assertEqual(clip.cut_out.to_frames(), 20000 + 9)
+        self.assertEqual(clip.tail_in.to_frames(), 20000 + 9 + 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
+
+        # Value from a SSG Cut Item should be used as a base for an offset
+        clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": -1,
+            "code": "Totally Faked",
+            "cut_item_in": 3002,
+            "timecode_cut_item_in_text": "00:00:00:02",
+        }
+        clip.sg_shot = None  # Unsetting the Shot forces a recompute
+        self.assertEqual(clip.get_cut_in().to_frames(), 3000)
+        self.assertEqual(clip.head_in.to_frames(), 3000 - 8)
+        self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
+        self.assertEqual(clip.cut_in.to_frames(), 3000)
+        self.assertEqual(clip.cut_out.to_frames(), 3000 + 9)
+        self.assertEqual(clip.tail_in.to_frames(), 3000 + 9 + 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
 
 
 if __name__ == '__main__':

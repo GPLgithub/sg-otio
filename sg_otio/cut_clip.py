@@ -39,7 +39,7 @@ class SGCutClip(object):
         """
         super(SGCutClip, self).__init__(*args, **kwargs)
         self._clip = clip
-        self.sg_shot = sg_shot
+        self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
         self.name = self._clip.name
@@ -47,7 +47,7 @@ class SGCutClip(object):
             self.name = self._clip.metadata["cmx_3600"]["reel"]
         self._frame_rate = self._clip.duration().rate
         self._index = index
-        self.effect = self._relevant_timing_effect(clip.effects or [])
+        self.sg_shot = sg_shot
         self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
         self._cut_item_name = self.name
 
@@ -114,6 +114,7 @@ class SGCutClip(object):
             self._shot_name = self._sg_shot["code"]
         else:
             self._shot_name = compute_clip_shot_name(self._clip)
+        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
 
     @property
     def cut_item_name(self):
@@ -633,11 +634,12 @@ class SGCutClip(object):
         timecode_in_to_frame_mapping_mode = sg_settings.timecode_in_to_frame_mapping_mode
 
         if timecode_in_to_frame_mapping_mode == _TC2FRAME_ABSOLUTE_MODE:
-            return self.source_in.to_frames()
+            return self.source_in
 
         if timecode_in_to_frame_mapping_mode == _TC2FRAME_RELATIVE_MODE:
-            tc_base, frame = timecode_in_to_frame_relative_mapping
+            tc_base, frame = sg_settings.timecode_in_to_frame_relative_mapping
             tc_base = otio.opentime.from_timecode(tc_base, self._frame_rate)
+            logger.info("Using mapping %s %s" % (tc_base, frame))
             return self.source_in - tc_base + RationalTime(frame, self._frame_rate)
 
         # Automatic mode

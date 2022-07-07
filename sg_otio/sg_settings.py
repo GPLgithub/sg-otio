@@ -302,13 +302,14 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         return self._timecode_in_to_frame_relative_mapping
 
     @timecode_in_to_frame_relative_mapping.setter
-    def timecode_in_to_frame_relative_mapping(self, tc_str, frame):
+    def timecode_in_to_frame_relative_mapping(self, value):
         """
         Set the relative timecode to frame mapping.
 
         :param tc_str: A timecode, as a string.
         :param int frame: A frame number.
         """
+        tc_str, frame = value
         self._timecode_in_to_frame_relative_mapping = (tc_str, frame)
 
     @property
