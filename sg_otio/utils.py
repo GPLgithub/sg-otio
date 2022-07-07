@@ -190,7 +190,7 @@ def compute_clip_version_name(clip, clip_index):
 
     ..seealso::sg_settings.SGSettings.version_names_template
 
-    :param clip: A :class:`otio.schema.Clip` or :class:`CutClip`.
+    :param clip: A :class:`otio.schema.Clip` or :class:`SGCutClip`.
     :param int clip_index: The index of the clip in the Track.
     :returns: A string containing the version name.
     """
@@ -260,7 +260,7 @@ def add_media_references_from_sg(track, sg, project):
 
     For clips that don't have a Media Reference, try to find one in Shotgun.
 
-    :param track: A :class:`otio.schema.Track` or :class:`CutTrack` instance.
+    :param track: A :class:`otio.schema.Track` instance.
     :param sg: A SG session handle.
     :param project: A SG Project entity.
     """

@@ -6,29 +6,41 @@
 #
 from opentimelineio.opentime import RationalTime
 
+from .cut_clip import SGCutClip
+from .utils import compute_clip_shot_name
+
 
 class ClipGroup(object):
     """
     A class representing group of clips in an OTIO timeline.
 
-    Clips can be grouped together when they reference the same source. For example, if multiple clips
-    in a timeline represent the same shot, they can be grouped together, and some information about them
-    can be inferred, like the source_in and source_out for all the clips in the shot (i.e. the earliest
-    start time and the latest end time of all clips).
+    Clips can be grouped together when they reference the same source. For example,
+    if multiple clips in a timeline represent the same shot, (e.g. for flashback effects)
+
+    A single "media item" is associated with all the entries in the same group.
+    All frame values are relative to the earliest entry head in value.
+        --------------------------
+        |       instance 1       |
+        --------------------------
+        ^   --------------------
+        |   |   instance 2     |
+            --------------------
+        |  ---------------------------------
+           |      instance 3               |
+        |  ---------------------------------
+                                           ^
+        |                                  |
+        ------------------------------------
+        |  media covering all instances    |
+        ------------------------------------
     """
 
-    def __init__(self, name, clips):
+    def __init__(self, name, clips=None, sg_shot=None):
         """
         Initializes a new instance of the :class:`ClipGroup` class.
 
-        .. note:: Ideally this should derive from a :class:`otio.schema.Stack`
-                  but :class:`CutClip` code has a strong assumption that everything
-                  is in a single Track, right under a Timeline.
-                  Also, some adapters like cmx_3600 don't really support anything
-                  else than simple composition.
-
         :param str name: The name of the group.
-        :param clips: A list of :class:`otio.schema.Clip` instances.
+        :param clips: A list of :class:`sg_otio.SGCutClip` instances.
         """
         super(ClipGroup, self).__init__()
         self.name = name
@@ -45,8 +57,11 @@ class ClipGroup(object):
         self._has_effects = False
         self._has_retime = False
         self._frame_rate = None
+        self._earliest_clip = None
+        self._last_clip = None
         if clips:
             self.add_clips(clips)
+        self.sg_shot = sg_shot
 
     @property
     def clips(self):
@@ -56,7 +71,8 @@ class ClipGroup(object):
         :returns: A list of :class:`otio.schema.Clip` instances.
         """
         # Don't return the original list, because it might be modified.
-        return list(self._clips)
+        for clip in self._clips:
+            yield(clip)
 
     def add_clip(self, clip):
         """
@@ -67,7 +83,25 @@ class ClipGroup(object):
 
         :param clip: A :class:`otio.schema.Clip` instance.
         """
-        self.add_clips([clip])
+        if not self._frame_rate:
+            self._frame_rate = clip.duration().rate
+        if clip.duration().rate != self._frame_rate:
+            raise ValueError(
+                "Clips must have the same frame rate. Clip: %s frame rate %s, group frame rate: %s" % (
+                    clip.name, clip.duration().rate, self._frame_rate
+                )
+            )
+        clip.sg_shot = self.sg_shot
+        if self._earliest_clip is None or clip.source_in < self._earliest_clip.source_in:
+            self._earliest_clip = clip
+        if self._last_clip is None or clip.source_out > self._last_clip.source_out:
+            self._last_clip = clip
+        if not self._has_effects and clip.has_effects:
+            self._has_effects = True
+        if not self._has_retime and clip.has_retime:
+            self._has_retime = True
+        self._clips.append(clip)
+        self._compute_group_values(self._clips)
 
     def add_clips(self, clips):
         """
@@ -79,17 +113,8 @@ class ClipGroup(object):
         :param clips: A list of :class:`otio.schema.Clip` instances.
         :raises ValueError: If the clips do not have the same frame rate
         """
-        if not self._frame_rate:
-            self._frame_rate = clips[0].duration().rate
         for clip in clips:
-            if clip.duration().rate != self._frame_rate:
-                raise ValueError(
-                    "Clips must have the same frame rate. Clip: %s frame rate %s, group frame rate: %s" % (
-                        clip.name, clip.duration().rate, self._frame_rate
-                    )
-                )
-        self._clips.extend(clips)
-        self._compute_group_values(clips)
+            self.add_clip(clip)
 
     def _compute_group_values(self, clips):
         """
@@ -105,34 +130,52 @@ class ClipGroup(object):
 
         :param clips: A list of :class:`otio.schema.Clip` instances.
         """
-        for clip in clips:
-            if self._index is None or clip.index < self._index:
-                self._index = clip.index
-            if self._source_in is None or clip.source_in < self._source_in:
-                self._source_in = clip.source_in
-            if self._head_in is None or clip.head_in < self._head_in:
-                self._head_in = clip.head_in
-            if self._head_out is None or clip.head_out < self._head_out:
-                self._head_out = clip.head_out
-            if self._cut_in is None or clip.cut_in < self._cut_in:
-                self._cut_in = clip.cut_in
-            if self._source_out is None or clip.source_out > self._source_out:
-                self._source_out = clip.source_out
-            if self._cut_out is None or clip.cut_out > self._cut_out:
-                self._cut_out = clip.cut_out
-            if self._tail_in is None or clip.tail_in > self._tail_in:
-                self._tail_in = clip.tail_in
-            if self._tail_out is None or clip.tail_out > self._tail_out:
-                self._tail_out = clip.tail_out
-            if not self._has_effects and clip.has_effects:
-                self._has_effects = True
-            if not self._has_retime and clip.has_retime:
-                self._has_retime = True
+        if not self._clips:
+            return
+        # Get some values from the first and last clips
+        self._index = self._earliest_clip.index
+        self._source_in = self._earliest_clip.source_in
+        head_in, head_duration, _ = self._earliest_clip.get_head_tail_values()
+
+        self._source_out = self._last_clip.source_out
+        _, _, tail_duration = self._last_clip.get_head_tail_values()
 
         # Adjust the head_in_duration and tail_out_duration of all clips in the group
         for clip in self.clips:
-            clip.head_in_duration = clip.source_in - self.source_in + self.head_duration
-            clip.tail_out_duration = self.source_out - clip.source_out + self.tail_duration
+            clip.head_in = head_in
+            clip.head_in_duration = clip.source_in - self.source_in + head_duration
+            clip.tail_out_duration = self.source_out - clip.source_out + tail_duration
+
+        # Get other values from first and last clips now that they have been set.
+        self._head_in = self._earliest_clip.head_in
+        self._head_out = self._earliest_clip.head_out
+        self._cut_in = self._earliest_clip.cut_in
+        self._cut_out = self._last_clip.cut_out
+        self._tail_in = self._last_clip.tail_in
+        self._tail_out = self._last_clip.tail_out
+
+    @property
+    def sg_shot(self):
+        """
+        Return the SG Shot associated with this ClipGroup.
+
+        :retruns: A dictionary or ``None``.
+        """
+        return self._sg_shot
+
+    @sg_shot.setter
+    def sg_shot(self, value):
+        """
+        Set the SG Shot associated with this ClipGroup.
+
+        Propagate it to contained clips.
+
+        :param value: A SG Shot dictionary or ``None``.
+        """
+        self._sg_shot = value
+        for clip in self.clips:
+            clip.sg_shot = self._sg_shot
+        self._compute_group_values(self._clips)
 
     @property
     def index(self):
@@ -142,7 +185,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the index of the group is the smallest index of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.CutClip.index`
+        ..seealso:: :attr:`sg_otio.SGCutClip.index`
 
         :returns: An integer.
         """
@@ -226,7 +269,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the head_out of the group is the largest head_out of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.head_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.head_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -334,3 +377,23 @@ class ClipGroup(object):
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
         return self.tail_out - self.head_in
+
+    @staticmethod
+    def groups_from_track(video_track):
+        """
+        Convenience method to generate :class:`ClipGroup` from a video track.
+
+        :param video_track: A class:`otio.schema.Track` instance.
+        :returns: A dictionary where keys are shot names and values :class:`ClipGroup`
+                  instances.
+        """
+        shots_by_name = {}
+        for i, clip in enumerate(video_track.each_clip()):
+            shot_name = compute_clip_shot_name(clip)
+            # Store a tuple with the clip index and the clip
+            if shot_name not in shots_by_name:
+                shots_by_name[shot_name] = ClipGroup(shot_name)
+            shots_by_name[shot_name].add_clip(
+                SGCutClip(clip, index=i + 1, sg_shot=None)
+            )
+        return shots_by_name

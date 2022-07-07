@@ -498,6 +498,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                         self.assertEqual(sg_cuts[0][field], self.mock_cut[field])
             sg_cut_items = self.mock_sg.find(
                 "CutItem", [["cut", "is", sg_cuts[0]]], _CUT_ITEM_FIELDS,
+                order=[{"field_name": "cut_order", "direction": "asc"}]
             )
             self.assertEqual(len(sg_cut_items), len(self.mock_cut_items))
             for i, sg_cut_item in enumerate(sg_cut_items):
@@ -562,7 +563,8 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.assertIsNotNone(sg_cut)
             # Retrieve the CutItems
             sg_cut_items = self.mock_sg.find(
-                "CutItem", [["cut", "is", sg_cut]], []
+                "CutItem", [["cut", "is", sg_cut]], [],
+                order=[{"field_name": "cut_order", "direction": "asc"}]
             )
             self.assertEqual(len(sg_cut_items), 3)
             for i, clip in enumerate(track.each_clip()):
@@ -583,6 +585,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             "id": 1000,
             "code": "Cut_with_versions",
             "project": self.mock_project,
+            "entity": self.mock_sequence,
         }
         mock_cut_url = get_write_url(
             self.mock_sg.base_url,
@@ -595,12 +598,16 @@ class ShotgridAdapterTest(unittest.TestCase):
             edl = """
             TITLE: Cut01
             000001 green_tape     V     C        00:00:00:00 00:00:00:16 01:00:00:00 01:00:00:16
+            * COMMENT : 001
             * FROM CLIP NAME: green.mov
             000002 pink_tape      V     C        00:00:00:05 00:00:00:11 01:00:00:16 01:00:00:22
+            * COMMENT : 002
             * FROM CLIP NAME: pink.mov
             000003 green_tape     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
+            * COMMENT : 003
             * FROM CLIP NAME: green.mov
             000004 red_tape       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
+            * COMMENT : 004
             * FROM CLIP NAME: red.mov
             000005 blue_tape      V     C        00:00:00:00 00:00:02:00 01:00:01:21 01:00:03:21
             * FROM CLIP NAME: blue.mov
@@ -630,7 +637,13 @@ class ShotgridAdapterTest(unittest.TestCase):
                     # The only fields that we don't have when we write compared to when we read are the
                     # version.Version fields
                     if not field.startswith("version.Version"):
-                        self.assertEqual(orig_clip_pf[field], clip_pf[field])
+                        # If a dict and not "path" assume an Entity dict and only
+                        # check the type and id
+                        if isinstance(orig_clip_pf[field], (dict, otio._otio.AnyDictionary)) and field != "path":
+                            self.assertEqual(orig_clip_pf[field]["type"], clip_pf[field]["type"])
+                            self.assertEqual(orig_clip_pf[field]["id"], clip_pf[field]["id"])
+                        else:
+                            self.assertEqual(orig_clip_pf[field], clip_pf[field])
                 self.assertEqual(orig_clip.metadata["sg"]["version"], clip.metadata["sg"]["version"])
                 # TODO: test published file dependencies, but mockgun does not populate upstream_dependencies
         finally:
@@ -692,7 +705,13 @@ class ShotgridAdapterTest(unittest.TestCase):
                     # The only fields that we don't have when we write compared to when we read are the
                     # version.Version fields
                     if not field.startswith("version.Version"):
-                        self.assertEqual(orig_clip_pf[field], clip_pf[field])
+                        # If a dict and not "path" assume an Entity dict and only
+                        # check the type and id
+                        if isinstance(orig_clip_pf[field], (dict, otio._otio.AnyDictionary)) and field != "path":
+                            self.assertEqual(orig_clip_pf[field]["type"], clip_pf[field]["type"])
+                            self.assertEqual(orig_clip_pf[field]["id"], clip_pf[field]["id"])
+                        else:
+                            self.assertEqual(orig_clip_pf[field], clip_pf[field])
         finally:
             self.mock_sg.delete("Cut", mock_cut["id"])
 

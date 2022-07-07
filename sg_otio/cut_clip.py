@@ -10,74 +10,111 @@ import logging
 import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
-from .sg_settings import SGSettings
+from .constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+from .sg_settings import SGShotFieldsConfig, SGSettings
 from .utils import compute_clip_shot_name
 
 logger = logging.getLogger(__name__)
 
 
-class CutClip(otio.schema.Clip):
+class SGCutClip(object):
     """
-    A Clip in the context of a Cut.
+    A Clip in the context of a SG Cut.
     """
 
     def __init__(
         self,
+        clip,
+        sg_shot=None,
         index=1,
-        effects=None,
-        markers=None,
         *args,
         **kwargs
     ):
         """
-        Construct a :class:`CutClip` instance.
-
-        :param int index: The index of the clip in the track.
-        :param effects: A list of :class:`otio.schema.Effect` instances.
-        :param markers: A list of :class:`otio.schema.Marker` instances.
-        """
-        super(CutClip, self).__init__(*args, **kwargs)
-        # TODO: check what we should grab from the SG metadata, if any.
-        # If the clip has a reel name, override its name.
-        if self.metadata.get("cmx_3600", {}).get("reel"):
-            self.name = self.metadata["cmx_3600"]["reel"]
-        self._frame_rate = self.duration().rate
-        self._index = index
-        sg_settings = SGSettings()
-        self._head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
-        self._head_in_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
-        self._tail_out_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
-        self.effect = self._relevant_timing_effect(effects or [])
-        self._markers = markers or []
-        self._shot_name = compute_clip_shot_name(self)
-        self._cut_item_name = self.name
-
-    @classmethod
-    def from_clip(
-        cls,
-        clip,
-        index=1,
-    ):
-        """
-        Convenience method to create a :class:`CutClip` instance from a
-        :class:`otio.schema.Clip` instance.
+        Construct a :class:`SGCutClip` instance.
 
         :param clip: A :class:`otio.schema.Clip` instance.
-        :param int index: The index of the clip in the track.
-        :returns: A :class:`CutClip` instance.
+        :param sg_shot: A SG Shot dictionary.
+        :param int index: The index of the clip in its track.
         """
-        # We have to make a copy of the clip to avoid "shared" pointers
-        # between the Clip and the CutClip.
-        clip = copy.deepcopy(clip)
-        return cls(
-            name=clip.name,
-            source_range=clip.source_range,
-            index=index,
-            media_reference=clip.media_reference,
-            metadata=clip.metadata,
-            effects=clip.effects,
-            markers=clip.markers,
-        )
+        super(SGCutClip, self).__init__(*args, **kwargs)
+        self._clip = clip
+        self.effect = self._relevant_timing_effect(clip.effects or [])
+        # TODO: check what we should grab from the SG metadata, if any.
+        # If the clip has a reel name, override its name.
+        self.name = self._clip.name
+        if self._clip.metadata.get("cmx_3600", {}).get("reel"):
+            self.name = self._clip.metadata["cmx_3600"]["reel"]
+        self._frame_rate = self._clip.duration().rate
+        self._index = index
+        self.sg_shot = sg_shot
+        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+        self._cut_item_name = self.name
+
+    @property
+    def media_reference(self):
+        """
+        Return the media reference of the linked Clip.
+
+        :returns: A otio MediaReference.
+        """
+        return self._clip.media_reference
+
+    def duration(self):
+        """
+        Return the duration of the linked Clip.
+
+        :returns: A :class:`RationalTime` instance.
+        """
+        return self._clip.duration()
+
+    def available_range(self):
+        """
+        Return the available range of the linked Clip.
+
+        :returns: A :class:`otio.opentime.TimeRange` instance.
+        """
+        return self._clip.available_range()
+
+    def visible_range(self):
+        """
+        Return the visible range of the linked Clip.
+
+        :returns: A :class:`otio.opentime.TimeRange` instance.
+        """
+        return self._clip.visible_range()
+
+    @property
+    def metadata(self):
+        """
+        Return the meta data of the linked Clip.
+
+        :returns: A dictionary.
+        """
+        return self._clip.metadata
+
+    @property
+    def sg_shot(self):
+        """
+        Return the SG Shot associated with this Clip, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        return self._sg_shot
+
+    @sg_shot.setter
+    def sg_shot(self, value):
+        """
+        Set the SG Shot value associated with this Clip.
+
+        :param value: A SG Shot dictionary.
+        """
+        self._sg_shot = value
+        if self._sg_shot:
+            self._shot_name = self._sg_shot["code"]
+        else:
+            self._shot_name = compute_clip_shot_name(self._clip)
+        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
 
     @property
     def cut_item_name(self):
@@ -148,7 +185,7 @@ class CutClip(otio.schema.Clip):
         # check to see if there is more than one timing effect
         supported_effects = []
         for effect in effects:
-            if CutClip._is_timing_effect_supported(effect):
+            if SGCutClip._is_timing_effect_supported(effect):
                 supported_effects.append(effect)
             else:
                 logger.warning(
@@ -172,16 +209,7 @@ class CutClip(otio.schema.Clip):
 
         :returns: A list of :class:`otio.schema.Marker` instances.
         """
-        return self._markers
-
-    @markers.setter
-    def markers(self, value):
-        """
-        Set the markers.
-
-        :param value: A list of :class:`otio.schema.Marker` instances.
-        """
-        self._markers = value
+        return self._clip.markers
 
     @property
     def shot_name(self):
@@ -200,7 +228,7 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-        duration = self.visible_range().duration
+        duration = self._clip.visible_range().duration
         if self.effect:
             if isinstance(self.effect, otio.schema.LinearTimeWarp):
                 duration_value = duration.value * self.effect.time_scalar
@@ -225,7 +253,7 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self.visible_range().start_time
+        return self._clip.visible_range().start_time
 
     @property
     def source_out(self):
@@ -241,8 +269,9 @@ class CutClip(otio.schema.Clip):
         """
         Return the cut in time of the clip.
 
-        The cut_in is an arbitrary start time of the clip,
-        taking into account any handles.
+        The cut_in is the source_in converted to a frame number for image sequences.
+        It represents the first frame in the image sequence for this clip, without
+        handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -251,10 +280,12 @@ class CutClip(otio.schema.Clip):
     @property
     def cut_out(self):
         """
-        Return the cut out time of the clip. It's exclusive.
+        Return the cut out time of the clip.
 
-        The cut_out is an arbitrary end time of the clip,
-        taking into account any handles.
+        The cut_out is the source_out, minus one frame, converted to a frame number
+        for image sequences.
+        It represents the last frame in the image sequence for this clip, without
+        handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -279,8 +310,8 @@ class CutClip(otio.schema.Clip):
         # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
         # We need to evaluate the time in the parent of our parent track to get
         # the track source_range applied as an offset to our values.
-        transformed_time_range = self.transformed_time_range(
-            self.visible_range(), self.parent().parent(),
+        transformed_time_range = self._clip.transformed_time_range(
+            self._clip.visible_range(), self._clip.parent().parent(),
         )
         return transformed_time_range.start_time
 
@@ -313,7 +344,10 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-        edit_in = self.transformed_time_range(self.visible_range(), self.parent()).start_time
+        edit_in = self._clip.transformed_time_range(
+            self._clip.visible_range(),
+            self._clip.parent()
+        ).start_time
         # We add one frame here, because the edit in starts at frame 1 for the first clip,
         # not frame 0.
         edit_in += RationalTime(1, self._frame_rate)
@@ -329,26 +363,39 @@ class CutClip(otio.schema.Clip):
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self.transformed_time_range(self.visible_range(), self.parent()).end_time_exclusive()
+        # The edit out is inclusive but since we start numbering at 1, we use
+        # the exclusive end time which adds 1 frame for us.
+        return self._clip.transformed_time_range(
+            self._clip.visible_range(),
+            self._clip.parent()
+        ).end_time_exclusive()
 
     @property
     def head_in(self):
         """
         Return head in value.
 
-        This is an arbitrary start time of the clip.
+        This is the very first frame number for this clip, including handles.
 
         :returns: A :class:`RationalTime` instance.
         """
         return self._head_in
+
+    @head_in.setter
+    def head_in(self, value):
+        """
+        Set the head in value.
+
+        :param value: A :class:`RationalTime` instance.
+        """
+        self._head_in = value
 
     @property
     def head_out(self):
         """
         Return head out value.
 
-        It is an arbitrary time, which corresponds to
-        head_in + head_in_duration - 1 (one frame before cut_in).
+        This is the last frame number for this clip head handle.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -357,9 +404,7 @@ class CutClip(otio.schema.Clip):
     @property
     def head_in_duration(self):
         """
-        Return the head in duration.
-
-        It is an arbitrary duration corresponding to the handles from the head_in to the cut_in.
+        Return the head handle duration.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -368,7 +413,7 @@ class CutClip(otio.schema.Clip):
     @head_in_duration.setter
     def head_in_duration(self, value):
         """
-        Sets the head in duration.
+        Sets the head handle duration.
 
         :param value: A :class:`RationalTime` instance.
         """
@@ -379,7 +424,7 @@ class CutClip(otio.schema.Clip):
         """
         Returns the tail in value.
 
-        It is an arbitrary value which corresponds to when the out handles of the clip start.
+        This is the first frame number for this clip tail handle.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -390,9 +435,7 @@ class CutClip(otio.schema.Clip):
         """
         Return tail out value.
 
-        It is an arbitrary time, which corresponds to when the clip ends, after its out handles.
-
-        It is equal to cut_out + tail_out_duration
+        This is the very last frame number for this clip, including handles.
 
         :returns: A :class:`RationalTime` instance.
         """
@@ -401,16 +444,14 @@ class CutClip(otio.schema.Clip):
     @property
     def tail_out_duration(self):
         """
-        Return the tail out duration.
-
-        It is an arbitrary time, corresponding to the out handles from the cut_out to the tail_out.
+        Return the tail handle duration.
         """
         return self._tail_out_duration
 
     @tail_out_duration.setter
     def tail_out_duration(self, value):
         """
-        Sets the tail out duration.
+        Sets the tail handle duration.
 
         :param value: A :class:`RationalTime` instance.
         """
@@ -435,7 +476,7 @@ class CutClip(otio.schema.Clip):
 
         :returns: A class :class:`otio.schema.Transition` instance or ``None``.
         """
-        prev, _ = self.parent().neighbors_of(self)
+        prev, _ = self._clip.parent().neighbors_of(self._clip)
         if prev and isinstance(prev, otio.schema.Transition):
             return prev
 
@@ -446,7 +487,7 @@ class CutClip(otio.schema.Clip):
 
         :returns: A class :class:`otio.schema.Transition` instance or ``None``.
         """
-        _, next = self.parent().neighbors_of(self)
+        _, next = self._clip.parent().neighbors_of(self._clip)
         if next and isinstance(next, otio.schema.Transition):
             return next
 
@@ -501,3 +542,108 @@ class CutClip(otio.schema.Clip):
         :returns: A bool.
         """
         return bool(self.effect)
+
+    @property
+    def sg_shot_head_in(self):
+        """
+        Return the head in from the SG Shot, if any.
+
+        :returns: An integer or ``None``.
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its head in value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            head_in_field = SGShotFieldsConfig(None, None).head_in
+            return self.sg_shot.get(head_in_field)
+        return None
+
+    @property
+    def sg_shot_tail_out(self):
+        """
+        Return the tail out from the SG Shot, if any.
+
+        :returns: An integer or ``None``.
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its head in value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            tail_out_field = SGShotFieldsConfig(None, None).tail_out
+            return self.sg_shot.get(tail_out_field)
+        return None
+
+    def get_head_tail_values(self):
+        """
+        Compute head and tail values for this clip.
+
+        :returns: A head in, head duration, tail duration tuple of :class:`RationalTime`
+        """
+        sg_settings = SGSettings()
+        sg_shot_head_in = self.sg_shot_head_in
+        cut_in = self.get_cut_in()
+        if sg_shot_head_in is None:
+            head_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
+            if sg_settings.timecode_in_to_frame_mapping_mode == _TC2FRAME_AUTOMATIC_MODE:
+                head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
+            else:
+                head_in = cut_in - head_duration
+        else:
+            head_in = RationalTime(sg_shot_head_in, self._frame_rate)
+            head_duration = cut_in - head_in
+
+
+        cut_out = cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
+        sg_shot_tail_out = self.sg_shot_tail_out
+        if sg_shot_tail_out is None:
+            tail_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
+        else:
+            tail_out = RationalTime(sg_shot_tail_out, self._frame_rate)
+            # tail_in would be cut_out + 1, so tail_duration would be
+            # tail_out - (cut_out + 1) -1, we use a simplified formula below
+            tail_duration = tail_out - cut_out
+
+        return(
+            head_in,
+            head_duration,
+            tail_duration,
+        )
+
+    def get_cut_in(self):
+        """
+        Retrieve a cut in value for this Clip.
+
+        The value can be retrieved as an offset to a previous import, or computed.
+
+        :returns: A :class:`RationalTime`.
+        """
+        sg_cut_item = self.metadata.get("sg")
+        if sg_cut_item:
+            cut_item_in = sg_cut_item.get("cut_item_in")
+            cut_item_source_in = sg_cut_item.get("timecode_cut_item_in_text")
+            source_in = self.source_in
+            if cut_item_in is not None and cut_item_source_in is not None:
+                # Calculate the cut offset
+                offset = self.source_in - otio.opentime.from_timecode(cut_item_source_in, self._frame_rate)
+                # Just apply the offset to the old cut in
+                return RationalTime(cut_item_in, self._frame_rate) + offset
+
+        sg_settings = SGSettings()
+        timecode_in_to_frame_mapping_mode = sg_settings.timecode_in_to_frame_mapping_mode
+
+        if timecode_in_to_frame_mapping_mode == _TC2FRAME_ABSOLUTE_MODE:
+            return self.source_in
+
+        if timecode_in_to_frame_mapping_mode == _TC2FRAME_RELATIVE_MODE:
+            tc_base, frame = sg_settings.timecode_in_to_frame_relative_mapping
+            tc_base = otio.opentime.from_timecode(tc_base, self._frame_rate)
+            logger.info("Using mapping %s %s" % (tc_base, frame))
+            return self.source_in - tc_base + RationalTime(frame, self._frame_rate)
+
+        # Automatic mode
+        head_in = self.sg_shot_head_in
+        if head_in is None:
+            head_in = sg_settings.default_head_in
+        return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)

@@ -170,6 +170,10 @@ def read_from_file(filepath):
         clip.metadata["cmx_3600"] = {"reel": cut_item["code"]}
         clip.metadata["sg"] = cut_item
         clip.name = cut_item["code"]
+        # We don't use the cut in cut out values but rather the original source
+        # range from the Clip.
+        # It means that frame ranges for media references retrieved from SG need
+        # to be remapped to the source range when added to the Clip.
         clip.source_range = otio.opentime.range_from_start_end_time(
             otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], cut["fps"]),
             otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], cut["fps"])
