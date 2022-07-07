@@ -4,6 +4,7 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import copy
 import logging
 
 import opentimelineio as otio
