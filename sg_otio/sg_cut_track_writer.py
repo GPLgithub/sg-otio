@@ -301,7 +301,7 @@ class SGCutTrackWriter(object):
                 # If not, create a new CutItem.
                 if sg_cut_item.get("cut") and sg_cut_item["cut"].get("id") == sg_cut["id"]:
                     logger.info("Updating Cut Item %s (ID %s)..." % (sg_cut_item["code"], sg_cut_item["id"]))
-                    logger.info("with %s..." % sg_cut_item_data)
+                    logger.debug("with %s..." % sg_cut_item_data)
                     batch_data.append({
                         "request_type": "update",
                         "entity_type": "CutItem",
@@ -310,7 +310,7 @@ class SGCutTrackWriter(object):
                     })
                 else:
                     logger.info("Creating Cut Item %s..." % sg_cut_item_data["code"])
-                    logger.info("with %s..." % sg_cut_item_data)
+                    logger.debug("with %s..." % sg_cut_item_data)
                     batch_data.append({
                         "request_type": "create",
                         "entity_type": "CutItem",
@@ -318,7 +318,7 @@ class SGCutTrackWriter(object):
                     })
             else:
                 logger.info("Creating Cut Item %s..." % sg_cut_item_data["code"])
-                logger.info("with %s..." % sg_cut_item_data)
+                logger.debug("with %s..." % sg_cut_item_data)
                 batch_data.append({
                     "request_type": "create",
                     "entity_type": "CutItem",

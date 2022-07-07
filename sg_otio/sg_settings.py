@@ -306,28 +306,47 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         Set the relative timecode to frame mapping.
 
-        :param tc_str: A timecode, as a string.
-        :param int frame: A frame number.
+        :param value: A (timecode string, frame number) tuple.
         """
+        # Just check that we got a tuple with two values
+        # We could possibly validate the timecode string.
         tc_str, frame = value
         self._timecode_in_to_frame_relative_mapping = (tc_str, frame)
 
     @property
     def use_smart_fields(self):
         """
+        Return ``True`` is smart cut fields should be used.
+
+        :returns: A boolean.
         """
         return self._use_smart_fields
 
     @use_smart_fields.setter
     def use_smart_fields(self, value):
+        """
+        Enable or disable using smart cut fields.
+
+        :param bool value: Whether smart cut fields should be used, or not.
+        """
         self._use_smart_fields = value
 
     @property
     def shot_cut_fields_prefix(self):
+        """
+        Return the prefix to use for alt cut fields.
+
+        :returns: A string or ``None``.
+        """
         return self._shot_cut_fields_prefix
 
     @shot_cut_fields_prefix.setter
     def shot_cut_fields_prefix(self, value):
+        """
+        Set the prefix to use for alt cut fields.
+
+        :param value: A string or ``None``.
+        """
         self._shot_cut_fields_prefix = value
 
     def reset_to_defaults(self):

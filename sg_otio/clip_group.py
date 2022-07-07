@@ -73,7 +73,6 @@ class ClipGroup(object):
         # Don't return the original list, because it might be modified.
         for clip in self._clips:
             yield(clip)
-        #return list(self._clips)
 
     def add_clip(self, clip):
         """
