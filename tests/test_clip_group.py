@@ -8,7 +8,6 @@
 import unittest
 
 import opentimelineio as otio
-from sg_otio.cut_track import CutTrack
 from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
 
@@ -50,7 +49,7 @@ class TestClipGroup(unittest.TestCase):
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         track = edl_timeline.tracks[0]
         shot_groups = ClipGroup.groups_from_track(track)
-        self.assertEqual(shot_groups.keys(), {"shot_001", "shot_002", "shot_003"})
+        self.assertEqual(set(shot_groups.keys()), {"shot_001", "shot_002", "shot_003"})
         shot_001_clips = shot_groups["shot_001"].clips
         self.assertEqual({clip.name for clip in shot_001_clips}, {"clip_1", "clip_3"})
         shot_002_clips = shot_groups["shot_002"].clips
@@ -95,19 +94,19 @@ class TestClipGroup(unittest.TestCase):
             self.assertEqual(shot.name, "shot_001")
             self.assertEqual(shot.index, 3)  # first clip is the last starting at 01:00:00:00
             self.assertEqual(shot.cut_in.to_frames(), head_in + head_in_duration)
-            self.assertEqual(shot.cut_out.to_frames(), head_in + head_in_duration + 9 * 24 - 1)
+            self.assertEqual(shot.cut_out.to_frames(), head_in + head_in_duration + 10 * 24 - 1)
             self.assertEqual(shot.head_in.to_frames(), head_in)
             self.assertEqual(shot.head_out.to_frames(), head_in + head_in_duration - 1)
-            self.assertEqual(shot.tail_in.to_frames(), head_in + head_in_duration + 9 * 24)
+            self.assertEqual(shot.tail_in.to_frames(), head_in + head_in_duration + 10 * 24)
             self.assertEqual(
                 shot.tail_out.to_frames(),
-                head_in + head_in_duration + 9 * 24 + tail_out_duration - 1
+                head_in + head_in_duration + 10 * 24 + tail_out_duration - 1
             )
             self.assertEqual(shot.tail_duration.to_frames(), tail_out_duration)
             self.assertTrue(not shot.has_effects)
             self.assertTrue(not shot.has_retime)
-            self.assertEqual(shot.duration.to_frames(), 9 * 24)
-            self.assertEqual(shot.working_duration.to_frames(), head_in_duration + 9 * 24 + tail_out_duration - 1)
+            self.assertEqual(shot.duration.to_frames(), 10 * 24)
+            self.assertEqual(shot.working_duration.to_frames(), head_in_duration + 10 * 24 + tail_out_duration - 1)
 
 
 if __name__ == '__main__':

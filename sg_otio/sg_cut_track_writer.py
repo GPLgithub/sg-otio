@@ -286,7 +286,6 @@ class SGCutTrackWriter(object):
         for item_index, sg_cut_item_data in enumerate(sg_cut_items_data):
             sg_cut_item_data["cut"] = sg_cut
             sg_cut_item_data["project"] = sg_project
-            sg_cut_item_data["cut_order"] = item_index + 1
             if (
                 _ABSOLUTE_CUT_ORDER_FIELD in self.cut_item_schema
                 and linked_entity.get(_ENTITY_CUT_ORDER_FIELD)
@@ -373,6 +372,7 @@ class SGCutTrackWriter(object):
             "cut_item_duration": cut_clip.visible_duration.to_frames(),
             # TODO: Add support for Linking/Creating Versions + Published Files
             # "version": cut_diff.sg_version,
+            "cut_order": cut_clip.index
         }
         if sg_shot:
             cut_item_payload["shot"] = {
