@@ -260,7 +260,7 @@ def add_media_references_from_sg(track, sg, project):
 
     For clips that don't have a Media Reference, try to find one in Shotgun.
 
-    :param track: A :class:`otio.schema.Track` or :class:`CutTrack` instance.
+    :param track: A :class:`otio.schema.Track` instance.
     :param sg: A SG session handle.
     :param project: A SG Project entity.
     """

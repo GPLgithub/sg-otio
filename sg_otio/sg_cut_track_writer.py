@@ -679,8 +679,7 @@ class SGCutTrackWriter(object):
 
     def _write_shots(self, clips_by_shots, sg_project, sg_linked_entity, sg_user=None):
         """
-        Gather information about SG Shots given a CutTrack, and create or update
-        them accordingly in SG.
+        Create or update SG Shots for the given clips.
 
         :param clips_by_shots: A dictionary where keys are Shot names and values
                                instances of :class:`ClipGroup`.
