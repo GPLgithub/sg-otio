@@ -190,7 +190,7 @@ def compute_clip_version_name(clip, clip_index):
 
     ..seealso::sg_settings.SGSettings.version_names_template
 
-    :param clip: A :class:`otio.schema.Clip` or :class:`CutClip`.
+    :param clip: A :class:`otio.schema.Clip` or :class:`SGCutClip`.
     :param int clip_index: The index of the clip in the Track.
     :returns: A string containing the version name.
     """
