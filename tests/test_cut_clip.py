@@ -349,7 +349,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_RELATIVE_MODE
         sg_settings.timecode_in_to_frame_relative_mapping = ("00:00:00:00", 20000)
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
-        self.assertEqual(clip.get_cut_in().to_frames(), 20000)
+        self.assertEqual(clip.compute_cut_in().to_frames(), 20000)
         self.assertEqual(clip.head_in.to_frames(), 20000 - 8)
         self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
         self.assertEqual(clip.cut_in.to_frames(), 20000)
@@ -366,7 +366,7 @@ class TestCutClip(unittest.TestCase):
             "timecode_cut_item_in_text": "00:00:00:02",
         }
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
-        self.assertEqual(clip.get_cut_in().to_frames(), 3000)
+        self.assertEqual(clip.compute_cut_in().to_frames(), 3000)
         self.assertEqual(clip.head_in.to_frames(), 3000 - 8)
         self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
         self.assertEqual(clip.cut_in.to_frames(), 3000)

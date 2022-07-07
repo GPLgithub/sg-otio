@@ -199,7 +199,7 @@ class SGCutTrackWriter(object):
                 sg_cut_data,
             )
             # Update the original track with the result
-            logger.info("Updating %s SG metadata with %s" % (video_track.name, sg_cut))
+            logger.debug("Updating %s SG metadata with %s" % (video_track.name, sg_cut))
             video_track.metadata["sg"] = sg_cut
         return sg_cut
 
@@ -261,7 +261,6 @@ class SGCutTrackWriter(object):
         cut_item_clips = []
 
         # Loop over all clips
-        i = 0
         for shot_name, clip_group in clips_by_shots.items():
             for clip in clip_group.clips:
                 # TODO: check if the medata is updated if we created Versions
@@ -274,11 +273,10 @@ class SGCutTrackWriter(object):
                 )
                 sg_cut_items_data.append(sg_data)
                 cut_item_clips.append(clip)
-                i += 1
 
         batch_data = []
         linked_entity = sg_linked_entity or sg_project
-        for item_index, sg_cut_item_data in enumerate(sg_cut_items_data):
+        for cut_item_clip, sg_cut_item_data in zip(cut_item_clips, sg_cut_items_data):
             sg_cut_item_data["cut"] = sg_cut
             sg_cut_item_data["project"] = sg_project
             if (
@@ -292,7 +290,7 @@ class SGCutTrackWriter(object):
                 )
 
             # Check if we should update an existing CutItem of create a new one
-            sg_cut_item = cut_item_clips[item_index].metadata.get("sg") or {}
+            sg_cut_item = cut_item_clip.metadata.get("sg") or {}
             if sg_cut_item.get("id"):
                 # Check if the CutItem is linked to the Cut we updated or created.
                 # If not, create a new CutItem.
@@ -324,14 +322,14 @@ class SGCutTrackWriter(object):
         sg_cut_items = []
         if batch_data:
             res = self._sg.batch(batch_data)
-            for i, sg_cut_item in enumerate(res):
+            for cut_item_clip, sg_cut_item in zip(cut_item_clips, res):
                 # Set the Shot code we don't get back from the batch request
                 if sg_cut_item.get("shot"):
                     sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
-                cut_item_clips[i].metadata["sg"] = sg_cut_item
+                cut_item_clip.metadata["sg"] = sg_cut_item
                 sg_cut_items.append(sg_cut_item)
                 logger.debug("Updating %s SG metadata with %s" % (
-                    clip.name, sg_cut_item)
+                    cut_item_clip.name, sg_cut_item)
                 )
         return sg_cut_items
 
@@ -505,7 +503,7 @@ class SGCutTrackWriter(object):
             "YY": date.strftime("%y"),
             "YYYY": date.strftime("%Y"),
         }
-        # Store versions data by code since it will be useful when
+        # Store versions data by code and path to movie since it will be useful when
         # creating the PublishedFiles and their dependencies.
         versions_data = {}
         for clip in clips_with_media_refs:
@@ -514,7 +512,7 @@ class SGCutTrackWriter(object):
                     clip.name, clip.media_reference.name
                 ))
                 continue
-            # If there's no shot, we'll use the linked_entity or the project as
+            # If there's no Shot, we'll use the linked_entity or the project as
             # a Version link.
             # Note that this means that if {SHOT} is used in the template,
             # formatting will fail.
@@ -572,7 +570,7 @@ class SGCutTrackWriter(object):
             published_file_data = {
                 "code": version_name,
                 "project": sg_project,
-                # If no shot is provided, link the Version to the linked entity.
+                # If no Shot is provided, link the Version to the linked Entity.
                 "entity": sg_shot or linked_entity,
                 "path": publish_path,
                 "published_file_type": sg_published_file_type,
@@ -613,7 +611,7 @@ class SGCutTrackWriter(object):
                 } for vdata in versions_data.values()
             ]
             sg_versions = self._sg.batch(versions_batch_data)
-            # Update the versions_data with the newly created versions.
+            # Update the versions_data with the newly created Versions.
             for sg_version in sg_versions:
                 version_data = versions_data[
                     (sg_version["code"], sg_version["sg_path_to_movie"])
@@ -621,7 +619,7 @@ class SGCutTrackWriter(object):
                 version_data["version"] = sg_version
                 version_data["published_file"]["version"] = sg_version
 
-            # Create the PublishedFiles.
+            # Create the Published Files.
             published_files_batch_data = [
                 {
                     "request_type": "create",
@@ -630,7 +628,7 @@ class SGCutTrackWriter(object):
                 } for vdata in versions_data.values()
             ]
             sg_published_files = self._sg.batch(published_files_batch_data)
-            # Update the versions_data with the newly created PublishedFiles.
+            # Update the versions_data with the newly created Published Files.
             for sg_published_file in sg_published_files:
                 version_data = next(
                     version_data for version_data in versions_data.values()
@@ -639,7 +637,7 @@ class SGCutTrackWriter(object):
                 version_data["published_file"] = sg_published_file
                 if version_data["published_file_dependency"]:
                     version_data["published_file_dependency"]["published_file"] = sg_published_file
-                # Also update the clip's media_reference metadata with the sg_published_file.
+                # Also update the clip's media_reference metadata with the Published File.
                 sg_version = version_data["version"]
                 for clip in clips_with_media_refs:
                     clip_path = clip.media_reference.target_url.replace("file://", "")
@@ -663,7 +661,7 @@ class SGCutTrackWriter(object):
             ]
             if published_file_dependencies_batch_data:
                 self._sg.batch(published_file_dependencies_batch_data)
-            # Upload a movie for each Version.
+            # Upload a movie for each Version, in parallel.
             versions = []
             movies = []
             for vdata in versions_data.values():
@@ -738,7 +736,6 @@ class SGCutTrackWriter(object):
         :returns: A dictionary with the Shot payload.
         """
         sg_linked_entity = sg_linked_entity or sg_project
-        # TODO: deal with smart fields and shot_cut_fields_prefix
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
         shot_payload = {
             "project": sg_project,
@@ -766,7 +763,7 @@ class SGCutTrackWriter(object):
             shot_payload[sfg.has_effects] = shot.has_effects
             shot_payload[sfg.has_retime] = shot.has_retime
         if sfg.absolute_cut_order:
-            # TODO: maybe create shot fields config before so that
+            # TODO: maybe create Shot fields config before so that
             #       we can get the field without an extra query?
             sg_entity = self._sg.find_one(
                 sg_linked_entity["type"],
@@ -799,7 +796,6 @@ class SGCutTrackWriter(object):
                   can be ``None``.
         """
         sg_cut = None
-        sg_project = None
         sg_linked_entity = None
         # Retrieve the target entity
         if entity_type == "Cut":
@@ -880,7 +876,7 @@ class SGCutTrackWriter(object):
         local_storage = self._retrieve_local_storage()
         # Create the Version
         file_name, file_extension = os.path.splitext(os.path.basename(input_media))
-        # Get the extension without '.' to use as a published_file_type
+        # Get the extension without '.' to use as a Published File Type
         file_extension = file_extension[1:]
         published_file_type = self._sg.find_one(
             "PublishedFileType",
@@ -938,7 +934,7 @@ class SGCutTrackWriter(object):
             published_file_payload["updated_by"] = sg_user
         published_file = self._sg.create("PublishedFile", published_file_payload)
 
-        # Upload media to the version.
+        # Upload media to the Version.
         logger.debug("Uploading movie %s..." % os.path.basename(input_media))
         self._sg.upload(
             "Version",

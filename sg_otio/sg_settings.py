@@ -279,7 +279,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         Set how timecode in values should be mapped to frames.
 
-        :param int value: Either _TC2FRAME_ABSOLUTE_MODE, or _TC2FRAME_AUTOMATIC_MODE
+        :param str value: Either _TC2FRAME_ABSOLUTE_MODE, or _TC2FRAME_AUTOMATIC_MODE
                           or _TC2FRAME_RELATIVE_MODE.
         """
         if value not in [

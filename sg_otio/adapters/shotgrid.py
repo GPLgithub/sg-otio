@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def parse_sg_url(url):
     """
-    Parse a SG url, extract the SG site url, credentials and other informations.
+    Parse a SG url, extract the SG site url, credentials and other information.
 
     The url is a query url which must have the form:
     `https://<SG site>/<SG Entity type>?session_token=<session token>&id=<SG Entity id>`
@@ -46,7 +46,12 @@ def read_from_file(filepath):
     Reads information from a Cut in ShotGrid and returns a
     :class:`otio.schema.Timeline` instance.
 
-    The retrieved SG entities are stored in the items metadata.
+    The retrieved SG entities are stored in the items metadata:
+    - At the Track level, track.metadata["sg"] is a SG Cut.
+    - At the Clip level, clip.metadata["sg"] is a SG Cut Item.
+    - At the Clip Media Reference level, clip.media_reference.metadata["sg"] is a SG Published File.
+      Note that the Published File can have an ID of None with Version information instead, if the
+      Clip could not be bound to a Published File.
 
     This is the standard method for adapters to implement.
     .. seealso:: https://opentimelineio.readthedocs.io/en/latest/tutorials/write-an-adapter.html#required-functions
@@ -98,10 +103,7 @@ def read_from_file(filepath):
         order=[{"field_name": "cut_order", "direction": "asc"}]
     )
     cut_item_version_ids = [cut_item["version"]["id"] for cut_item in cut_items if cut_item["version"]]
-    # Find published files of type mov associated to the version of the Cut Item
-    # , but if the Version has no published file, then we also need the version's uploaded movie.
-    # We could find Versions first and then the published files to get the path etc, but it
-    # would still require two queries.
+    # Find Published Files of type mov associated to the Version of the Cut Item.
     published_files = sg.find(
         "PublishedFile",
         [
@@ -111,12 +113,14 @@ def read_from_file(filepath):
         _PUBLISHED_FILE_FIELDS,
         order=[{"field_name": "id", "direction": "desc"}]
     )
-    # If there are multiple published files for the same Version, we take the first one.
+    # If there are multiple Published Files for the same Version, take the first one.
     published_files_by_version_id = {}
     for published_file in published_files:
         if published_file["version.Version.id"] not in published_files_by_version_id:
             published_files_by_version_id[published_file["version.Version.id"]] = published_file
 
+    # If there are Cut Items without a Published File, check for a Version, and if found,
+    # we can use its sg_uploaded_movie as a Media Reference's target_url.
     versions_with_no_published_files_ids = list(set(cut_item_version_ids) - set(published_files_by_version_id.keys()))
     versions_with_no_published_files_by_id = {}
     if versions_with_no_published_files_ids:
@@ -178,17 +182,21 @@ def read_from_file(filepath):
             otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], cut["fps"]),
             otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], cut["fps"])
         )
-        # Check if the Cut Item has a published file, and create a media reference if it does.
         cut_item_version_id = cut_item["version.Version.id"]
         if cut_item_version_id in published_files_by_version_id.keys():
+            # Cut Item has a Published File, use it to create a Media Reference,
+            # with SG metadata about it.
             published_file = published_files_by_version_id[cut_item_version_id]
             add_publish_file_media_reference_to_clip(clip, published_file, platform_name, cut_item)
         elif cut_item_version_id in versions_with_no_published_files_by_id.keys():
+            # Cut Item has no Published File, use its Version to create a Media Reference.
+            # The SG Metadata is a Published File with ID None, and information about the Version
+            # in version, and version.Version.XXX fields present in _PUBLISHED_FILE_FIELDS.
             version = versions_with_no_published_files_by_id[cut_item_version_id]
             # If there's no uploaded movie, we can't create a media reference.
             if version["sg_uploaded_movie"]:
                 add_version_media_reference_to_clip(clip, version, cut_item)
-        # If it was linked to a Version or a published file, prefer that as the reel name.
+        # If it was linked to a Version or a Published File, prefer that as the reel name.
         pf = clip.media_reference.metadata.get("sg")
         if pf:
             pf_name = pf["code"] or pf["version.Version.code"]

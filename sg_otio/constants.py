@@ -143,4 +143,4 @@ _DEFAULT_VERSIONS_PATH_TEMPLATE = "{PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts"
 #             number.
 # - Relative: timecode in is converted to an arbitrary frame
 #             number specified through settings.
-_TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE = range(3)
+_TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE = ("absolute", "automatic", "relative")

@@ -74,11 +74,6 @@ def run():
         help="The SG Entity id to link the Cut to."
     )
     write_parser.add_argument(
-        "--settings", "-s",
-        required=False,
-        help="The settings JSON file to use when writing the Cut. If not provided, the default settings are used."
-    )
-    write_parser.add_argument(
         "--movie", "-m",
         required=False,
         help="An optional movie of the timeline so that it can be published as a Version and used to create Versions" \
@@ -159,7 +154,12 @@ def write_to_sg(args):
     if SGSettings().create_missing_versions and args.movie:
         sg = Shotgun(args.sg_site_url, session_token=session_token)
         sg_entity = sg.find_one(args.entity_type, [["id", "is", args.entity_id]], ["project"])
+        # Add Media References to the clips with SG metadata about their Published File/Version
+        # if the clips match existing Entities in SG.
         add_media_references_from_sg(timeline.video_tracks()[0], sg, sg_entity["project"])
+        # For Clips without Media References, extract the media from the movie,
+        # and add a Media Reference to the Clip.
+        # The write adapter will create a Version for each clip.
         media_cutter = MediaCutter(
             timeline,
             args.movie,
@@ -226,6 +226,11 @@ def add_common_args(parser):
         required=False,
         help="The adapter to use to read or write the file. If not provided, the default adapter"
              "given the extension is used."
+    )
+    parser.add_argument(
+        "--settings", "-s",
+        required=False,
+        help="The settings JSON file to use when reading/writing. If not provided, the default settings are used."
     )
 
 

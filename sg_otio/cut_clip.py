@@ -4,7 +4,6 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
-import copy
 import logging
 
 import opentimelineio as otio
@@ -56,7 +55,7 @@ class SGCutClip(object):
         """
         Return the media reference of the linked Clip.
 
-        :returns: A otio MediaReference.
+        :returns: A :class:`otio.MediaReference` instance.
         """
         return self._clip.media_reference
 
@@ -87,7 +86,7 @@ class SGCutClip(object):
     @property
     def metadata(self):
         """
-        Return the meta data of the linked Clip.
+        Return the metadata of the linked Clip.
 
         :returns: A dictionary.
         """
@@ -107,10 +106,13 @@ class SGCutClip(object):
         """
         Set the SG Shot value associated with this Clip.
 
+        Recompute head_in, head_in_duration and tail_out_duration,
+        which depend on the SG Shot.
+
         :param value: A SG Shot dictionary.
         """
         self._sg_shot = value
-        if self._sg_shot:
+        if self._sg_shot and self._sg_shot.get("code"):
             self._shot_name = self._sg_shot["code"]
         else:
             self._shot_name = compute_clip_shot_name(self._clip)
@@ -305,7 +307,7 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime` instance.
         """
-        # We use visible_range wich adds adjacents transitions ranges to the Clip
+        # We use visible_range which adds adjacent transitions ranges to the Clip
         # trimmed_range
         # https://opentimelineio.readthedocs.io/en/latest/tutorials/time-ranges.html#clip-visible-range
         # We need to evaluate the time in the parent of our parent track to get
@@ -579,11 +581,11 @@ class SGCutClip(object):
         """
         Compute head and tail values for this clip.
 
-        :returns: A head in, head duration, tail duration tuple of :class:`RationalTime`
+        :returns: A head in, head duration, tail duration tuple of :class:`RationalTime`.
         """
         sg_settings = SGSettings()
         sg_shot_head_in = self.sg_shot_head_in
-        cut_in = self.get_cut_in()
+        cut_in = self.compute_cut_in()
         if sg_shot_head_in is None:
             head_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
             if sg_settings.timecode_in_to_frame_mapping_mode == _TC2FRAME_AUTOMATIC_MODE:
@@ -610,7 +612,7 @@ class SGCutClip(object):
             tail_duration,
         )
 
-    def get_cut_in(self):
+    def compute_cut_in(self):
         """
         Retrieve a cut in value for this Clip.
 
@@ -642,6 +644,6 @@ class SGCutClip(object):
 
         # Automatic mode
         head_in = self.sg_shot_head_in
-        if head_in is None:
-            head_in = sg_settings.default_head_in
-        return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
+        if head_in is not None:
+            RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
+        return RationalTime(sg_settings.default_head_in, self._frame_rate)
