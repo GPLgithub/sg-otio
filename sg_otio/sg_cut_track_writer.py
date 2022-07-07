@@ -95,15 +95,16 @@ class SGCutTrackWriter(object):
         )
         clips_by_shots = ClipGroup.groups_from_track(video_track)
         shot_names = [x for x in clips_by_shots.keys() if x]
-        sg_shots = self._sg.find(
-            "Shot",
-            [["project", "is", sg_project], ["code", "in", shot_names]],
-            sfg.all
-        )
-        # Apply retrieved Shots to ClipGroups
-        for sg_shot in sg_shots:
-            shot_name = sg_shot["code"]
-            clips_by_shots[shot_name].sg_shot = sg_shot
+        if shot_names:
+            sg_shots = self._sg.find(
+                "Shot",
+                [["project", "is", sg_project], ["code", "in", shot_names]],
+                sfg.all
+            )
+            # Apply retrieved Shots to ClipGroups
+            for sg_shot in sg_shots:
+                shot_name = sg_shot["code"]
+                clips_by_shots[shot_name].sg_shot = sg_shot
 
         sg_cut_version = None
         sg_cut_pf = None
