@@ -28,7 +28,7 @@ jobs:
     name: "sg-otio"
     strategy:
       matrix:
-        python-version: [2.7, 3.7, 3.8]
+        python-version: [2.7, 3.7]
         os: [ubuntu-latest, macos-latest] # windows-latest when wheel is in place
 
     runs-on: ${{ matrix.os }}

@@ -61,11 +61,9 @@ class TestMediaCutter(unittest.TestCase):
             self.assertEqual(clip.media_reference.name, media_names[i])
             self.assertEqual(os.path.basename(clip.media_reference.target_url), file_names[i])
             media_filepath = clip.media_reference.target_url.replace("file://", "")
-            # self.assertTrue(os.path.isfile(media_filepath), msg="{} does not exist".format(media_filepath))
+            self.assertTrue(os.path.isfile(media_filepath), msg="{} does not exist".format(media_filepath))
             # Fourth entry is a dummy reference to "foo.mov"
-            # TODO: somehow certain platforms/python versions delete the files before this runs...
-            #       fix it!
-            if ffprobe and i != 4 and os.path.isfile(media_filepath):
+            if ffprobe and i != 4:
                 # ffprobe  -count_frames -show_entries stream=nb_read_frames -v error  -print_format csv
                 cmd = [
                     "ffprobe",
