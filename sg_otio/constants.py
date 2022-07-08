@@ -4,6 +4,7 @@
 # agreement provided at the time of installation or download, or which otherwise
 # accompanies this software in either electronic or hard copy form.
 #
+import os
 
 # Default head in and handle values
 _DEFAULT_HEAD_IN = 1001
@@ -144,3 +145,6 @@ _DEFAULT_VERSIONS_PATH_TEMPLATE = "{PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts"
 # - Relative: timecode in is converted to an arbitrary frame
 #             number specified through settings.
 _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE = range(3)
+
+# The path to the sg-otio manifest file.
+_SG_OTIO_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "plugin_manifest.json")

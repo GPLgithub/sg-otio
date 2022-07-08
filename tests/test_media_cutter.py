@@ -62,6 +62,8 @@ class TestMediaCutter(unittest.TestCase):
             self.assertEqual(os.path.basename(clip.media_reference.target_url), file_names[i])
             # Fourth entry is a dummy reference to "foo.mov"
             if ffprobe and i != 4:
+                media_filepath = clip.media_reference.target_url.replace("file://", "")
+                self.assertTrue(os.path.isfile(media_filepath), msg="{} does not exist".format(media_filepath))
                 # ffprobe  -count_frames -show_entries stream=nb_read_frames -v error  -print_format csv
                 cmd = [
                     "ffprobe",
@@ -69,9 +71,9 @@ class TestMediaCutter(unittest.TestCase):
                     "-show_entries", "stream=nb_read_frames",
                     "-v", "error",
                     "-print_format", "json",
-                    clip.media_reference.target_url.replace("file://", "")
+                    media_filepath
                 ]
-                output = json.loads(subprocess.check_output(cmd))
+                output = json.loads(subprocess.check_output(cmd, stderr=subprocess.STDOUT))
                 nb_frames = int(output["streams"][0]["nb_read_frames"])
                 self.assertEqual(nb_frames, clip.visible_range().duration.to_frames())
 
