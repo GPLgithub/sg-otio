@@ -446,18 +446,18 @@ class ClipHandler(object):
         if 'clip_name' in comment_data:
             clip.name = comment_data["clip_name"]
         elif (
-            clip.media_reference and
-            hasattr(clip.media_reference, 'target_url') and
-            clip.media_reference.target_url is not None
+            clip.media_reference
+            and hasattr(clip.media_reference, 'target_url')
+            and clip.media_reference.target_url is not None
         ):
             clip.name = os.path.splitext(
                 os.path.basename(clip.media_reference.target_url)
             )[0]
 
         elif (
-            clip.media_reference and
-            hasattr(clip.media_reference, 'target_url_base') and
-            clip.media_reference.target_url_base is not None
+            clip.media_reference
+            and hasattr(clip.media_reference, 'target_url_base')
+            and clip.media_reference.target_url_base is not None
         ):
             clip.name = os.path.splitext(
                 os.path.basename(_get_image_sequence_url(clip))
