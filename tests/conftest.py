@@ -20,6 +20,11 @@ sys.path.append(os.path.dirname(__file__))
 manifest_path = os.getenv("OTIO_PLUGIN_MANIFEST_PATH")
 if not manifest_path:
     os.environ["OTIO_PLUGIN_MANIFEST_PATH"] = _SG_OTIO_MANIFEST_PATH
+print("MANIFEST PATH: %s" % os.getenv("OTIO_PLUGIN_MANIFEST_PATH"))
+print("ADAPTERS:")
+import opentimelineio as otio
+for a in otio.plugins.ActiveManifest().adapters:
+    print(a.name, a.filepath)
 
 
 def pytest_addoption(parser):
