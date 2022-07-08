@@ -644,6 +644,6 @@ class SGCutClip(object):
 
         # Automatic mode
         head_in = self.sg_shot_head_in
-        if head_in is not None:
-            RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
-        return RationalTime(sg_settings.default_head_in, self._frame_rate)
+        if head_in is None:
+            head_in = sg_settings.default_head_in
+        return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)

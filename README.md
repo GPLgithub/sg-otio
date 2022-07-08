@@ -53,7 +53,7 @@ This is what such file would contain with the default settings:
   "versions_path_template": "{PROJECT}/{LINK}/{YYYY}{MM}{DD}/cuts",
   "version_names_template": null,
   "create_missing_versions": true,
-  "timecode_in_to_frame_mapping_mode": "automatic",
+  "timecode_in_to_frame_mapping_mode": 1,
   "timecode_in_to_frame_relative_mapping": ["00:00:00:01", 1001],
   "use_smart_fields": false,
   "shot_cut_fields_prefix": null
