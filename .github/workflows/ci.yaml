@@ -28,6 +28,8 @@ jobs:
     name: "sg-otio"
     strategy:
       matrix:
+        # TODO: macos-latest python 3.8 fails because files created in tmpfile.mkdtemp() folder are deleted
+        #       too soon for some reason. Fix it.
         python-version: [2.7, 3.7]
         os: [ubuntu-latest, macos-latest] # windows-latest when wheel is in place
 
