@@ -16,9 +16,16 @@ from shotgun_api3 import Shotgun
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_write_url, get_read_url, add_media_references_from_sg
 from sg_otio.media_cutter import MediaCutter
+from sg_otio.constants import _SG_OTIO_MANIFEST_PATH
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
+
+# Set the manifest path to sg-otio manifest so that our own cmx_3600 adapter takes precedence
+# over the built-in cmx_3600 adapter.
+manifest_path = os.getenv("OTIO_PLUGIN_MANIFEST_PATH")
+if not manifest_path:
+    os.environ["OTIO_PLUGIN_MANIFEST_PATH"] = _SG_OTIO_MANIFEST_PATH
 
 
 def run():
