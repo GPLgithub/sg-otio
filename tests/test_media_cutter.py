@@ -60,6 +60,8 @@ class TestMediaCutter(unittest.TestCase):
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(clip.media_reference.name, media_names[i])
             self.assertEqual(os.path.basename(clip.media_reference.target_url), file_names[i])
+            media_filepath = clip.media_reference.target_url.replace("file://", "")
+            self.assertTrue(os.path.isfile(media_filepath))
             # Fourth entry is a dummy reference to "foo.mov"
             if ffprobe and i != 4:
                 # ffprobe  -count_frames -show_entries stream=nb_read_frames -v error  -print_format csv
@@ -69,7 +71,7 @@ class TestMediaCutter(unittest.TestCase):
                     "-show_entries", "stream=nb_read_frames",
                     "-v", "error",
                     "-print_format", "json",
-                    clip.media_reference.target_url.replace("file://", "")
+                    media_filepath
                 ]
                 output = json.loads(subprocess.check_output(cmd, stderr=subprocess.STDOUT))
                 nb_frames = int(output["streams"][0]["nb_read_frames"])
