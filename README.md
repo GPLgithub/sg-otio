@@ -3,9 +3,9 @@
 A library to represent [OpenTimelineIO](http://opentimeline.io/) data in [ShotGrid](https://www.shotgrid.com),
 and vice versa.
 
-## Installation
+## 1. Installation
 
-### ffmpeg
+### a. ffmpeg
 sg-otio requires ffmpeg to be installed, and ffmpeg must be in the `PATH`.
 
 - Binaries can be downloaded from [FFmpeg download page](https://ffmpeg.org/download.html), in which case the
@@ -13,7 +13,7 @@ binaries should be added to the `PATH` environment variable.
 - A package manager can be used, for example on MacOS, `brew install ffmpeg`, in
 which case the PATH should already be updated by the package manager.
 
-### sg-otio package
+### b. sg-otio package
 
 sg-otio can be installed with the following commands:
     
@@ -21,17 +21,17 @@ sg-otio can be installed with the following commands:
 pip install sg-otio --extra-index-url  https://PRIVATE_KEY@pkgs.dev.azure.com/gpltechsw/1217bdc5-7623-49c9-a8c5-b48c68aa77da/_packaging/gpltechpypi/pypi/simple/
 ```
 
-## sg-otio usage.
+## 2. sg-otio usage.
 You can access the help with `sg-otio read --help` and `sg-otio write --help`. 
 
-### sg-otio Shotgrid login information
+### a. sg-otio Shotgrid login information
 
 You can provide Shotgrid login information in 3 different ways:
 - `--login <username> --password <password>`
 - `--script-name <script name> --api-key <api key>`
 - `--session-token <session token>`
 
-### sg-otio read
+### b. sg-otio read
 Read a Cut from SG and either output it in OTIO format or write it to a file. Any format suppported by OpenTimelineIO's standard adapters is supported.
 
 Examples:
@@ -41,14 +41,14 @@ sg-otio read --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file outp
 sg-otio read --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file output.xml --adapter-name fcp_xml
 sg-otio read --settings SETTINGS.JSON --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file output.xml --adapter-name fcp_xml
 ```
-### sg-otio write
+### c. sg-otio write
 Write a Video Track to SG as a Cut.
 Example:
 ```
 sg-otio write -u URL --session-token TOKEN --entity-type Cut --entity-id CUT_ID --file INPUT.edl --movie INPUT.mov --settings SETTINGS.JSON
 ```
 
-### Settings file
+### d. Settings file
 Some settings for sg-otio read and write can be stored in a JSON file, and passed
 to sg-otio with `--settings[-s] path/to/SETTINGS.JSON`.
 This is what such file would contain with the default settings:
