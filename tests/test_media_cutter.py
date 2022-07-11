@@ -5,6 +5,7 @@
 # accompanies this software in either electronic or hard copy form.
 #
 import json
+import logging
 import os
 import subprocess
 import unittest
@@ -14,6 +15,8 @@ import opentimelineio as otio
 
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
+
+logger = logging.getLogger(__name__)
 
 
 class TestMediaCutter(unittest.TestCase):
@@ -53,6 +56,7 @@ class TestMediaCutter(unittest.TestCase):
         media_cutter.cut_media_for_clips()
         self.assertIsNotNone(media_cutter._media_dir)
         self.assertTrue(os.path.isdir(media_cutter._media_dir))
+        logger.info("Generated %s" % os.listdir(media_cutter._media_dir))
         # Note that pink_v01 already exists in SG, and blue_v01 already has a media ref,
         # so they won't be extracted, and media refs from cmx have empty names.
         media_names = ["green_tape", "pink_tape", "green_tape", "red_tape", "", "red_tape"]
