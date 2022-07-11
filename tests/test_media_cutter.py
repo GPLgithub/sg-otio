@@ -65,6 +65,8 @@ class TestMediaCutter(unittest.TestCase):
             # Fourth entry is a dummy reference to "foo.mov"
             if ffprobe and i != 4:
                 media_filepath = clip.media_reference.target_url.replace("file://", "")
+                self.assertEqual(media_cutter._media_dir, os.path.dirname(media_filepath))
+                self.assertTrue(os.path.isdir(media_cutter._media_dir))
                 self.assertTrue(os.path.isfile(media_filepath), msg="{} does not exist".format(media_filepath))
                 # ffprobe  -count_frames -show_entries stream=nb_read_frames -v error  -print_format csv
                 cmd = [
