@@ -93,15 +93,16 @@ class MediaCutter(object):
             logger.info("No clips need extracting from movie.")
             return
         futures = []
-        clips_to_extract_names = []
+        clips_to_extract = []
         FFmpegExtractor.ffmpeg = self.ffmpeg
         for clip, media_name in zip(clips_with_no_media_references, clip_media_names):
-            futures.append(self._extract_clip_media(clip, media_name))
-            clips_to_extract_names.append(clip.name)
+            media_filename = self._get_media_filename(media_name)
+            futures.append(self._extract_clip_media(clip, media_name, media_filename))
+            clips_to_extract.append((clip, media_name, media_filename))
         if not futures:
             logger.info("No clips need extracting from movie.")
             return
-        logger.info("Extracting clips %s media from movie %s..." % (clips_to_extract_names, self._movie))
+        logger.info("Extracting clips %s media from movie %s..." % (clips_to_extract, self._movie))
         # The function will return when any future finishes by raising an exception.
         # If no future raises an exception then it is equivalent to ALL_COMPLETED.
         # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
@@ -114,10 +115,16 @@ class MediaCutter(object):
             raise
         # Double check what we extracted
         missing = []
-        for clip in clips_with_no_media_references:
-            media_filename = clip.media_reference.target_url.replace("file://", "")
+        for clip, media_name, media_filename in clips_to_extract:
             if not os.path.exists(media_filename):
                 missing.append("%s: %s" % (media_name, media_filename))
+            else:
+                clip.media_reference = otio.schema.ExternalReference(
+                    target_url="file://" + media_filename,
+                    available_range=clip.visible_range()
+                )
+                # Name is not in the constructor.
+                clip.media_reference.name = media_name
         if missing:
             raise RuntimeError("Failed to extract %s" % missing)
         logger.info("Finished extracting media from movie %s" % self._movie)
@@ -140,7 +147,7 @@ class MediaCutter(object):
             filename = os.path.join(self._media_dir, "%s_%03d.mov" % (media_name, i))
             i += 1
 
-    def _extract_clip_media(self, clip, media_name):
+    def _extract_clip_media(self, clip, media_name, media_filename):
         """
         Submit a future to extract the media for the given clip.
 
@@ -152,8 +159,6 @@ class MediaCutter(object):
         # into account the track offset, since the movie provided for cutting
         # starts at frame 0.
         clip_range_in_track = clip.transformed_time_range(clip.visible_range(), clip.parent())
-        media_filename = self._get_media_filename(media_name)
-
         logger.info("Extracting %s to %s" % (media_name, media_filename))
 
         extractor = FFmpegExtractor(
@@ -166,12 +171,6 @@ class MediaCutter(object):
         future = self._executor.submit(
             extractor,
         )
-        clip.media_reference = otio.schema.ExternalReference(
-            target_url="file://" + media_filename,
-            available_range=clip.visible_range()
-        )
-        # Name is not in the constructor.
-        clip.media_reference.name = media_name
         return future
 
 
