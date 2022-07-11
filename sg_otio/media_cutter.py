@@ -112,6 +112,14 @@ class MediaCutter(object):
             if not_done:
                 self.cancel()
             raise
+        # Double check what we extracted
+        missing = []
+        for clip in clips_with_no_media_references:
+            media_filename = clip.media_reference.target_url.replace("file://", "")
+            if not os.path.exists(media_filename):
+                missing.append("%s: %s" % (media_name, media_filename))
+        if missing:
+            raise RuntimeError("Failed to extract %s" % missing)
         logger.info("Finished extracting media from movie %s" % self._movie)
 
     def _get_media_filename(self, media_name):
@@ -146,8 +154,7 @@ class MediaCutter(object):
         clip_range_in_track = clip.transformed_time_range(clip.visible_range(), clip.parent())
         media_filename = self._get_media_filename(media_name)
 
-        logger.debug("Extracting clip %s" % media_name)
-        logger.debug("Extracting to %s" % media_filename)
+        logger.info("Extracting %s to %s" % (media_name, media_filename))
 
         extractor = FFmpegExtractor(
             self._movie,
