@@ -6,7 +6,7 @@
 #
 import logging
 import os
-from concurrent.futures import wait, FIRST_EXCEPTION, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,6 @@ class MediaUploader(object):
                                 If ``None``, the default system value is used.
         """
         self._progress = 0
-        futures = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # map executes the calls to upload version in parallel, and yields the results as
             # soon as available.
@@ -84,7 +83,7 @@ class MediaUploader(object):
                 ):
                     logger.info("Uploaded %s to %s" % (os.path.basename(movie), sg_version["code"]))
                     self.progress += 1
-            except Exception as e:
+            except Exception:
                 # Exceptions raised by the futures are re-raised when getting their
                 # result. This means that we will need to use something else
                 # than map if we want to get a complete report of successes
