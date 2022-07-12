@@ -1,5 +1,7 @@
 # OpenTimelineIO ShotGrid Library
 
+[![Run tests](https://github.com/GPLgithub/sg-otio/actions/workflows/ci.yaml/badge.svg)](https://github.com/GPLgithub/sg-otio/actions/workflows/ci.yaml)
+
 A library to represent [OpenTimelineIO](http://opentimeline.io/) data in [ShotGrid](https://www.shotgrid.com),
 and vice versa.
 
