@@ -69,9 +69,15 @@ class TestMediaCutter(unittest.TestCase):
         ]
 
         with mock.patch("sg_otio.media_cutter.FFmpegExtractor.extract", side_effect=_mock_extract):
-            # Since we're not generating any media we should get a RuntimeError.
-            with self.assertRaisesRegex(RuntimeError, r"^Failed to extract") as cm:
-                media_cutter.cut_media_for_clips(max_workers=1)
+            # Handle different names between Py 2.7 and 3
+            if hasattr(self, "assertRaisesRegex"):
+                # Since we're not generating any media we should get a RuntimeError.
+                with self.assertRaisesRegex(RuntimeError, r"^Failed to extract") as cm:
+                    media_cutter.cut_media_for_clips(max_workers=1)
+            else:
+                # Since we're not generating any media we should get a RuntimeError.
+                with self.assertRaisesRegexp(RuntimeError, r"^Failed to extract") as cm:
+                    media_cutter.cut_media_for_clips(max_workers=1)
             # All files should be mentioned in the error message, not only the
             # one for which we faked a failure.
             for missing in media_cutter._media_filenames:
