@@ -22,8 +22,6 @@ import opentimelineio as otio
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
 
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -65,8 +63,7 @@ class TestMediaCutter(unittest.TestCase):
             try:
                 media_cutter.cut_media_for_clips()
             except RuntimeError as e:
-                pass
-        self.assertEqual("%s" % e, "foo")
+                self.assertEqual("%s" % e, "foo")
 
     def test_media_cutter_with_edl(self):
         """

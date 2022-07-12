@@ -40,7 +40,6 @@ class MediaCutter(object):
         super(MediaCutter, self).__init__()
         self._movie = movie
         self._media_dir = None
-        self._executor = ThreadPoolExecutor()
         if not timeline.video_tracks():
             raise ValueError("Timeline must have a video track.")
         if len(timeline.video_tracks()) > 1:
@@ -49,12 +48,6 @@ class MediaCutter(object):
             raise RuntimeError("ffmpeg cannot be found.")
         self._video_track = timeline.video_tracks()[0]
         self._media_filenames = []
-
-    def cancel(self):
-        """
-        Cancel the extraction.
-        """
-        self._executor.shutdown(wait=False)
 
     @property
     def ffmpeg(self):
@@ -76,17 +69,17 @@ class MediaCutter(object):
             self._media_dir = tempfile.mkdtemp()
         return self._media_dir
 
-    def cut_media_for_clips(self):
+    def cut_media_for_clips(self, max_workers=None):
         """
         Extract media for clips in the timeline that don't have a media reference.
 
         If all clips have a media reference, this method does nothing.
         The extraction is done in parallel, but this method waits for all the extractions to finish.
+
+        :param int max_workers: The maximum number of workers to run in parallel.
+                                If ``None``, the default system value is used.
         """
-        clips = []
         clips_to_extract = []
-        clip_media_names = []
-        clip_media_file_names = []
         futures = []
         for i, clip in enumerate(self._video_track.each_clip()):
             if clip.media_reference.is_missing_reference:
@@ -103,21 +96,20 @@ class MediaCutter(object):
         )
         FFmpegExtractor.ffmpeg = self.ffmpeg
         futures = []
-        try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for clip, media_name, media_filename in clips_to_extract:
-                future = self._extract_clip_media(clip, media_name, media_filename)
+                future = self._extract_clip_media(executor, clip, media_name, media_filename)
                 futures.append(future)
-           # The function will return when any future finishes by raising an exception.
+            # The function will return when any future finishes by raising an exception.
             # If no future raises an exception then it is equivalent to ALL_COMPLETED.
             # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
-            done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
-            logger.info("%s %s" % (done, not_done))
-            if not_done:
-                logger.error("%d extractor couldn't complete")
-        except Exception as e:
-            logger.exception(e)
-            self.cancel()
-            raise
+            dones, not_dones = wait(futures, return_when=FIRST_EXCEPTION)
+            if not_dones:
+                logger.error("%d extractor(s) were queued but didn't run." % len(not_dones))
+            for done in dones:
+                exception = done.exception()
+                if exception:
+                    logger.error(exception)
 
         # Double check what we extracted
         missing = []
@@ -153,10 +145,11 @@ class MediaCutter(object):
             filename = os.path.join(self._media_dir, "%s_%03d.mov" % (media_name, i))
             i += 1
 
-    def _extract_clip_media(self, clip, media_name, media_filename):
+    def _extract_clip_media(self, executor, clip, media_name, media_filename):
         """
-        Submit a future to extract the media for the given clip.
+        Submit a future to extract the media for the given clip on the given executor.
 
+        :parm executor: A :class:`concurrent.futures.Excutor` instance.
         :param clip: An instance of :class:`otio.schema.Clip`
         :param str media_name: The name of the media to extract.
         :returns: An instance of :class:`concurrent.futures.Future`.
@@ -174,7 +167,7 @@ class MediaCutter(object):
             clip_range_in_track.end_time_exclusive().to_seconds(),
             clip_range_in_track.duration.to_frames()
         )
-        future = self._executor.submit(
+        future = executor.submit(
             extractor,
         )
         return future
