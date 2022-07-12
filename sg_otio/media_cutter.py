@@ -172,7 +172,7 @@ class MediaCutter(object):
         # into account the track offset, since the movie provided for cutting
         # starts at frame 0.
         clip_range_in_track = clip.transformed_time_range(clip.visible_range(), clip.parent())
-        logger.info("Extracting %s to %s" % (media_name, media_filename))
+        logger.debug("Extracting %s to %s" % (media_name, media_filename))
 
         extractor = FFmpegExtractor(
             self._movie,
@@ -284,7 +284,7 @@ class FFmpegExtractor(object):
                   and the output of the command as an array of output lines.
         """
         cmd_args = self._movie_extract_command
-        logger.info("Running %s" % " ".join(cmd_args))
+        logger.debug("Running %s" % " ".join(cmd_args))
         close_fds = True
         # Although subprocess technically supports using close_fds on
         # Windows, it cannot be used when stdin, stdout, and stderr are
