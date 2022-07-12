@@ -59,11 +59,23 @@ class TestMediaCutter(unittest.TestCase):
         movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         media_cutter = MediaCutter(timeline, movie_filepath)
-        with mock.patch("sg_otio.media_cutter.FFmpegExtractor.extract", side_effect=UserWarning):
-            try:
-                media_cutter.cut_media_for_clips()
-            except RuntimeError as e:
-                self.assertEqual("%s" % e, "foo")
+        # Mocked resutls for extract: process exit code and output lines
+        _mock_extract = [
+            (0, ["mocked"]),
+            (0, ["mocked"]),
+            (0, ["mocked"]),
+            (10, ["mocked"]),  # Fake a failure
+            (0, ["mocked"]),
+        ]
+
+        with mock.patch("sg_otio.media_cutter.FFmpegExtractor.extract", side_effect=_mock_extract):
+            # Since we're not generating any media we should get a RuntimeError.
+            with self.assertRaisesRegex(RuntimeError, r"^Failed to extract") as cm:
+                media_cutter.cut_media_for_clips(max_workers=1)
+            # All files should be mentioned in the error message, not only the
+            # one for which we faked a failure.
+            for missing in media_cutter._media_filenames:
+                self.assertIn(missing, "%s" % cm.exception)
 
     def test_media_cutter_with_edl(self):
         """

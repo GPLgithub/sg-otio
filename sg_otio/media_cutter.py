@@ -78,6 +78,7 @@ class MediaCutter(object):
 
         :param int max_workers: The maximum number of workers to run in parallel.
                                 If ``None``, the default system value is used.
+        :raises RuntimeError: If all media files couldn't be extracted.
         """
         clips_to_extract = []
         futures = []
@@ -105,13 +106,22 @@ class MediaCutter(object):
             # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
             dones, not_dones = wait(futures, return_when=FIRST_EXCEPTION)
             if not_dones:
-                logger.error("%d extractor(s) were queued but didn't run." % len(not_dones))
+                logger.error(
+                    "%d out %d extractor(s) were queued but didn't run." % (
+                        len(not_dones), len(futures)
+                    )
+                )
             for done in dones:
                 exception = done.exception()
                 if exception:
-                    logger.error(exception)
+                    logger.exception(exception)
+                else:
+                    # Checking result for futures with an exception raises it
+                    # this is why we check it before checking the result.
+                    res = done.result()
+                    logger.info("%s was extracted." % res)
 
-        # Double check what we extracted
+        # Check what we extracted, set clip media reference
         missing = []
         for clip, media_name, media_filename in clips_to_extract:
             if not os.path.exists(media_filename):
