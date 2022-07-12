@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import wait, FIRST_EXCEPTION, ProcessPoolExecutor
+from concurrent.futures import wait, FIRST_EXCEPTION, ThreadPoolExecutor
 from distutils.spawn import find_executable
 
 import opentimelineio as otio
@@ -40,7 +40,7 @@ class MediaCutter(object):
         super(MediaCutter, self).__init__()
         self._movie = movie
         self._media_dir = None
-        self._executor = ProcessPoolExecutor()
+        self._executor = ThreadPoolExecutor()
         if not timeline.video_tracks():
             raise ValueError("Timeline must have a video track.")
         if len(timeline.video_tracks()) > 1:
@@ -83,36 +83,42 @@ class MediaCutter(object):
         If all clips have a media reference, this method does nothing.
         The extraction is done in parallel, but this method waits for all the extractions to finish.
         """
-        clips_with_no_media_references = []
+        clips = []
+        clips_to_extract = []
         clip_media_names = []
+        clip_media_file_names = []
+        futures = []
         for i, clip in enumerate(self._video_track.each_clip()):
             if clip.media_reference.is_missing_reference:
-                clips_with_no_media_references.append(clip)
-                clip_media_names.append(compute_clip_version_name(clip, i + 1))
-        if not clips_with_no_media_references:
+                media_name = compute_clip_version_name(clip, i + 1)
+                clips_to_extract.append(
+                    (clip, media_name, self._get_media_filename(media_name))
+                )
+
+        if not clips_to_extract:
             logger.info("No clips need extracting from movie.")
             return
-        futures = []
-        clips_to_extract = []
+        logger.info("Extracting clips %s media from movie %s..." % (
+            [x[1] for x in clips_to_extract], self._movie)
+        )
         FFmpegExtractor.ffmpeg = self.ffmpeg
-        for clip, media_name in zip(clips_with_no_media_references, clip_media_names):
-            media_filename = self._get_media_filename(media_name)
-            futures.append(self._extract_clip_media(clip, media_name, media_filename))
-            clips_to_extract.append((clip, media_name, media_filename))
-        if not futures:
-            logger.info("No clips need extracting from movie.")
-            return
-        logger.info("Extracting clips %s media from movie %s..." % (clips_to_extract, self._movie))
-        # The function will return when any future finishes by raising an exception.
-        # If no future raises an exception then it is equivalent to ALL_COMPLETED.
-        # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
+        futures = []
         try:
-            _, not_done = wait(futures, return_when=FIRST_EXCEPTION)
-        except Exception:
-            # Cancel the remaining futures before re-raising the exception.
+            for clip, media_name, media_filename in clips_to_extract:
+                future = self._extract_clip_media(clip, media_name, media_filename)
+                futures.append(future)
+           # The function will return when any future finishes by raising an exception.
+            # If no future raises an exception then it is equivalent to ALL_COMPLETED.
+            # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.wait
+            done, not_done = wait(futures, return_when=FIRST_EXCEPTION)
+            logger.info("%s %s" % (done, not_done))
             if not_done:
-                self.cancel()
+                logger.error("%d extractor couldn't complete")
+        except Exception as e:
+            logger.exception(e)
+            self.cancel()
             raise
+
         # Double check what we extracted
         missing = []
         for clip, media_name, media_filename in clips_to_extract:
@@ -201,10 +207,18 @@ class FFmpegExtractor(object):
         """
         Extract the media.
 
-        This is needed in Python 2 so that we can submit this class to a ProcessPoolExecutor.
+        This is needed in Python 2 so that we can submit this class to an Executor.
         In Python 3, we could just submit the call to extract() to the executor.
+
+        :raises RuntimeError: If the extract failed.
+        :returns: The full path to the extracted media file.
         """
-        return self.extract()
+        res, lines = self.extract()
+        if res:
+            raise RuntimeError(
+                "Movie extract for %s to %s failed" % (self._input_media, self._output_media)
+            )
+        return self._output_media
 
     def progress_changed(self, line):
         """

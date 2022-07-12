@@ -11,10 +11,18 @@ import subprocess
 import unittest
 from distutils.spawn import find_executable
 
+try:
+    # Python 3.3 forward includes the mock module
+    from unittest import mock
+except ImportError:
+    import mock
+
 import opentimelineio as otio
 
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +34,39 @@ class TestMediaCutter(unittest.TestCase):
         Setup the tests suite.
         """
         self.resources_dir = os.path.join(os.path.dirname(__file__), "resources")
+
+    def test_media_cutter_errors(self):
+        """
+        Test that errors are correctly handled by the MediaCutter
+        """
+        settings = SGSettings()
+        # For this test, do not compute version names
+        settings.version_names_template = None
+        # blue_v01 has a Media Reference since there's a FROM FILE: foo.mov
+        edl = """
+        000001 green_tape     V     C        00:00:00:00 00:00:00:16 01:00:00:00 01:00:00:16
+        * FROM CLIP NAME: green_v01.mov
+        000002 pink_tape      V     C        00:00:00:05 00:00:00:11 01:00:00:16 01:00:00:22
+        * FROM CLIP NAME: pink_v01.mov
+        000003 green_tape     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
+        * FROM CLIP NAME: green_v01.mov
+        000004 red_tape       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
+        * FROM CLIP NAME: red_v01.mov
+        000005 blue_tape      V     C        00:00:00:00 00:00:02:00 01:00:01:21 01:00:03:21
+        * FROM CLIP NAME: blue_v01.mov
+        * FROM FILE: foo.mov
+        000006 red_tape       V     C        00:00:00:00 00:00:00:13 01:00:03:21 01:00:04:10
+        * FROM CLIP NAME: red_v01.mov
+        """
+        movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        media_cutter = MediaCutter(timeline, movie_filepath)
+        with mock.patch("sg_otio.media_cutter.FFmpegExtractor.extract", side_effect=UserWarning):
+            try:
+                media_cutter.cut_media_for_clips()
+            except RuntimeError as e:
+                pass
+        self.assertEqual("%s" % e, "foo")
 
     def test_media_cutter_with_edl(self):
         """
