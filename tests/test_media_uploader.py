@@ -129,7 +129,8 @@ class TestMediaUploader(unittest.TestCase):
         # Any error makes everything fail, without the ability to know what
         # failed or succeeded.
         with mock.patch.object(uploader, "upload_version") as mocked:
-            mocked.side_effect = [(x, movie_path) for x in self.mock_versions[:-2]] + [UserWarning]
-            with self.assertRaises(UserWarning):
+            mocked.side_effect =  [UserWarning("faked error")] + [(x, movie_path) for x in self.mock_versions[:-2]]
+            with self.assertRaises(UserWarning) as cm:
                 uploader.upload_versions(max_workers=2)
+            self.assertEqual("%s" % cm.exception, "faked error")
         self.assertLess(uploader.progress, len(self.mock_versions))
