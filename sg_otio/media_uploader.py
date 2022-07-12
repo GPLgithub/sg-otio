@@ -6,7 +6,7 @@
 #
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait, FIRST_EXCEPTION, ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ class MediaUploader(object):
         self._movies = movies
         self._progress = 0
         self._progress_max = len(sg_versions)
-        self._executor = ThreadPoolExecutor()
 
     @property
     def progress_max(self):
@@ -66,19 +65,34 @@ class MediaUploader(object):
         logger.debug("Progress: %d/%d" % (value, self._progress_max))
         self._progress = value
 
-    def upload_versions(self):
+    def upload_versions(self, max_workers=None):
         """
         Uploads movies to Versions in SG, in parallel.
+
+        :param int max_workers: The maximum number of workers to run in parallel.
+                                If ``None``, the default system value is used.
         """
         self._progress = 0
-
-        # map executes the calls to upload version in parallel, and yields the results as
-        # soon as available. That's why we can loop over them and increment the progress.
-        # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Executor.map
-        for _ in self._executor.map(
-            self.upload_version, self._sg_versions, self._movies
-        ):
-            self.progress += 1
+        futures = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # map executes the calls to upload version in parallel, and yields the results as
+            # soon as available.
+            # See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Executor.map
+            try:
+                for sg_version, movie in executor.map(
+                    self.upload_version, self._sg_versions, self._movies
+                ):
+                    logger.info("Uploaded %s to %s" % (os.path.basename(movie), sg_version["code"]))
+                    self.progress += 1
+            except Exception as e:
+                # Exceptions raised by the futures are re-raised when getting their
+                # result. This means that we will need to use something else
+                # than map if we want to get a complete report of successes
+                # and failures.
+                logger.error(
+                    "Only managed to upload %d media out of %d" % (self.progress, self.progress_max)
+                )
+                raise
 
     def upload_version(self, sg_version, movie):
         """
@@ -86,6 +100,8 @@ class MediaUploader(object):
 
         :param sg_version: The SG Version to upload to.
         :param movie: The movie to upload.
+        :returns: A tuple with the SG Version dictionary and the movie which was
+                  uploaded.
         """
         self._sg.upload(
             "Version",
@@ -93,4 +109,4 @@ class MediaUploader(object):
             movie,
             "sg_uploaded_movie"
         )
-        logger.debug("Uploaded %s to %s" % (os.path.basename(movie), sg_version["code"]))
+        return sg_version, movie

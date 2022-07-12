@@ -111,6 +111,10 @@ class MediaCutter(object):
                         len(not_dones), len(futures)
                     )
                 )
+                for not_done in not_dones:
+                    # Cancel the future. If it managed to run since the wait
+                    # cancelling it has no effect.
+                    not_done.cancel()
             for done in dones:
                 exception = done.exception()
                 if exception:
