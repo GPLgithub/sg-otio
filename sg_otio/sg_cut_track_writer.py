@@ -94,7 +94,28 @@ class SGCutTrackWriter(object):
             sg_linked_entity["type"] if sg_linked_entity else None,
         )
         clips_by_shots = ClipGroup.groups_from_track(video_track)
-        shot_names = [x for x in clips_by_shots.keys() if x]
+
+        # Grab Shots and enforce unique cut item names
+        shot_names = []
+        seen_names = []
+        duplicate_names = {}
+        for shot, clip_group in clips_by_shots.items():
+            if shot:
+                shot_names.append(shot)
+            for clip in clip_group.clips:
+                if clip.name not in seen_names:
+                    seen_names.append(clip.name)
+                else:
+                    if clip.name not in duplicate_names:
+                        duplicate_names[clip.name] = []
+                    duplicate_names[clip.name].append(clip)
+
+        for name, clips in duplicate_names.items():
+            clip_name_index = 1
+            for clip in clips:
+                clip.cut_item_name = "%s_%03d" % (clip.name, clip_name_index)
+                clip_name_index += 1
+
         if shot_names:
             sg_shots = self._sg.find(
                 "Shot",
