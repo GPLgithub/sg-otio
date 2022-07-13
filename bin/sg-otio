@@ -59,7 +59,7 @@ def run():
     read_parser.add_argument(
         "--file", "-f",
         required=False,
-        help="An optional file to write the Cut to when reading it."
+        help="An optional file to write the Cut to when reading it. "
              "If not provided, the output is printed to stdout in OTIO format."
     )
     # Write parameters
@@ -71,8 +71,8 @@ def run():
     write_parser.add_argument(
         "--entity-type", "-e",
         required=True,
-        help="The SG Entity type to link the Cut to. It can be a Project, a Cut, or any Entity that can be linked to "
-             "a Cut, e.g. a Sequence, a Reel."
+        help="The SG Entity type to link the Cut to. It can be a Project, a Cut, or any Entity a Cut can be linked to, "
+             "e.g. a Sequence, a Reel."
     )
     write_parser.add_argument(
         "--entity-id", "-i",
@@ -91,7 +91,7 @@ def run():
 
     # Check that we can log in to SG
     if not (args.login and args.password):
-        if not (args.script and args.api_key):
+        if not (args.script_name and args.api_key):
             if not args.session_token:
                 raise ValueError(
                     "You must provide either a login, password, script name and API key or a session token."
@@ -231,8 +231,8 @@ def add_common_args(parser):
     parser.add_argument(
         "--adapter", "-a",
         required=False,
-        help="The adapter to use to read or write the file. If not provided, the default adapter"
-             "given the extension is used."
+        help="The adapter to use to read or write the file. If not provided, the default adapter "
+             "for the extension is used."
     )
     parser.add_argument(
         "--settings", "-s",
