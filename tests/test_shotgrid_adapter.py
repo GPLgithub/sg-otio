@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import tempfile
 import unittest
 from functools import partial
@@ -12,6 +13,8 @@ from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import compute_clip_version_name, get_platform_name, get_write_url
+from sg_otio.cut_clip import SGCutClip
+
 from utils import add_to_sg_mock_db
 
 try:
@@ -479,6 +482,12 @@ class ShotgridAdapterTest(unittest.TestCase):
             sg_cuts = self.mock_sg.find("Cut", [["id", "is_not", self.mock_cut["id"]]], _CUT_FIELDS)
             # We should have updated the existing Cut
             self.assertEqual(len(sg_cuts), 0)
+            # We should have the same number of cut items (the previously existing ones)
+            sg_cut_items = self.mock_sg.find(
+                "CutItem", [["cut", "is", self.mock_cut]], _CUT_ITEM_FIELDS,
+                order=[{"field_name": "cut_order", "direction": "asc"}]
+            )
+            self.assertEqual(len(self.mock_cut_items), len(sg_cut_items))
 
             # Create a new Cut linked to the test Sequence
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
@@ -714,6 +723,38 @@ class ShotgridAdapterTest(unittest.TestCase):
                             self.assertEqual(orig_clip_pf[field], clip_pf[field])
         finally:
             self.mock_sg.delete("Cut", mock_cut["id"])
+
+    def test_unique_cut_items(self):
+        """
+        Test that cut item names for a SG Cut are unique.
+        """
+        edl = """
+        TITLE: Cut01
+        000001 reelname     V     C        00:00:00:00 00:00:00:16 01:00:00:00 01:00:00:16
+        000002 other_reelname      V     C        00:00:00:05 00:00:00:11 01:00:00:16 01:00:00:22
+        000003 reelname     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
+        000004 other_reelname       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
+        """
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        track = timeline.tracks[0]
+        # Check all clips have the same name
+        for clip in track.each_clip():
+            self.assertIn(SGCutClip(clip).name, ["reelname", "other_reelname"])
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            # All should have different names
+            names = []
+            for i, clip in enumerate(track.each_clip()):
+                self.assertIsNotNone(clip.metadata.get("sg"))
+                self.assertNotIn(clip.metadata["sg"]["code"], names)
+                names.append(clip.metadata["sg"]["code"])
+                # Check it has the expected form
+                self.assertTrue(
+                    re.match(
+                        r"^%s(_\d+)?" % SGCutClip(clip).name,
+                        clip.metadata["sg"]["code"]
+                    )
+                )
 
 
 if __name__ == "__main__":
