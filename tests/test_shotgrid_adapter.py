@@ -750,9 +750,12 @@ class ShotgridAdapterTest(unittest.TestCase):
                 names.append(clip.metadata["sg"]["code"])
                 # Check it has the expected form
                 self.assertTrue(
-                    re.match(r"^%s(_\d+)?" % SGCutClip(clip).name,
-                    clip.metadata["sg"]["code"])
+                    re.match(
+                        r"^%s(_\d+)?" % SGCutClip(clip).name,
+                        clip.metadata["sg"]["code"]
+                    )
                 )
+
 
 if __name__ == "__main__":
     unittest.main()
