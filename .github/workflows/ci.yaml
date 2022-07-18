@@ -79,4 +79,4 @@ jobs:
           fail_ci_if_error: true
           env_vars: OS,PYTHON
 
-        shell: bash
+#        shell: bash
