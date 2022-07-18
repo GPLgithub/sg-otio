@@ -3,6 +3,8 @@ SG Otio, an OpenTimelineIO ShotGrid Library
 
 [![Run tests](https://github.com/GPLgithub/sg-otio/actions/workflows/ci.yaml/badge.svg)](https://github.com/GPLgithub/sg-otio/actions/workflows/ci.yaml)
 
+[![codecov](https://codecov.io/gh/GPLgithub/sg-otio/branch/master/graph/badge.svg?token=9X2MDPFCBI)](https://codecov.io/gh/GPLgithub/sg-otio)
+
 A library to represent [OpenTimelineIO](http://opentimeline.io/) data in [ShotGrid](https://www.shotgrid.com),
 and vice versa.
 
