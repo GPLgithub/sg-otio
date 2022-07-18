@@ -30,11 +30,9 @@ which case the PATH should already be updated by the package manager.
 
 ### sg-otio package
 
-sg-otio can be installed with the following commands:
-    
-```
-pip install sg-otio --extra-index-url  https://PRIVATE_KEY@pkgs.dev.azure.com/gpltechsw/1217bdc5-7623-49c9-a8c5-b48c68aa77da/_packaging/gpltechpypi/pypi/simple/
-```
+SG Otio can only be installed from sources at the moment.
+- Get a local copy of this repo: `git clone https://github.com/GPLgithub/sg-otio.git`
+- Install it with `pip`: `pip install ./sg-otio`
 
 sg-otio usage
 -------------
