@@ -1,9 +1,6 @@
-# Copyright 2022 GPL Solutions, LLC.  All rights reserved.
-#
-# Use of this software is subject to the terms of the GPL Solutions license
-# agreement provided at the time of installation or download, or which otherwise
-# accompanies this software in either electronic or hard copy form.
-#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Contributors to the SG Otio project
+
 import logging
 import os
 import unittest

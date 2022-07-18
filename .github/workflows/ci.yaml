@@ -1,9 +1,5 @@
-# Copyright 2022 GPL Solutions, LLC.  All rights reserved.
-#
-# Use of this software is subject to the terms of the GPL Solutions license
-# agreement provided at the time of installation or download, or which otherwise
-# accompanies this software in either electronic or hard copy form.
-#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Contributors to the SG Otio project
 
 name: Run tests
 
@@ -28,10 +24,16 @@ jobs:
     name: "sg-otio"
     strategy:
       matrix:
-        python-version: [2.7, 3.7, 3.8, 3.9, '3.10']
+        python-version: ['2.7', '3.7', '3.8', '3.9', '3.10']
         os: [ubuntu-latest, macos-latest] # windows-latest when wheel is in place
 
     runs-on: ${{ matrix.os }}
+
+    env:
+      OS: ${{ matrix.os }}
+      PYTHON: ${{ matrix.python-version }}
+      GH_COV_PY: 3.7
+      GH_COV_OS: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
@@ -56,7 +58,7 @@ jobs:
       - name: Install Package
         run: |
           pip install -e .
-          pip install -e .[dev]
+          pip install -e .[dev]  # Why 2 pip installs?
 
       - name: Lint with flake8
         run: |
@@ -64,6 +66,17 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest -s
+          pip install pytest
+          pip install pytest-cov
+          pytest -s --cov=./ --cov-report=xml
 
-        shell: bash
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == env.GH_COV_PY && matrix.os == env.GH_COV_OS
+        uses: codecov/codecov-action@v3
+        with:
+          flags: unittests
+          name: sg-otio-codecov
+          fail_ci_if_error: true
+          env_vars: OS,PYTHON
+
+#        shell: bash
