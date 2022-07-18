@@ -1,13 +1,24 @@
-# OpenTimelineIO ShotGrid Library
+SG Otio, an OpenTimelineIO ShotGrid Library
+=======
 
 [![Run tests](https://github.com/GPLgithub/sg-otio/actions/workflows/ci.yaml/badge.svg)](https://github.com/GPLgithub/sg-otio/actions/workflows/ci.yaml)
 
 A library to represent [OpenTimelineIO](http://opentimeline.io/) data in [ShotGrid](https://www.shotgrid.com),
 and vice versa.
 
-## 1. Installation
+## Disclaimer
+________________
 
-### a. ffmpeg
+SG Otio is currently in Public Alpha. That means that it may be missing
+some essential features and there are large changes planned. During this phase
+we actively encourage you to provide feedback, requests, comments, and/or
+contributions.
+
+
+## Installation
+___________________
+
+### ffmpeg
 sg-otio requires ffmpeg to be installed, and ffmpeg must be in the `PATH`.
 
 - Binaries can be downloaded from [FFmpeg download page](https://ffmpeg.org/download.html), in which case the
@@ -15,7 +26,7 @@ binaries should be added to the `PATH` environment variable.
 - A package manager can be used, for example on MacOS, `brew install ffmpeg`, in
 which case the PATH should already be updated by the package manager.
 
-### b. sg-otio package
+### sg-otio package
 
 sg-otio can be installed with the following commands:
     
@@ -23,17 +34,18 @@ sg-otio can be installed with the following commands:
 pip install sg-otio --extra-index-url  https://PRIVATE_KEY@pkgs.dev.azure.com/gpltechsw/1217bdc5-7623-49c9-a8c5-b48c68aa77da/_packaging/gpltechpypi/pypi/simple/
 ```
 
-## 2. sg-otio usage.
+## sg-otio usage
+------------------------
 You can access the help with `sg-otio read --help` and `sg-otio write --help`. 
 
-### a. sg-otio Shotgrid login information
+### sg-otio Shotgrid login information
 
 You can provide Shotgrid login information in 3 different ways:
 - `--login <username> --password <password>`
 - `--script-name <script name> --api-key <api key>`
 - `--session-token <session token>`
 
-### b. sg-otio read
+### sg-otio read
 Read a Cut from SG and either output it in OTIO format or write it to a file. Any format suppported by OpenTimelineIO's standard adapters is supported.
 
 Examples:
@@ -43,7 +55,7 @@ sg-otio read --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file outp
 sg-otio read --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file output.xml --adapter-name fcp_xml
 sg-otio read --settings SETTINGS.JSON --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file output.xml --adapter-name fcp_xml
 ```
-### c. sg-otio write
+### sg-otio write
 Write a Video Track to SG as a Cut.
 Example:
 ```
@@ -152,3 +164,8 @@ If set to True, the Smart Cut Fields will be used to fill the Shot fields.
 #### Shot Cut Fields Prefix
 If set, the Shot Cut Fields will be custom fields that use this prefix,
 e.g. `sg_PREFIX_cut_in`, `sg_PREFIX_cut_out`, etc.
+
+
+License
+-------
+SG Otio is open source software. Please see the [LICENSE.txt](LICENSE.txt) for details.
