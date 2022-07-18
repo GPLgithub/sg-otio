@@ -29,6 +29,12 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    env:
+      OS: ${{ matrix.os }}
+      PYTHON: ${{ matrix.python-version }}
+      GH_COV_PY: 3.7
+      GH_COV_OS: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v2
 
@@ -63,5 +69,14 @@ jobs:
           pip install pytest
           pip install pytest-cov
           pytest -s --cov=./ --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == env.GH_COV_PY && matrix.os == env.GH_COV_OS
+        uses: codecov/codecov-action@v3
+        with:
+          flags: unittests
+          name: sg-otio-codecov
+          fail_ci_if_error: true
+          env_vars: OS,PYTHON
 
         shell: bash
