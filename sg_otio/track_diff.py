@@ -37,14 +37,18 @@ class SGTrackDiff(object):
 
         # Retrieve Shots from the previous_track
         sg_shot_ids = []
+        prev_clip_list = []
         if previous_track:
-            for clip in previous_track.each_clip():
+            for i, clip in enumerate(previous_track.each_clip()):
                 # Check if we have some SG meta data
                 sg_cut_item = clip.get("sg")
                 if sg_cut_item:
                     shot_id = sg_cut_item.get("shot", {}).get("id")
                     if shot_id:
                         sg_shot_ids.append(shot)
+                    prev_clip_list.append(
+                        SGCutClip(clip, index=i + 1, sg_shot=sg_cut_item["shot"])
+                    )
         sg_shots_dict = {}
         # Retrieve details for Shots linked to the Clips
         if sg_shot_ids:
@@ -85,78 +89,68 @@ class SGTrackDiff(object):
                 shot_name = sg_shot["code"].lower()
                 self._diffs_by_shots[shot_name].sg_shot = sg_shot
 
-#        # Duplicate the list of shots, allowing us to know easily which ones are
-#        # not part of the new track by removing entries when we use them.
-#        # We only need a shallow copy here
-#        leftover_shots = [x for x in sg_shots_dict.values()]
-#        seen_names = []
-#        duplicate_names = {}
-#        for shot_name, clip_group in self._diffs_by_shots.items():
-#            sg_shot = clip_group.sg_shot
-#            for clip in clip_group.clips:
-#                # Ensure unique names
-#                if clip.name not in seen_names:
-#                    seen_names.append(clip.name)
-#                else:
-#                    if clip.name not in duplicate_names:
-#                        duplicate_names[clip.name] = 0
-#                    duplicate_names[clip.name] += 1
-#                    clip.cut_item_name = "%s_%03d" % (clip.name, duplicate_names[clip.name])
-#
-#                if not shot_name:
-#                    # If we don't have a Shot name, we can't match anything
-#                    self.add_cut_diff(
-#                        None,
-#                        sg_shot=None,
-#                        new_clip=clip,
-#                        old_clip=None,
-#                        cut_item_name=clip.cut_item_name
-#                    )
-#                else:
-#                    logger.debug("Matching %s for %s" % (
-#                        shot_name, clip,
-#                    ))
-#                    existing = self.diffs_for_shot(shot_name)
-#                    # Is it a duplicate ?
-#                    if existing:
-#                        logger.debug("Found duplicated Shot, Shot %s (%s)" % (
-#                            shot_name, existing))
-#                        old_clip = self.old_clip_for_shot(
-#                            sg_cut_items,
-#                            existing[0].sg_shot,
-#                            edit.get_sg_version(),
-#                            edit
-#                        )
-#                        self.add_cut_diff(
-#                            shot_name,
-#                            sg_shot=existing[0].sg_shot,
-#                            new_clip=clip,
-#                            old_clip=old_clip,
-#                            cut_item_name=cut_item_name
-#                        )
-#                    else:
-#                        matching_cut_item = None
-#                        # Do we have a matching Shot in SG ?
-#                        matching_shot = sg_shots_dict.get(lower_shot_name)
-#                        if matching_shot:
-#                            # yes we do
-#                            logger.debug("Found matching existing Shot %s" % shot_name)
-#                            # Remove this entry from the leftovers
-#                            if matching_shot in leftover_shots:
-#                                leftover_shots.remove(matching_shot)
-#                            old_clip = self.old_clip_for_shot(
-#                                sg_cut_items,
-#                                matching_shot,
-#                                edit.get_sg_version(),
-#                                edit,
-#                            )
-#                        self.add_cut_diff(
-#                            shot_name,
-#                            sg_shot=matching_shot,
-#                            new_clip=clip,
-#                            old_clip=old_clip,
-#                            cut_item_name=cut_item_name
-#                        )
+        # Duplicate the list of shots, allowing us to know easily which ones are
+        # not part of the new track by removing entries when we use them.
+        # We only need a shallow copy here
+        leftover_shots = [x for x in sg_shots_dict.values()]
+        seen_names = []
+        duplicate_names = {}
+        for shot_name, clip_group in self._diffs_by_shots.items():
+            sg_shot = clip_group.sg_shot
+            for clip in clip_group.clips:
+                # Ensure unique names
+                if clip.name not in seen_names:
+                    seen_names.append(clip.name)
+                else:
+                    if clip.name not in duplicate_names:
+                        duplicate_names[clip.name] = 0
+                    duplicate_names[clip.name] += 1
+                    clip.cut_item_name = "%s_%03d" % (clip.name, duplicate_names[clip.name])
+                    # If we don't have a Shot name we can't match anything
+                    if not shot_name:
+                        continue
+
+                    logger.debug("Matching %s for %s" % (
+                        shot_name, clip,
+                    ))
+                    # If we found a SG Shot, we can match with its id.
+                    if sg_shot:
+                        old_clip = self.old_clip_for_shot(
+                            clip,
+                            prev_clip_list,
+                            sg_shot,
+                            clip.sg_version,
+                        )
+                        self.add_cut_diff(
+                            shot_name,
+                            sg_shot=existing[0].sg_shot,
+                            new_clip=clip,
+                            old_clip=old_clip,
+                            cut_item_name=cut_item_name
+                        )
+                    else:
+                        matching_cut_item = None
+                        # Do we have a matching Shot in SG ?
+                        matching_shot = sg_shots_dict.get(lower_shot_name)
+                        if matching_shot:
+                            # yes we do
+                            logger.debug("Found matching existing Shot %s" % shot_name)
+                            # Remove this entry from the leftovers
+                            if matching_shot in leftover_shots:
+                                leftover_shots.remove(matching_shot)
+                            old_clip = self.old_clip_for_shot(
+                                clip,
+                                prev_clip_list,
+                                matching_shot,
+                                clip.sg_version,
+                            )
+                        self.add_cut_diff(
+                            shot_name,
+                            sg_shot=matching_shot,
+                            new_clip=clip,
+                            old_clip=old_clip,
+                            cut_item_name=cut_item_name
+                        )
 #
 #        for clip in new_track.each_clip():
 #            # Ensure unique names
@@ -276,124 +270,114 @@ class SGTrackDiff(object):
 #        """
 #        pass
 #
-#    def old_clip_for_shot(self, sg_cut_items, sg_shot, sg_version=None, compare_to=None):
-#        """
-#        Return a CutItem for the given Shot from the given CutItems list retrieved
-#        from Shotgun
-#
-#        The sg_cut_items list is modified inside this method, entries being removed as
-#        they are chosen.
-#
-#        Best matching CutItem is returned, a score is computed for each entry
-#        from:
-#        - Is it linked to the right Shot?
-#        - Is it linked to the right Version?
-#        - Is the Cut order the same?
-#        - Is the tc in the same?
-#        - Is the tc out the same?
-#
-#        Deriving classes must implement the `_get_matching_score` method with
-#        code specific to the type of data they handle.
-#
-#        :param sg_cut_items: A list of CutItem instances to consider
-#        :param sg_shot: A SG Shot dictionary
-#        :param sg_version: A SG Version dictionary
-#        :param compare_to: Arbitrary data specific to implementations to compare
-#                           CutItems to.
-#        :returns: A SG CutItem dictionary, or None
-#        """
-#
-#        potential_matches = []
-#        for sg_cut_item in sg_cut_items:
-#            # Is it linked to the given Shot ?
-#            if (
-#                sg_cut_item["shot"]
-#                and sg_shot
-#                and sg_cut_item["shot"]["id"] == sg_shot["id"]
-#                and sg_cut_item["shot"]["type"] == sg_shot["type"]
-#            ):
-#                # We can have multiple CutItems for the same Shot
-#                # use the linked Version to pick the right one, if
-#                # available
-#                if not sg_version:
-#                    # No particular Version to match, score is based on
-#                    # on differences between Cut order, tc in and out
-#                    # give score a bonus as we don't have an explicit mismatch
-#                    potential_matches.append((
-#                        sg_cut_item,
-#                        100 + self._get_matching_score(sg_cut_item, compare_to)
-#                    ))
-#                elif sg_cut_item["version"]:
-#                    if sg_version["id"] == sg_cut_item["version"]["id"]:
-#                        # Give a bonus to score as we matched the right
-#                        # Version
-#                        potential_matches.append((
-#                            sg_cut_item,
-#                            1000 + self._get_matching_score(sg_cut_item, compare_to)
-#                        ))
-#                    else:
-#                        # Version mismatch, don't give any bonus
-#                        potential_matches.append((
-#                            sg_cut_item,
-#                            self._get_matching_score(sg_cut_item, compare_to)
-#                        ))
-#                else:
-#                    # Will keep looking around but we keep a reference to
-#                    # CutItem since it is linked to the same Shot
-#                    # give score a little bonus as we didn't have any explicit
-#                    # mismatch
-#                    potential_matches.append((
-#                        sg_cut_item,
-#                        100 + self._get_matching_score(sg_cut_item, compare_to)
-#                    ))
-#            else:
-#                self._logger.debug("Rejecting %s for %s" % (sg_cut_item, compare_to))
-#        if potential_matches:
-#            potential_matches.sort(key=lambda x: x[1], reverse=True)
-#            for pm in potential_matches:
-#                self._logger.debug("Potential matches %s score %s" % (
-#                    pm[0], pm[1],
-#                ))
-#            # Return just the CutItem, not including the score
-#            best = potential_matches[0][0]
-#            # Prevent this one to be matched multiple times
-#            sg_cut_items.remove(best)
-#            self._logger.debug("Best is %s for %s" % (best, compare_to))
-#            return best
-#        return None
-#
-#    def _get_matching_score(self, clip_a, clip_b):
-#        """
-#        Return a matching score for the given two clips, based on:
-#        - Is the Cut order the same?
-#        - Is the tc in the same?
-#        - Is the tc out the same?
-#
-#        So the best score is 3 if all of them match
-#
-#        :param clip_a: a Clip.
-#        :param clip_b: a Clip.
-#        :returns: A score, as an integer
-#        """
-#        score = 0
-#        # Compute the Cut order difference (edit.id is the Cut order in an EDL)
-#        diff = edit.id - sg_cut_item["cut_order"]
-#        if diff == 0:
-#            score += 1
-#        diff = edit.source_in.to_frame() - edl.Timecode(
-#            sg_cut_item["timecode_cut_item_in_text"],
-#            sg_cut_item["cut.Cut.fps"],
-#        ).to_frame()
-#        if diff == 0:
-#            score += 1
-#        diff = edit.source_out.to_frame() - edl.Timecode(
-#            sg_cut_item["timecode_cut_item_out_text"],
-#            sg_cut_item["cut.Cut.fps"]
-#        ).to_frame()
-#        if diff == 0:
-#            score += 1
-#
-#        return score
+    def old_clip_for_shot(self, for_clip, prev_clip_list, sg_shot, sg_version=None):
+        """
+        Return a Clip for the given Clip and Shot from the given list of Clip list.
+
+        The prev_clip_list list is modified inside this method, entries being
+        removed as they are chosen.
+
+        Best matching Clip is returned, a score is computed for each entry
+        from:
+        - Is it linked to the right Shot?
+        - Is it linked to the right Version?
+        - Is the index the same?
+        - Is the tc in the same?
+        - Is the tc out the same?
+
+        :param for_clip: A Clip instance.
+        :param prev_clip_list: A list of Clip instances to consider.
+        :param sg_shot: A SG Shot dictionary
+        :param sg_version: A SG Version dictionary
+        :returns: A Clip, or ``None``
+        """
+
+        potential_matches = []
+        for clip in prev_clip_list:
+            sg_cut_item = clip.metadata.get("sg")
+            # Is it linked to the given Shot ?
+            if (
+                sg_cut_item
+                and sg_cut_item["shot"]
+                and sg_cut_item["shot"]["id"] == sg_shot["id"]
+                and sg_cut_item["shot"]["type"] == sg_shot["type"]
+            ):
+                # We can have multiple CutItems for the same Shot
+                # use the linked Version to pick the right one, if
+                # available
+                if not sg_version:
+                    # No particular Version to match, score is based on
+                    # on differences between Cut order, tc in and out
+                    # give score a bonus as we don't have an explicit mismatch
+                    potential_matches.append((
+                        sg_cut_item,
+                        100 + self._get_matching_score(clip, for_clip)
+                    ))
+                elif sg_cut_item["version"]:
+                    if sg_version["id"] == sg_cut_item["version"]["id"]:
+                        # Give a bonus to score as we matched the right
+                        # Version
+                        potential_matches.append((
+                            sg_cut_item,
+                            1000 + self._get_matching_score(clip, for_clip)
+                        ))
+                    else:
+                        # Version mismatch, don't give any bonus
+                        potential_matches.append((
+                            sg_cut_item,
+                            self._get_matching_score(clip, for_clip)
+                        ))
+                else:
+                    # Will keep looking around but we keep a reference to
+                    # CutItem since it is linked to the same Shot
+                    # give score a little bonus as we didn't have any explicit
+                    # mismatch
+                    potential_matches.append((
+                        sg_cut_item,
+                        100 + self._get_matching_score(clip, for_clip)
+                    ))
+            else:
+                logger.debug("Rejecting %s for %s" % (clip, for_clip))
+        if potential_matches:
+            potential_matches.sort(key=lambda x: x[1], reverse=True)
+            for pm in potential_matches:
+                self._logger.debug("Potential matches %s score %s" % (
+                    pm[0], pm[1],
+                ))
+            # Return just the CutItem, not including the score
+            best = potential_matches[0][0]
+            # Prevent this one to be matched multiple times
+            prev_clip_list.remove(best)
+            logger.debug("Best is %s for %s" % (best, for_clip))
+            return best
+        return None
+
+    def _get_matching_score(self, clip_a, clip_b):
+        """
+        Return a matching score for the given two clips, based on:
+        - Is the Cut order the same?
+        - Is the tc in the same?
+        - Is the tc out the same?
+
+        So the best score is 3 if all of them match
+
+        :param clip_a: a Clip.
+        :param clip_b: a Clip.
+        :returns: A score, as an integer
+        """
+        score = 0
+        # Compute the Cut order difference (edit.id is the Cut order in an EDL)
+        diff = clip_a.index - clip_b.index
+        if diff == 0:
+            score += 1
+        diff = (clip_a.source_in - clip_b.source_in).to_frames()
+        if diff == 0:
+            score += 1
+        diff = (clip_a.source_out - clip_b.source_out).to_frames()
+        if diff == 0:
+            score += 1
+
+        return score
 
     def __len__(self):
         """

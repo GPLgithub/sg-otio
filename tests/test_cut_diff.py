@@ -1,16 +1,42 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import shotgun_api3
+
 from .python.sg_test import SGBaseTest
 
 import opentimelineio as otio
 from sg_otio.track_diff import SGTrackDiff
+from sg_otio.utils import get_read_url, get_write_url
+
+
+try:
+    # Python 3.3 forward includes the mock module
+    from unittest import mock
+except ImportError:
+    import mock
 
 
 class TestCutDiff(SGBaseTest):
     """
     Test related to computing differences between two Cuts
     """
+    def setUp(self):
+        super(TestCutDiff, self).setUp()
+        self.mock_sequence = {
+            "project": self.mock_project,
+            "type": "Sequence",
+            "code": "SEQ01",
+            "id": 2,
+            "sg_cut_order": 2
+        }
+        self.add_to_sg_mock_db(self.mock_sequence)
+        self._SG_SEQ_URL = get_write_url(
+            self.mock_sg.base_url,
+            "Sequence",
+            self.mock_sequence["id"],
+            self._SESSION_TOKEN
+        )
 
     def test_loading_edl(self):
         """
@@ -70,3 +96,32 @@ class TestCutDiff(SGBaseTest):
         finally:
             for sg_shot in sg_shots:
                 self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
+
+    def test_same_cut(self):
+        """
+        Test saving a Cut to SG and comparing it to itself.
+        """
+        edl = """
+            TITLE:   CUT_DIFF_TEST
+
+            001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: shot_001
+            002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
+            * FROM CLIP NAME: shot_002_v001
+            * COMMENT: shot_002
+            003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: SHOT_001
+        """
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        track = timeline.tracks[0]
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            mock_cut_url = get_read_url(
+                self.mock_sg.base_url,
+                track.metadata["sg"]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")

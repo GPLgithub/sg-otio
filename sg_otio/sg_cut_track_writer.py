@@ -282,7 +282,7 @@ class SGCutTrackWriter(object):
         for shot_name, clip_group in clips_by_shots.items():
             for clip in clip_group.clips:
                 # TODO: check if the medata is updated if we created Versions
-                sg_version = clip.media_reference.metadata.get("sg", {}).get("version")
+                sg_version = clip.sg_version
                 sg_data = self.get_sg_cut_item_payload(
                     clip,
                     sg_shot=clip.sg_shot,

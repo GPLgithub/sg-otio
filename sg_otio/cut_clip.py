@@ -644,3 +644,13 @@ class SGCutClip(object):
         if head_in is None:
             head_in = sg_settings.default_head_in
         return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
+
+    @property
+    def sg_version(self):
+        """
+        Return the SG Version associated with this Clip, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        sg_version = self.media_reference.metadata.get("sg", {}).get("version")
+        return sg_version
