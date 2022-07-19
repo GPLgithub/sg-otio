@@ -16,13 +16,20 @@ class SGCutDiff(SGCutClip):
     """
     def __init__(self, *args, **kwargs):
         super(SGCutDiff, self).__init__(*args, **kwargs)
-        self._prev_clip = None
+        self._old_clip = None
 
+    @property
+    def old_clip(self):
+        return self._old_clip
+
+    @old_clip.setter
+    def old_clip(self, value):
+        self._old_clip = value
 
 class SGTrackDiff(object):
     """
     """
-    def __init__(self, sg, sg_project, new_track, previous_track=None):
+    def __init__(self, sg, sg_project, new_track, old_track=None):
         """
 
         :raises ValueError: For invalid tracks.
@@ -35,17 +42,17 @@ class SGTrackDiff(object):
             None, None
         ).all
 
-        # Retrieve Shots from the previous_track
+        # Retrieve Shots from the old_track
         sg_shot_ids = []
         prev_clip_list = []
-        if previous_track:
-            for i, clip in enumerate(previous_track.each_clip()):
+        if old_track:
+            for i, clip in enumerate(old_track.each_clip()):
                 # Check if we have some SG meta data
-                sg_cut_item = clip.get("sg")
+                sg_cut_item = clip.metadata.get("sg")
                 if sg_cut_item:
                     shot_id = sg_cut_item.get("shot", {}).get("id")
                     if shot_id:
-                        sg_shot_ids.append(shot)
+                        sg_shot_ids.append(shot_id)
                     prev_clip_list.append(
                         SGCutClip(clip, index=i + 1, sg_shot=sg_cut_item["shot"])
                     )
@@ -95,6 +102,7 @@ class SGTrackDiff(object):
         leftover_shots = [x for x in sg_shots_dict.values()]
         seen_names = []
         duplicate_names = {}
+        logger.debug("Matching clips...")
         for shot_name, clip_group in self._diffs_by_shots.items():
             sg_shot = clip_group.sg_shot
             for clip in clip_group.clips:
@@ -106,51 +114,40 @@ class SGTrackDiff(object):
                         duplicate_names[clip.name] = 0
                     duplicate_names[clip.name] += 1
                     clip.cut_item_name = "%s_%03d" % (clip.name, duplicate_names[clip.name])
-                    # If we don't have a Shot name we can't match anything
-                    if not shot_name:
-                        continue
+                # If we don't have a Shot name we can't match anything
+                if not shot_name:
+                    logger.debug("No Shot name for %s, not matching..." % clip)
+                    continue
 
-                    logger.debug("Matching %s for %s" % (
-                        shot_name, clip,
-                    ))
-                    # If we found a SG Shot, we can match with its id.
-                    if sg_shot:
+                logger.debug("Matching %s for %s" % (
+                    shot_name, clip,
+                ))
+                # If we found a SG Shot, we can match with its id.
+                if sg_shot:
+                    old_clip = self.old_clip_for_shot(
+                        clip,
+                        prev_clip_list,
+                        sg_shot,
+                        clip.sg_version,
+                    )
+                    clip.old_clip = old_clip
+                else:
+                    matching_cut_item = None
+                    # Do we have a matching Shot in SG ?
+                    matching_shot = sg_shots_dict.get(lower_shot_name)
+                    if matching_shot:
+                        # yes we do
+                        logger.debug("Found matching existing Shot %s" % shot_name)
+                        # Remove this entry from the leftovers
+                        if matching_shot in leftover_shots:
+                            leftover_shots.remove(matching_shot)
                         old_clip = self.old_clip_for_shot(
                             clip,
                             prev_clip_list,
-                            sg_shot,
+                            matching_shot,
                             clip.sg_version,
                         )
-                        self.add_cut_diff(
-                            shot_name,
-                            sg_shot=existing[0].sg_shot,
-                            new_clip=clip,
-                            old_clip=old_clip,
-                            cut_item_name=cut_item_name
-                        )
-                    else:
-                        matching_cut_item = None
-                        # Do we have a matching Shot in SG ?
-                        matching_shot = sg_shots_dict.get(lower_shot_name)
-                        if matching_shot:
-                            # yes we do
-                            logger.debug("Found matching existing Shot %s" % shot_name)
-                            # Remove this entry from the leftovers
-                            if matching_shot in leftover_shots:
-                                leftover_shots.remove(matching_shot)
-                            old_clip = self.old_clip_for_shot(
-                                clip,
-                                prev_clip_list,
-                                matching_shot,
-                                clip.sg_version,
-                            )
-                        self.add_cut_diff(
-                            shot_name,
-                            sg_shot=matching_shot,
-                            new_clip=clip,
-                            old_clip=old_clip,
-                            cut_item_name=cut_item_name
-                        )
+                        clip.old_clip = old_clip
 #
 #        for clip in new_track.each_clip():
 #            # Ensure unique names
@@ -310,7 +307,7 @@ class SGTrackDiff(object):
                     # on differences between Cut order, tc in and out
                     # give score a bonus as we don't have an explicit mismatch
                     potential_matches.append((
-                        sg_cut_item,
+                        clip,
                         100 + self._get_matching_score(clip, for_clip)
                     ))
                 elif sg_cut_item["version"]:
@@ -318,13 +315,13 @@ class SGTrackDiff(object):
                         # Give a bonus to score as we matched the right
                         # Version
                         potential_matches.append((
-                            sg_cut_item,
+                            clip,
                             1000 + self._get_matching_score(clip, for_clip)
                         ))
                     else:
                         # Version mismatch, don't give any bonus
                         potential_matches.append((
-                            sg_cut_item,
+                            clip,
                             self._get_matching_score(clip, for_clip)
                         ))
                 else:
@@ -333,7 +330,7 @@ class SGTrackDiff(object):
                     # give score a little bonus as we didn't have any explicit
                     # mismatch
                     potential_matches.append((
-                        sg_cut_item,
+                        clip,
                         100 + self._get_matching_score(clip, for_clip)
                     ))
             else:
@@ -341,7 +338,7 @@ class SGTrackDiff(object):
         if potential_matches:
             potential_matches.sort(key=lambda x: x[1], reverse=True)
             for pm in potential_matches:
-                self._logger.debug("Potential matches %s score %s" % (
+                logger.debug("Potential matches %s score %s" % (
                     pm[0], pm[1],
                 ))
             # Return just the CutItem, not including the score

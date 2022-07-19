@@ -125,3 +125,17 @@ class TestCutDiff(SGBaseTest):
             )
             # Read it back from SG.
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
+            sg_track = timeline_from_sg.tracks[0]
+        # Read back the EDL in a fresh timeline
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        edl_track = edl_timeline.tracks[0]
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=edl_track,
+            old_track=sg_track
+        )
+        for shot_name, cut_group in track_diff.items():
+            for clip in cut_group.clips:
+                self.assertIsNotNone(clip.old_clip)
+
