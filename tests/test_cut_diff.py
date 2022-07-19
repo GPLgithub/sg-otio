@@ -36,3 +36,37 @@ class TestCutDiff(SGBaseTest):
             self.mock_project,
             new_track=track,
         )
+        # Three clips
+        self.assertEqual(len(track_diff), 3)
+        # Check Shot names
+        self.assertEqual([x for x in track_diff], ["shot_001", "shot_002"])
+        # No Shot in SG
+        for shot_name, cut_group in track_diff.items():
+            self.assertIsNone(cut_group.sg_shot)
+            for cut_diff in cut_group.clips:
+                self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+
+        sg_shots = [
+            {"type": "Shot", "code": "shot_001", "project": self.mock_project, "id": 1},
+            {"type": "Shot", "code": "shot_002", "project": self.mock_project, "id": 2}
+        ]
+        by_name = {
+            "shot_001": sg_shots[0],
+            "shot_002": sg_shots[1],
+        }
+        self.add_to_sg_mock_db(sg_shots)
+        try:
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+            )
+            for shot_name, cut_group in track_diff.items():
+                self.assertEqual(cut_group.sg_shot["id"], by_name[shot_name]["id"])
+                self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
+                for cut_diff in cut_group.clips:
+                    self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+
+        finally:
+            for sg_shot in sg_shots:
+                self.mock_sg.delete(sg_shot["type"], sg_shot["id"])

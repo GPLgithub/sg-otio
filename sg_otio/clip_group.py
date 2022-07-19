@@ -375,6 +375,14 @@ class ClipGroup(object):
         """
         return self.tail_out - self.head_in
 
+    def __len__(self):
+        """
+        Return the total number of :class:`SGCutDiff` entries in this :class:`ClipGroup`.
+
+        :returns: An integer
+        """
+        return len(self._clips)
+
     @staticmethod
     def groups_from_track(video_track):
         """

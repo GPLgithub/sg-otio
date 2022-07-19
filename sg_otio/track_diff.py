@@ -29,7 +29,7 @@ class SGTrackDiff(object):
         """
         self._sg = sg
         self._sg_project = sg_project
-
+        self._diffs_by_shots = {}
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
             None, None
@@ -58,7 +58,7 @@ class SGTrackDiff(object):
             sg_shots_dict = dict(((x["code"] or str(x["id"])).lower(), x) for x in sg_shots)
 
         # Retrieve additional Shots from the new track if needed
-        new_clips_by_shots = {}
+        self._diffs_by_shots = {}
         more_shot_names = set()
         for i, clip in enumerate(new_track.each_clip()):
             shot_name = compute_clip_shot_name(clip)
@@ -67,9 +67,9 @@ class SGTrackDiff(object):
                 shot_name = shot_name.lower()
                 more_shot_names.add(shot_name)
             # Ensure a ClipGroup and add SGCutDiff to it.
-            if shot_name not in new_clips_by_shots:
-                new_clips_by_shots[shot_name] = ClipGroup(shot_name)
-            new_clips_by_shots[shot_name].add_clip(
+            if shot_name not in self._diffs_by_shots:
+                self._diffs_by_shots[shot_name] = ClipGroup(shot_name)
+            self._diffs_by_shots[shot_name].add_clip(
                 SGCutDiff(clip, index=i + 1, sg_shot=None)
             )
         if more_shot_names:
@@ -83,7 +83,7 @@ class SGTrackDiff(object):
             )
             for sg_shot in sg_more_shots:
                 shot_name = sg_shot["code"].lower()
-                new_clips_by_shots[shot_name].sg_shot = sg_shot
+                self._diffs_by_shots[shot_name].sg_shot = sg_shot
 
 #        # Duplicate the list of shots, allowing us to know easily which ones are
 #        # not part of the new track by removing entries when we use them.
@@ -91,7 +91,7 @@ class SGTrackDiff(object):
 #        leftover_shots = [x for x in sg_shots_dict.values()]
 #        seen_names = []
 #        duplicate_names = {}
-#        for shot_name, clip_group in new_clips_by_shots.items():
+#        for shot_name, clip_group in self._diffs_by_shots.items():
 #            sg_shot = clip_group.sg_shot
 #            for clip in clip_group.clips:
 #                # Ensure unique names
@@ -394,3 +394,43 @@ class SGTrackDiff(object):
 #            score += 1
 #
 #        return score
+
+    def __len__(self):
+        """
+        Return the total number of :class:`SGCutDiff` entries in this SGTrackDiff.
+
+        :returns: An integer
+        """
+        return sum([len(self._diffs_by_shots[k]) for k in self._diffs_by_shots], 0)
+
+    def __iter__(self):
+        """
+        Iterate over Shots for this SGTrackDiff
+
+        :yields: Shot names, as strings
+        """
+        for name in self._diffs_by_shots.keys():
+            yield name
+
+    def __getitem__(self, key):
+        """
+        Return the :class:`ClipGroup` for a given Shot
+
+        :param str key: A Shot name.
+        :returns: A list of :class:`SGCutDiff` instances or ``None``.
+        """
+        return self._diffs_by_shots.get(key.lower())
+
+    def iteritems(self):
+        """
+        Iterate over Shot names for this summary, yielding (name, :class:`ClipGroup`)
+        tuple
+
+        :yields: (name, :class:`ClipGroup`) tuples
+        """
+        for name, item in self._diffs_by_shots.items():
+            yield (name, item)
+
+    # Follow Python3 iterators changes and provide an items method iterating
+    # other the items
+    items = iteritems
