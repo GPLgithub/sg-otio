@@ -14,39 +14,27 @@ except ImportError:
     import mock
 
 from sg_otio.media_uploader import MediaUploader
-from utils import add_to_sg_mock_db
+from .python.sg_test import SGBaseTest
 
 logger = logging.getLogger(__name__)
 
 
-class TestMediaUploader(unittest.TestCase):
+class TestMediaUploader(SGBaseTest):
 
     def setUp(self):
         """
         Setup the tests suite.
         """
-        self.resources_dir = os.path.join(os.path.dirname(__file__), "resources")
-        # Setup mockgun.
-        self.mock_sg = mockgun.Shotgun(
-            "https://mysite.shotgunstudio.com",
-            "foo",
-            "xxxx"
-        )
-        self.mock_sg.upload = mock.MagicMock()
-        project = {"type": "Project", "name": "project", "id": 1}
-        add_to_sg_mock_db(
-            self.mock_sg,
-            project
-        )
+        super(TestMediaUploader, self).setUp()
         self.mock_versions = []
         for i in range(1, 10):
             self.mock_versions.append({
                 "type": "Version",
                 "id": i + 1,
-                "project": project,
+                "project": self.mock_project,
                 "code": "version_%04d_v001" % i,
             })
-        add_to_sg_mock_db(self.mock_sg, self.mock_versions)
+        self.add_to_sg_mock_db(self.mock_versions)
 
 #    def test_media_cutter_errors(self):
 #        """

@@ -68,7 +68,7 @@ class TestClipGroup(unittest.TestCase):
             * COMMENT: shot_002
             003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: shot_001
+            * COMMENT: SHOT_001
         """
         # set multiple head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
@@ -87,6 +87,7 @@ class TestClipGroup(unittest.TestCase):
             shot_groups = ClipGroup.groups_from_track(track)
 
             shot = shot_groups["shot_001"]
+            # Matching Shots is case insensitive
             self.assertEqual(shot.name, "shot_001")
             self.assertEqual(shot.index, 3)  # first clip is the last starting at 01:00:00:00
             self.assertEqual(shot.cut_in.to_frames(), head_in + head_in_duration)

@@ -387,7 +387,10 @@ class ClipGroup(object):
         shots_by_name = {}
         for i, clip in enumerate(video_track.each_clip()):
             shot_name = compute_clip_shot_name(clip)
-            # Store a tuple with the clip index and the clip
+            if shot_name:
+                # Matching Shots must be case insensitive
+                shot_name = shot_name.lower()
+            # Ensure a ClipGroup and add SGCutClip to it.
             if shot_name not in shots_by_name:
                 shots_by_name[shot_name] = ClipGroup(shot_name)
             shots_by_name[shot_name].add_clip(
