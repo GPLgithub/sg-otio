@@ -138,4 +138,3 @@ class TestCutDiff(SGBaseTest):
         for shot_name, cut_group in track_diff.items():
             for clip in cut_group.clips:
                 self.assertIsNotNone(clip.old_clip)
-

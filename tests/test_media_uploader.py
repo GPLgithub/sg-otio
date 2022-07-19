@@ -3,9 +3,7 @@
 
 import logging
 import os
-import unittest
 
-from shotgun_api3.lib import mockgun
 
 try:
     # Python 3.3 forward includes the mock module

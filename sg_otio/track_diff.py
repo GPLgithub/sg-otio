@@ -134,7 +134,7 @@ class SGTrackDiff(object):
                 else:
                     matching_cut_item = None
                     # Do we have a matching Shot in SG ?
-                    matching_shot = sg_shots_dict.get(lower_shot_name)
+                    matching_shot = sg_shots_dict.get(shot_name)
                     if matching_shot:
                         # yes we do
                         logger.debug("Found matching existing Shot %s" % shot_name)
