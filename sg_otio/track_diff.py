@@ -6,25 +6,12 @@ import logging
 from .sg_settings import SGShotFieldsConfig
 from .clip_group import ClipGroup
 from .cut_clip import SGCutClip
+from .cut_diff import SGCutDiff
 from .utils import compute_clip_shot_name
+from .constants import _DIFF_TYPES
 
 logger = logging.getLogger(__name__)
 
-
-class SGCutDiff(SGCutClip):
-    """
-    """
-    def __init__(self, *args, **kwargs):
-        super(SGCutDiff, self).__init__(*args, **kwargs)
-        self._old_clip = None
-
-    @property
-    def old_clip(self):
-        return self._old_clip
-
-    @old_clip.setter
-    def old_clip(self, value):
-        self._old_clip = value
 
 class SGTrackDiff(object):
     """
@@ -49,6 +36,10 @@ class SGTrackDiff(object):
             for i, clip in enumerate(old_track.each_clip()):
                 # Check if we have some SG meta data
                 sg_cut_item = clip.metadata.get("sg")
+                if not sg_cut_item or sg_cut_item.get("type") != "CutItem":
+                    raise ValueError(
+                        "Invalid clip %s not linked to a SG CutItem" % clip
+                    )
                 if sg_cut_item:
                     shot_id = sg_cut_item.get("shot", {}).get("id")
                     if shot_id:
@@ -81,7 +72,7 @@ class SGTrackDiff(object):
             if shot_name not in self._diffs_by_shots:
                 self._diffs_by_shots[shot_name] = ClipGroup(shot_name)
             self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(clip, index=i + 1, sg_shot=None)
+                SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
             )
         if more_shot_names:
             sg_more_shots = self._sg.find(
@@ -148,6 +139,42 @@ class SGTrackDiff(object):
                             clip.sg_version,
                         )
                         clip.old_clip = old_clip
+        # Process clips left over, they are all the clips which were
+        # not matched to a clip from the new track.
+        for clip in prev_clip_list:
+            clip_sg_shot = clip.sg_shot
+            # If no Shot, we don't really care about it
+            if not clip_sg_shot:
+                continue
+            shot_name = "No Link"
+            matching_shot = None
+            for sg_shot in sg_shots_dict.values():
+                if sg_shot["id"] == clip_sg_shot["id"]:
+                    # We found a matching Shot
+                    shot_name = sg_shot["code"]
+                    logger.debug(
+                        "Found matching existing Shot %s" % shot_name
+                    )
+                    matching_shot = sg_shot
+                    # Remove this entry from the list
+                    if sg_shot in leftover_shots:
+                        leftover_shots.remove(sg_shot)
+                    break
+            if shot_name not in self._diffs_by_shots:
+                self._diffs_by_shots[shot_name] = ClipGroup(
+                    shot_name,
+                    sg_shot=matching_shot
+                )
+            self._diffs_by_shots[shot_name].add_clip(
+                SGCutDiff(clip=clip.clip, index=clip.index, as_omitted=True)
+            )
+
+        if leftover_shots:
+            # This shouldn't happen, as our list of Shots comes from edits
+            # and CutItems, and we should have processed all of them. Issue
+            # a warning if it is the case.
+            logger.warning("Found %s left over Shots..." % leftover_shots)
+
 #
 #        for clip in new_track.each_clip():
 #            # Ensure unique names

@@ -48,6 +48,15 @@ class SGCutClip(object):
         self._cut_item_name = self.name
 
     @property
+    def clip(self):
+        """
+        Return the linked Clip.
+
+        :returns: A :class:`otio.schema.Clip` instance.
+        """
+        return self._clip
+
+    @property
     def media_reference(self):
         """
         Return the media reference of the linked Clip.

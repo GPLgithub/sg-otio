@@ -8,6 +8,7 @@ from .python.sg_test import SGBaseTest
 import opentimelineio as otio
 from sg_otio.track_diff import SGTrackDiff
 from sg_otio.utils import get_read_url, get_write_url
+from sg_otio.constants import _DIFF_TYPES
 
 
 try:
@@ -137,4 +138,9 @@ class TestCutDiff(SGBaseTest):
         )
         for shot_name, cut_group in track_diff.items():
             for clip in cut_group.clips:
+                self.assertIsNotNone(clip.current_clip)
                 self.assertIsNotNone(clip.old_clip)
+                self.assertEqual(
+                    clip.current_clip.index, clip.old_clip.index
+                )
+                self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
