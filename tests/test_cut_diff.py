@@ -107,13 +107,13 @@ class TestCutDiff(SGBaseTest):
 
             001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: shot_001
+            * COMMENT: test_same_cut_shot_001
             002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
             * FROM CLIP NAME: shot_002_v001
-            * COMMENT: shot_002
+            * COMMENT: test_same_cut_shot_002
             003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: SHOT_001
+            * COMMENT: test_same_cut_SHOT_001
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         track = timeline.tracks[0]
@@ -127,6 +127,12 @@ class TestCutDiff(SGBaseTest):
             # Read it back from SG.
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             sg_track = timeline_from_sg.tracks[0]
+        # Shots are created by the SG writer, check them
+        sg_shots = self.mock_sg.find("Shot", [], ["code"])
+        self.assertEqual(len(sg_shots), 2)
+        for sg_shot in sg_shots:
+            self.assertIn("test_same_cut_shot", sg_shot["code"])
+
         # Read back the EDL in a fresh timeline
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_track = edl_timeline.tracks[0]
@@ -138,6 +144,7 @@ class TestCutDiff(SGBaseTest):
         )
         for shot_name, cut_group in track_diff.items():
             for clip in cut_group.clips:
+                self.assertIsNotNone(clip.sg_shot)
                 self.assertIsNotNone(clip.current_clip)
                 self.assertIsNotNone(clip.old_clip)
                 self.assertEqual(

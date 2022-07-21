@@ -36,6 +36,8 @@ class SGCutDiff(SGCutClip):
                 "Setting the old clip for an omitted SGCutDiff is not allowed"
             )
         self._old_clip = value
+        self._check_and_set_changes()
+
 
     @property
     def old_cut_in(self):
