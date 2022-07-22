@@ -132,6 +132,8 @@ class SGTrackDiff(object):
                         # Remove this entry from the leftovers
                         if matching_shot in leftover_shots:
                             leftover_shots.remove(matching_shot)
+                        else:
+                            logger.warning("%s is not in existing Shots" % shot_name)
                         old_clip = self.old_clip_for_shot(
                             clip,
                             prev_clip_list,
@@ -158,7 +160,10 @@ class SGTrackDiff(object):
                     matching_shot = sg_shot
                     # Remove this entry from the list
                     if sg_shot in leftover_shots:
+                        logger.debug("Removing %s from leftovers..." % sg_shot)
                         leftover_shots.remove(sg_shot)
+                    else:
+                        logger.warning("%s is not leftovers..." % sg_shot)
                     break
             if shot_name not in self._diffs_by_shots:
                 self._diffs_by_shots[shot_name] = ClipGroup(

@@ -57,6 +57,15 @@ class SGCutClip(object):
         return self._clip
 
     @property
+    def frame_rate(self):
+        """
+        Return the linked Clip frame rate.
+
+        :returns: A float.
+        """
+        return self._frame_rate
+
+    @property
     def media_reference(self):
         """
         Return the media reference of the linked Clip.
@@ -581,6 +590,21 @@ class SGCutClip(object):
             )
             tail_out_field = config.tail_out
             return self.sg_shot.get(tail_out_field)
+        return None
+
+    @property
+    def sg_shot_status(self):
+        """
+        Return the status value from associated SG Shot, or None
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            status_field = config.status
+            return self.sg_shot[status_field]
         return None
 
     def get_head_tail_values(self):

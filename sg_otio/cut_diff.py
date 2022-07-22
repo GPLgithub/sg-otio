@@ -1,8 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+
+from opentimelineio.opentime import RationalTime
+
 from .cut_clip import SGCutClip
 from .constants import _DIFF_TYPES
+from .sg_settings import SGSettings
 
 
 class SGCutDiff(SGCutClip):
@@ -42,9 +46,12 @@ class SGCutDiff(SGCutClip):
     @property
     def old_cut_in(self):
         if self._as_omitted:
-            return self.cut_in
-        if self._old_clip:
-            return self._old_clip.cut_in
+            old_clip = self
+        else:
+            old_clip = self._old_clip
+        if old_clip:
+            sg_cut_item = old_clip.metadata["sg"]
+            return RationalTime(sg_cut_item["cut_item_in"], old_clip.frame_rate)
         return None
 
     @property
@@ -56,6 +63,22 @@ class SGCutDiff(SGCutClip):
         return None
 
     @property
+    def old_index(self):
+        if self._as_omitted:
+            return self.index
+        if self._old_clip:
+            return self._old_clip.index
+        return None
+
+    @property
+    def old_duration(self):
+        if self._as_omitted:
+            return self.duration
+        if self._old_clip:
+            return self._old_clip.duration
+        return None
+
+    @property
     def diff_type(self):
         """
         Return the SGCutDiff type of this cut difference
@@ -63,6 +86,18 @@ class SGCutDiff(SGCutClip):
         :returns: A _DIFF_TYPES
         """
         return self._diff_type
+
+    @property
+    def reasons(self):
+        """
+        Return a list of reasons strings for this Cut difference.
+
+        Return an empty list for any diff type which is not
+        a CUT_CHANGE or a RESCAN.
+
+        :returns: A possibly empty list of strings
+        """
+        return self._cut_changes_reasons
 
     def _check_and_set_changes(self):
         """
@@ -89,7 +124,7 @@ class SGCutDiff(SGCutClip):
             return
 
         # We have both a Shot and a current clip.
-        if self.shot_status in self._omitted_statuses:
+        if self.sg_shot_status in SGSettings().shot_omitted_statuses:
             self._diff_type = _DIFF_TYPES.REINSTATED
             return
 
@@ -102,19 +137,20 @@ class SGCutDiff(SGCutClip):
         # If any of the previous values are not set, then assume they all changed
         # (initial import)
         if (
-            self.cut_order is None
-            or self.cut_in is None
-            or self.cut_out is None
-            or self.duration is None
+            self.old_index is None
+            or self.old_cut_in is None
+            or self.old_cut_out is None
+            or self.old_duration is None
         ):
             self._diff_type = _DIFF_TYPES.CUT_CHANGE
             return
 
-        # note: leaving this in here in case we decide to switch back to the old behavior
-        # if self.new_cut_order != self.cut_order:
+        # Note: leaving this in here in case we decide to switch back to an old
+        # behavior where index changes would be flagged as changes.
+        # if self.index != self.old_index:
         #     self._diff_type = _DIFF_TYPES.CUT_CHANGE
         #     self._cut_changes_reasons.append(
-        #         "Cut order changed from %d to %d" % (self.cut_order, self.new_cut_order))
+        #         "Cut order changed from %d to %d" % (self.old_index, self.index))
 
         self._check_and_set_rescan()
 
@@ -137,15 +173,15 @@ class SGCutDiff(SGCutClip):
         # cut changes.
         if(
             self.sg_shot_head_in is not None  # Report rescan only if value is set on the Shot
-            and self.head_duration is not None
-            and self.head_duration < 0
+            and self.head_in_duration is not None
+            and self.head_in_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.RESCAN
 
         if(
             self.sg_shot_tail_out is not None  # Report rescan only if value is set on the Shot
-            and self.tail_duration is not None
-            and self.tail_duration < 0
+            and self.tail_out_duration is not None
+            and self.tail_out_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.RESCAN
 
@@ -158,7 +194,7 @@ class SGCutDiff(SGCutClip):
         ):
             if self._diff_type != _DIFF_TYPES.RESCAN:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
-            diff = self.cut_in - self.old_cut_in
+            diff = (self.cut_in - self.old_cut_in).to_frames()
             if diff > 0:
                 self._cut_changes_reasons.append("Head extended %d frs" % diff)
             else:
@@ -171,7 +207,7 @@ class SGCutDiff(SGCutClip):
         ):
             if self._diff_type != _DIFF_TYPES.RESCAN:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
-            diff = self.cut_out - self.old_cut_out
+            diff = (self.cut_out - self.old_cut_out).to_frames()
             if diff > 0:
                 self._cut_changes_reasons.append("Tail trimmed %d frs" % diff)
             else:

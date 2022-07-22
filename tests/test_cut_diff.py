@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import logging
 import shotgun_api3
 
 from .python.sg_test import SGBaseTest
@@ -16,6 +17,9 @@ try:
     from unittest import mock
 except ImportError:
     import mock
+
+logger = logging.getLogger(__name__)
+
 
 
 class TestCutDiff(SGBaseTest):
@@ -93,6 +97,9 @@ class TestCutDiff(SGBaseTest):
                 self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
                 for cut_diff in cut_group.clips:
                     self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+                    self.assertIsNone(cut_diff.old_clip)
+                    self.assertIsNone(cut_diff.diff_type, _DIFF_TYPES.NEW)
+
 
         finally:
             for sg_shot in sg_shots:
@@ -143,11 +150,18 @@ class TestCutDiff(SGBaseTest):
             old_track=sg_track
         )
         for shot_name, cut_group in track_diff.items():
-            for clip in cut_group.clips:
-                self.assertIsNotNone(clip.sg_shot)
-                self.assertIsNotNone(clip.current_clip)
-                self.assertIsNotNone(clip.old_clip)
+            for cut_diff in cut_group.clips:
+                self.assertIsNotNone(cut_diff.sg_shot)
+                self.assertIsNotNone(cut_diff.current_clip)
+                self.assertIsNotNone(cut_diff.old_clip)
                 self.assertEqual(
-                    clip.current_clip.index, clip.old_clip.index
+                    cut_diff.current_clip.index, cut_diff.old_clip.index
                 )
-                self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+                self.assertEqual(
+                    cut_diff.cut_in, cut_diff.old_cut_in
+                )
+                self.assertEqual(
+                    cut_diff.cut_out, cut_diff.old_cut_out
+                )
+                logger.info(cut_diff.reasons)
+                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
