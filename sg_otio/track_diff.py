@@ -14,11 +14,21 @@ logger = logging.getLogger(__name__)
 
 class SGTrackDiff(object):
     """
+    A class to compare a track to one read from SG.
     """
     def __init__(self, sg, sg_project, new_track, old_track=None):
         """
+        Instantiate a new SGTrackDiff for the given SG Project.
 
-        :raises ValueError: For invalid tracks.
+        If an old track is provided it must have been read from SG with `sg`
+        metadata populated for each of its Clips.
+
+        :param sg: A connected SG handle.
+        :param sg_project: A SG Project as a dictionary.
+        :param new_track: A :class:`opentimelineio.schema.Track` instance.
+        :param old_track: An optional :class:`opentimelineio.schema.Track` instance
+                          read from SG.
+        :raises ValueError: For invalid old tracks.
         """
         self._sg = sg
         self._sg_project = sg_project
@@ -37,7 +47,7 @@ class SGTrackDiff(object):
                 sg_cut_item = clip.metadata.get("sg")
                 if not sg_cut_item or sg_cut_item.get("type") != "CutItem":
                     raise ValueError(
-                        "Invalid clip %s not linked to a SG CutItem" % clip
+                        "Invalid clip %s not linked to a SG CutItem" % clip.name
                     )
                 if sg_cut_item:
                     shot_id = sg_cut_item.get("shot", {}).get("id")
@@ -307,16 +317,18 @@ class SGTrackDiff(object):
 
     def __getitem__(self, key):
         """
-        Return the :class:`ClipGroup` for a given Shot
+        Return the :class:`ClipGroup` for a given Shot name.
 
-        :param str key: A Shot name.
+        :param str key: A Shot name or ``None``.
         :returns: A list of :class:`SGCutDiff` instances or ``None``.
         """
-        return self._diffs_by_shots.get(key.lower())
+        if key:
+            return self._diffs_by_shots.get(key.lower())
+        return self._diffs_by_shots.get(key)
 
     def iteritems(self):
         """
-        Iterate over Shot names for this summary, yielding (name, :class:`ClipGroup`)
+        Iterate over Shot names for this SGTrackDiff, yielding (name, :class:`ClipGroup`)
         tuple
 
         :yields: (name, :class:`ClipGroup`) tuples

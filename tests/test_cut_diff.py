@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import copy
 import logging
 import shotgun_api3
 
 from .python.sg_test import SGBaseTest
 
 import opentimelineio as otio
+from opentimelineio.opentime import TimeRange, RationalTime
+
 from sg_otio.track_diff import SGTrackDiff
 from sg_otio.utils import get_read_url, get_write_url
 from sg_otio.constants import _DIFF_TYPES
@@ -138,12 +141,6 @@ class TestCutDiff(SGBaseTest):
             # Read it back from SG.
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             sg_track = timeline_from_sg.tracks[0]
-            clip = sg_track[0]
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
-            clip = sg_track[1]
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
-            clip = sg_track[2]
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
         # Shots are created by the SG writer, check them
         sg_shots = self.mock_sg.find("Shot", [], ["code"])
         self.assertEqual(len(sg_shots), 2)
@@ -176,3 +173,104 @@ class TestCutDiff(SGBaseTest):
                 logger.info(cut_diff.reasons)
                 self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
                 self.assertFalse(cut_diff.rescan_needed)
+
+    def test_change_types(self):
+        """
+        Check we're able to detect the right changes.
+        """
+        # Test a tracks without shot names
+        track = otio.schema.Track()
+        for i in range(10):
+            clip = otio.schema.Clip(
+                    name="test_clip_%d" % i,
+                    source_range=TimeRange(
+                        RationalTime(i *10, 24),
+                        RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
+                    ),
+                )
+            track.append(clip)
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=track,
+        )
+        self.assertEqual(list(track_diff), [None])
+        clip_group = track_diff[None]
+        for clip in clip_group.clips:
+            self.assertIsNone(clip.sg_shot)
+            self.assertIsNone(clip.old_clip)
+            self.assertIsNone(clip.old_cut_in)
+            self.assertIsNone(clip.old_cut_out)
+            self.assertIsNone(clip.old_duration)
+            self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_LINK)
+
+        # Add some markers to the Clips to provide Shot names
+        for i, clip in enumerate(track):
+            clip.markers.append(
+                otio.schema.Marker("marker_shot_%03d XXX" % (i % 2))
+            )
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=track,
+        )
+        self.assertEqual(sorted(list(track_diff)), ["marker_shot_000", "marker_shot_001"])
+        for shot_name, clip_group in track_diff.items():
+            for clip in clip_group.clips:
+                self.assertIsNone(clip.sg_shot)
+                self.assertIsNone(clip.old_clip)
+                self.assertIsNone(clip.old_cut_in)
+                self.assertIsNone(clip.old_cut_out)
+                self.assertIsNone(clip.old_duration)
+                self.assertTrue(clip.repeated)
+                # No Shot so all NEW
+                self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
+        old_track = copy.deepcopy(track)
+        # Without sg metada for the old track an error should be raised.
+        with self.assertRaises(ValueError) as cm:
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
+            )
+        # Should have choked on the first clip
+        self.assertEqual(
+            "%s" % cm.exception,
+            "Invalid clip %s not linked to a SG CutItem" % old_track[0].name
+        )
+#        self.assertEqual(sorted(list(track_diff)), ["marker_shot_000", "marker_shot_001"])
+#        for shot_name, clip_group in track_diff.items():
+#            for clip in clip_group.clips:
+#                self.assertIsNone(clip.sg_shot)
+#                self.assertIsNotNone(clip.old_clip)
+#                self.assertEqual(clip.cut_in, clip.old_cut_in)
+#                self.assertEqual(clip.cut_out, clip.old_cut_out)
+#                self.assertIsNone(clip.old_duration)
+#                self.assertEqual(clip.duration, clip.old_duration)
+#                self.assertTrue(clip.repeated)
+#                # No Shot so all NEW
+#                self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
+#
+
+        track = otio.schema.Track()
+        for i in range(10):
+            clip = otio.schema.Clip(
+                    name="test_clip_%d" % i,
+                    source_range=TimeRange(
+                        RationalTime(i *10, 24),
+                        RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
+                    ),
+                )
+            # Shot name
+            clip.markers.append(otio.schema.Marker("marker_shot_%03d XXX" % i))
+            track.append(clip)
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=track,
+        )
+        for shot_name, clip_group in track_diff.items():
+            pass
+        self.assertIn("marker_shot_001", track_diff)
+

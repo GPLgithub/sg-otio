@@ -114,6 +114,7 @@ def compute_clip_shot_name(clip):
     if shot_metadata.get("code"):
         return clip.metadata["sg"]["shot"]["code"]
     if clip.markers:
+        # TODO: we're only considering the first marker? Is that right?
         return clip.markers[0].name.split()[0]
     comment_match = None
     if clip.metadata.get("cmx_3600") and clip.metadata["cmx_3600"].get("comments"):
