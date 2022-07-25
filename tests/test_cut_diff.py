@@ -182,12 +182,12 @@ class TestCutDiff(SGBaseTest):
         track = otio.schema.Track()
         for i in range(10):
             clip = otio.schema.Clip(
-                    name="test_clip_%d" % i,
-                    source_range=TimeRange(
-                        RationalTime(i *10, 24),
-                        RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
-                    ),
-                )
+                name="test_clip_%d" % i,
+                source_range=TimeRange(
+                    RationalTime(i * 10, 24),
+                    RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
+                ),
+            )
             track.append(clip)
         track_diff = SGTrackDiff(
             self.mock_sg,
@@ -256,12 +256,12 @@ class TestCutDiff(SGBaseTest):
         track = otio.schema.Track()
         for i in range(10):
             clip = otio.schema.Clip(
-                    name="test_clip_%d" % i,
-                    source_range=TimeRange(
-                        RationalTime(i *10, 24),
-                        RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
-                    ),
-                )
+                name="test_clip_%d" % i,
+                source_range=TimeRange(
+                    RationalTime(i * 10, 24),
+                    RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
+                ),
+            )
             # Shot name
             clip.markers.append(otio.schema.Marker("marker_shot_%03d XXX" % i))
             track.append(clip)
@@ -273,4 +273,3 @@ class TestCutDiff(SGBaseTest):
         for shot_name, clip_group in track_diff.items():
             pass
         self.assertIn("marker_shot_001", track_diff)
-
