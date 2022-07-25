@@ -21,7 +21,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-
 class TestCutDiff(SGBaseTest):
     """
     Test related to computing differences between two Cuts

@@ -27,7 +27,7 @@ class SGCutDiff(SGCutClip):
         super(SGCutDiff, self).__init__(*args, **kwargs)
         self._old_clip = None
         self._repeated = False
-        self._diff_type =  _DIFF_TYPES.NO_CHANGE
+        self._diff_type = _DIFF_TYPES.NO_CHANGE
         self._as_omitted = as_omitted
         self._cut_changes_reasons = []
         self._check_and_set_changes()
@@ -68,7 +68,6 @@ class SGCutDiff(SGCutClip):
             )
         self._old_clip = value
         self._check_and_set_changes()
-
 
     @property
     def old_cut_in(self):

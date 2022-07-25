@@ -8,7 +8,6 @@ from .clip_group import ClipGroup
 from .cut_clip import SGCutClip
 from .cut_diff import SGCutDiff
 from .utils import compute_clip_shot_name
-from .constants import _DIFF_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +123,6 @@ class SGTrackDiff(object):
                     )
                     clip.old_clip = old_clip
                 else:
-                    matching_cut_item = None
                     # Do we have a matching Shot in SG ?
                     matching_shot = sg_shots_dict.get(shot_name)
                     if matching_shot:
