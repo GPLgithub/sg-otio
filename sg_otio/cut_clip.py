@@ -35,6 +35,7 @@ class SGCutClip(object):
         """
         super(SGCutClip, self).__init__(*args, **kwargs)
         self._clip = clip
+        self._clip_group = None
         self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
@@ -108,6 +109,28 @@ class SGCutClip(object):
         return self._clip.metadata
 
     @property
+    def group(self):
+        """
+        Return the :class:`ClipGroup` this Clip is in, if any.
+
+        :returns: A :class:`ClipGroup` or ``None``.
+        """
+        return self._clip_group
+
+    @group.setter
+    def group(self, value):
+        """
+        Set the :class:`ClipGroup` this Clip is in.
+
+        :param value: :class:`ClipGroup` instance.
+        """
+        self._clip_group = value
+        if not self._clip_group:
+            # Recompute values only if we don't have a clip group.
+            # Otherwise we assume that values are maintained by the group.
+            self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+
+    @property
     def sg_shot(self):
         """
         Return the SG Shot associated with this Clip, if any.
@@ -125,13 +148,32 @@ class SGCutClip(object):
         which depend on the SG Shot.
 
         :param value: A SG Shot dictionary.
+        :raises ValueError: For invalid values.
         """
+        if self._clip_group:
+            if value:
+                if(
+                    not self._clip_group.sg_shot
+                    or self._clip_group.sg_shot["id"] != value["id"]
+                    or self._clip_group.sg_shot["type"] != value["type"]
+                ):
+                    raise ValueError(
+                        "Can't change the SG Shot value controlled by %s" % self._clip_group
+                    )
+            elif self._clip_group.sg_shot:
+                raise ValueError(
+                    "Can't change the SG Shot value controlled by %s" % self._clip_group
+                )
+
         self._sg_shot = value
         if self._sg_shot and self._sg_shot.get("code"):
             self._shot_name = self._sg_shot["code"]
         else:
             self._shot_name = compute_clip_shot_name(self._clip)
-        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+        # If the Clip is part of a group, assume that the values are set by
+        # the group
+        if not self._clip_group:
+            self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
 
     @property
     def cut_item_name(self):

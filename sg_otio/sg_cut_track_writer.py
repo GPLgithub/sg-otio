@@ -281,6 +281,9 @@ class SGCutTrackWriter(object):
         # Loop over all clips
         for shot_name, clip_group in clips_by_shots.items():
             for clip in clip_group.clips:
+                logger.debug("Getting payload for %s %s %s %s %s" % (
+                    clip.name, clip.head_in, clip.cut_in, clip.cut_out, clip.tail_out
+                ))
                 # TODO: check if the medata is updated if we created Versions
                 sg_version = clip.sg_version
                 sg_data = self.get_sg_cut_item_payload(
@@ -739,8 +742,8 @@ class SGCutTrackWriter(object):
             # Update the clips Shots
             for sg_shot in sg_shots:
                 clip_group = clips_by_shots[sg_shot["code"]]
-                for clip in clip_group.clips:
-                    clip.sg_shot = copy.deepcopy(sg_shot)
+                clip_group.sg_shot = sg_shot
+
         return sg_shots
 
     def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):

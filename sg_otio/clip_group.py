@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import logging
+
 from opentimelineio.opentime import RationalTime
 
 from .cut_clip import SGCutClip
 from .utils import compute_clip_shot_name
+
+logger = logging.getLogger(__name__)
 
 
 class ClipGroup(object):
@@ -65,7 +69,7 @@ class ClipGroup(object):
         """
         Returns the clips that are part of the group.
 
-        :returns: A list of :class:`otio.schema.Clip` instances.
+        :yields: :class:`SGCutClip` instances.
         """
         # Don't return the original list, because it might be modified.
         for clip in self._clips:
@@ -78,7 +82,7 @@ class ClipGroup(object):
         Recompute the clip group values, since they might have changed,
         because the group values cover the range of all clips in the group.
 
-        :param clip: A :class:`otio.schema.Clip` instance.
+        :param clip: A :class:`SGCutClip` instance.
         """
         if not self._frame_rate:
             self._frame_rate = clip.duration().rate
@@ -97,8 +101,10 @@ class ClipGroup(object):
             self._has_effects = True
         if not self._has_retime and clip.has_retime:
             self._has_retime = True
+        clip.group = self
         self._clips.append(clip)
-        self._compute_group_values(self._clips)
+        logger.debug("Added clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out))
+        self._compute_group_values()
 
     def add_clips(self, clips):
         """
@@ -107,13 +113,13 @@ class ClipGroup(object):
         Recompute the clip group values, since they might have changed,
         because the group values cover the range of all clips in the group.
 
-        :param clips: A list of :class:`otio.schema.Clip` instances.
+        :param clips: A list of :class:`SGCutClip` instances.
         :raises ValueError: If the clips do not have the same frame rate
         """
         for clip in clips:
             self.add_clip(clip)
 
-    def _compute_group_values(self, clips):
+    def _compute_group_values(self):
         """
         Computes the group values given a list of clips.
 
@@ -125,7 +131,7 @@ class ClipGroup(object):
         must be adjusted to make sure that their values are correct, and reflect
         the whole range of the group.
 
-        :param clips: A list of :class:`otio.schema.Clip` instances.
+        :param clips: A list of :class:`SGCutClip` instances.
         """
         if not self._clips:
             return
@@ -142,6 +148,16 @@ class ClipGroup(object):
             clip.head_in = head_in
             clip.head_in_duration = clip.source_in - self.source_in + head_duration
             clip.tail_out_duration = self.source_out - clip.source_out + tail_duration
+            logger.debug(
+                "%s: Updated %s to %s %s %s %s" % (
+                    self,
+                    clip.name,
+                    clip.head_in,
+                    clip.cut_in,
+                    clip.cut_out,
+                    clip.tail_out
+                )
+            )
 
         # Get other values from first and last clips now that they have been set.
         self._head_in = self._earliest_clip.head_in
@@ -172,7 +188,7 @@ class ClipGroup(object):
         self._sg_shot = value
         for clip in self.clips:
             clip.sg_shot = self._sg_shot
-        self._compute_group_values(self._clips)
+        self._compute_group_values()
 
     @property
     def index(self):
@@ -405,3 +421,11 @@ class ClipGroup(object):
                 SGCutClip(clip, index=i + 1, sg_shot=None)
             )
         return shots_by_name
+
+    def __str__(self):
+        """
+        Return a string representation for this ClipGroup.
+
+        :returns: A string.
+        """
+        return "%s" % self.name

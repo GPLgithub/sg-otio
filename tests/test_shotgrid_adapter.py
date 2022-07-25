@@ -14,7 +14,8 @@ from .python.sg_test import SGBaseTest
 from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import compute_clip_version_name, get_platform_name, get_write_url
+from sg_otio.utils import compute_clip_version_name, get_platform_name
+from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.cut_clip import SGCutClip
 
 
@@ -691,6 +692,52 @@ class ShotgridAdapterTest(SGBaseTest):
                         clip.metadata["sg"]["code"]
                     )
                 )
+
+    def test_write_shot(self):
+        """
+        Test saving a Cut to SG with Shots created from the save.
+        """
+        edl = """
+            TITLE:   CUT_DIFF_TEST
+
+            001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: test_write_shot_shot_001
+            002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
+            * FROM CLIP NAME: shot_002_v001
+            * COMMENT: test_write_shot_shot_002
+            003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: test_write_shot_SHOT_001
+        """
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        track = timeline.tracks[0]
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            clip = track[0]
+            self.assertEqual(clip.metadata["sg"]["cut_order"], 1)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            clip = track[1]
+            self.assertEqual(clip.metadata["sg"]["cut_order"], 2)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            clip = track[2]
+            self.assertEqual(clip.metadata["sg"]["cut_order"], 3)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+
+            mock_cut_url = get_read_url(
+                self.mock_sg.base_url,
+                track.metadata["sg"]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
+            sg_track = timeline_from_sg.tracks[0]
+            clip = sg_track[0]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            clip = sg_track[1]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            clip = sg_track[2]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
 
 
 if __name__ == "__main__":

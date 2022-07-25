@@ -134,6 +134,12 @@ class TestCutDiff(SGBaseTest):
             # Read it back from SG.
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             sg_track = timeline_from_sg.tracks[0]
+            clip = sg_track[0]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            clip = sg_track[1]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            clip = sg_track[2]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
         # Shots are created by the SG writer, check them
         sg_shots = self.mock_sg.find("Shot", [], ["code"])
         self.assertEqual(len(sg_shots), 2)
