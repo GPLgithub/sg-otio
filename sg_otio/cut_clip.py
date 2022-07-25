@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 class SGCutClip(object):
     """
     A Clip in the context of a SG Cut.
+
+    SGCutClips can be grouped together in a :class:`ClipGroup` instance if they
+    represent the same source, typically a Shot. In this case, their Cut values
+    are adjusted to represent parts of the same source.
     """
 
     def __init__(

@@ -101,6 +101,10 @@ class TestCutDiff(SGBaseTest):
                     self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
                     self.assertIsNone(cut_diff.old_clip)
                     self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
+                    if shot_name == "shot_001":
+                        self.assertTrue(cut_diff.repeated)
+                    else:
+                        self.assertFalse(cut_diff.repeated)
 
         finally:
             for sg_shot in sg_shots:
@@ -172,3 +176,4 @@ class TestCutDiff(SGBaseTest):
                 )
                 logger.info(cut_diff.reasons)
                 self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
+                self.assertFalse(cut_diff.rescan_needed)

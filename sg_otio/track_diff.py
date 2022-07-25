@@ -96,6 +96,7 @@ class SGTrackDiff(object):
         logger.debug("Matching clips...")
         for shot_name, clip_group in self._diffs_by_shots.items():
             sg_shot = clip_group.sg_shot
+            repeated = len(clip_group) > 1
             for clip in clip_group.clips:
                 # Ensure unique names
                 if clip.name not in seen_names:
@@ -109,7 +110,7 @@ class SGTrackDiff(object):
                 if not shot_name:
                     logger.debug("No Shot name for %s, not matching..." % clip)
                     continue
-
+                clip.repeated = repeated
                 logger.debug("Matching %s for %s" % (
                     shot_name, clip,
                 ))
@@ -180,125 +181,6 @@ class SGTrackDiff(object):
             # a warning if it is the case.
             logger.warning("Found %s left over Shots..." % leftover_shots)
 
-#
-#        for clip in new_track.each_clip():
-#            # Ensure unique names
-#            cut_item_name = clip.name
-#            if cut_item_name not in seen_names:
-#                seen_names.append(cut_item_name)
-#            else:
-#                if cut_item_name not in duplicate_names:
-#                    duplicate_names[cut_item_name] = 0
-#                duplicate_names[cut_item_name] += 1
-#                cut_item_name = "%s_%03d" % (clip.name, duplicate_names[clip.name])
-#
-#            shot_name = compute_clip_shot_name(clip)
-#            if not shot_name:
-#                # If we don't have a Shot name, we can't match anything
-#                self.add_cut_diff(
-#                    None,
-#                    sg_shot=None,
-#                    new_clip=clip,
-#                    old_clip=None,
-#                    cut_item_name=cut_item_name
-#                )
-#            else:
-#                lower_shot_name = shot_name.lower()
-#                logger.debug("Matching %s for %s" % (
-#                    lower_shot_name, str(edit),
-#                ))
-#                existing = self.diffs_for_shot(shot_name)
-#                # Is it a duplicate ?
-#                if existing:
-#                    logger.debug("Found duplicated Shot, Shot %s (%s)" % (
-#                        shot_name, existing))
-#                    old_clip = self.old_clip_for_shot(
-#                        sg_cut_items,
-#                        existing[0].sg_shot,
-#                        edit.get_sg_version(),
-#                        edit
-#                    )
-#                    self.add_cut_diff(
-#                        shot_name,
-#                        sg_shot=existing[0].sg_shot,
-#                        new_clip=clip,
-#                        old_clip=old_clip,
-#                        cut_item_name=cut_item_name
-#                    )
-#                else:
-#                    matching_cut_item = None
-#                    # Do we have a matching Shot in SG ?
-#                    matching_shot = sg_shots_dict.get(lower_shot_name)
-#                    if matching_shot:
-#                        # yes we do
-#                        logger.debug("Found matching existing Shot %s" % shot_name)
-#                        # Remove this entry from the leftovers
-#                        if matching_shot in leftover_shots:
-#                            leftover_shots.remove(matching_shot)
-#                        old_clip = self.old_clip_for_shot(
-#                            sg_cut_items,
-#                            matching_shot,
-#                            edit.get_sg_version(),
-#                            edit,
-#                        )
-#                    self.add_cut_diff(
-#                        shot_name,
-#                        sg_shot=matching_shot,
-#                        new_clip=clip,
-#                        old_clip=old_clip,
-#                        cut_item_name=cut_item_name
-#                    )
-#
-#        # Process CutItems left over, they are all the CutItems which were
-#        # not matched to an edit event in the loaded EDL.
-#        for sg_cut_item in sg_cut_items:
-#            # If not compliant to what we expect, just ignore it
-#            if (
-#                sg_cut_item["shot"]
-#                and sg_cut_item["shot"]["id"]
-#                and sg_cut_item["shot"]["type"] == "Shot"
-#            ):
-#                shot_name = "No Link"
-#                matching_shot = None
-#                for sg_shot in sg_shots_dict.values():
-#                    if sg_shot["id"] == sg_cut_item["shot"]["id"]:
-#                        # We found a matching Shot
-#                        shot_name = sg_shot["code"]
-#                        self._logger.debug(
-#                            "Found matching existing Shot %s" % shot_name
-#                        )
-#                        matching_shot = sg_shot
-#                        # Remove this entry from the list
-#                        if sg_shot in leftover_shots:
-#                            leftover_shots.remove(sg_shot)
-#                        break
-#                self.add_cut_diff(
-#                    shot_name,
-#                    sg_shot=matching_shot,
-#                    edit=None,
-#                    sg_cut_item=sg_cut_item,
-#                    cut_item_name=sg_cut_item["code"]
-#                )
-#
-#        if leftover_shots:
-#            # This shouldn't happen, as our list of Shots comes from edits
-#            # and CutItems, and we should have processed all of them. Issue
-#            # a warning if it is the case.
-#            logger.warning("Found %s left over Shots..." % leftover_shots)
-#
-#
-#        # Match clips in the new track with:
-#        # - Is it linked to the same Shot?
-#        # - Is it linked to the same Version?
-#        # - Is the Cut order the same?
-#        # - Is the tc in the same?
-#        # - Is the tc out the same?
-#
-#    def add_cut_diff(self, shot_name, sg_shot=None, new_clip=None, old_clip=None, cut_item_name=None):
-#        """
-#        """
-#        pass
-#
     def old_clip_for_shot(self, for_clip, prev_clip_list, sg_shot, sg_version=None):
         """
         Return a Clip for the given Clip and Shot from the given list of Clip list.

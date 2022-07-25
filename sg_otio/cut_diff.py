@@ -12,10 +12,21 @@ from .sg_settings import SGSettings
 class SGCutDiff(SGCutClip):
     """
     A class representing a difference between two Cuts.
+
+    The difference is set with two clips, the current one and the old one.
+    A SGCutDiff always have at least a current clip or an old clip, and can
+    have both if the current clip was matched to an old one.
     """
     def __init__(self, as_omitted=False, *args, **kwargs):
+        """
+        Instantiate a new :class:`SGCutDiff`.
+
+        If `as_omitted` is set to ``True``, this instance represents and old
+        Clip without any counterpart in the new Cut.
+        """
         super(SGCutDiff, self).__init__(*args, **kwargs)
         self._old_clip = None
+        self._repeated = False
         self._diff_type =  _DIFF_TYPES.NO_CHANGE
         self._as_omitted = as_omitted
         self._cut_changes_reasons = []
@@ -23,21 +34,37 @@ class SGCutDiff(SGCutClip):
 
     @property
     def current_clip(self):
+        """
+        Return the current Clip for this SGCutDiff, if any.
+
+        :returns: A :class:`SGCutClip` or ``None``.
+        """
         if self._as_omitted:
             return None
         return self
 
     @property
     def old_clip(self):
+        """
+        Return the old Clip for this SGCutDiff, if any.
+
+        :returns: A :class:`SGCutClip` or ``None``.
+        """
         if self._as_omitted:
             return self  # Note: we could rather return None here.
         return self._old_clip
 
     @old_clip.setter
     def old_clip(self, value):
+        """
+        Set the old Clip for this SGCutDiff.
+
+        :param value: A :class:`SGCutClip`.
+        :raises ValueError: For invalid values.
+        """
         if self._as_omitted:
             raise ValueError(
-                "Setting the old clip for an omitted SGCutDiff is not allowed"
+                "Setting the old clip for an omitted SGCutDiff is not allowed."
             )
         self._old_clip = value
         self._check_and_set_changes()
@@ -45,25 +72,45 @@ class SGCutDiff(SGCutClip):
 
     @property
     def old_cut_in(self):
+        """
+        Return the Cut in value for the old Clip, if any.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
         if self._as_omitted:
             old_clip = self
         else:
             old_clip = self._old_clip
         if old_clip:
-            sg_cut_item = old_clip.metadata["sg"]
-            return RationalTime(sg_cut_item["cut_item_in"], old_clip.frame_rate)
+            value = old_clip.metadata.get("sg", {}).get("cut_item_in")
+            if value is not None:
+                return RationalTime(value, old_clip.frame_rate)
         return None
 
     @property
     def old_cut_out(self):
+        """
+        Return the Cut out value for the old Clip, if any.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
         if self._as_omitted:
-            return self.cut_out
-        if self._old_clip:
-            return self._old_clip.cut_out
+            old_clip = self
+        else:
+            old_clip = self._old_clip
+        if old_clip:
+            value = old_clip.metadata.get("sg", {}).get("cut_item_out")
+            if value is not None:
+                return RationalTime(value, old_clip.frame_rate)
         return None
 
     @property
     def old_index(self):
+        """
+        Return the Cut index value for the old Clip, if any.
+
+        :returns: An integer or ``None``.
+        """
         if self._as_omitted:
             return self.index
         if self._old_clip:
@@ -72,6 +119,11 @@ class SGCutDiff(SGCutClip):
 
     @property
     def old_duration(self):
+        """
+        Return the Cut duration value for the old Clip, if any.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
         if self._as_omitted:
             return self.duration
         if self._old_clip:
@@ -98,6 +150,37 @@ class SGCutDiff(SGCutClip):
         :returns: A possibly empty list of strings
         """
         return self._cut_changes_reasons
+
+    @property
+    def rescan_needed(self):
+        """
+        Return True if this SGCutDiff implies a rescan.
+
+        :returns: ``True`` if a rescan is needed, ``False`` otherwise
+        """
+        return self._diff_type == _DIFF_TYPES.RESCAN
+
+    @property
+    def repeated(self):
+        """
+        Return ``True`` if multiple Clips are associated with the same Shot in
+        the current Cut.
+
+        :returns: A boolean.
+        """
+        return self._repeated
+
+    @repeated.setter
+    def repeated(self, value):
+        """
+        Set this SGCutDiff as repeated.
+
+        :param value: A boolean.
+        """
+        if value != self._repeated:
+            self._repeated = value
+            # Cut in/out values are affected by repeated changes
+            self._check_and_set_changes()
 
     def _check_and_set_changes(self):
         """
