@@ -76,6 +76,8 @@ class TestCutDiff(SGBaseTest):
             self.assertIsNone(cut_group.sg_shot)
             for cut_diff in cut_group.clips:
                 self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+                self.assertIsNone(cut_diff.old_clip)
+                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW)
 
         sg_shots = [
             {"type": "Shot", "code": "shot_001", "project": self.mock_project, "id": 1},
@@ -98,8 +100,7 @@ class TestCutDiff(SGBaseTest):
                 for cut_diff in cut_group.clips:
                     self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
                     self.assertIsNone(cut_diff.old_clip)
-                    self.assertIsNone(cut_diff.diff_type, _DIFF_TYPES.NEW)
-
+                    self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
 
         finally:
             for sg_shot in sg_shots:
@@ -135,11 +136,11 @@ class TestCutDiff(SGBaseTest):
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             sg_track = timeline_from_sg.tracks[0]
             clip = sg_track[0]
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
             clip = sg_track[1]
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
             clip = sg_track[2]
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
         # Shots are created by the SG writer, check them
         sg_shots = self.mock_sg.find("Shot", [], ["code"])
         self.assertEqual(len(sg_shots), 2)
