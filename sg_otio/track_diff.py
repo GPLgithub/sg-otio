@@ -49,13 +49,19 @@ class SGTrackDiff(object):
                     raise ValueError(
                         "Invalid clip %s not linked to a SG CutItem" % clip.name
                     )
-                if sg_cut_item:
-                    shot_id = sg_cut_item.get("shot", {}).get("id")
+                sg_shot = sg_cut_item.get("shot")
+                if sg_shot:
+                    shot_id = sg_shot.get("id")
                     if shot_id:
                         sg_shot_ids.append(shot_id)
-                    prev_clip_list.append(
-                        SGCutClip(clip, index=i + 1, sg_shot=sg_cut_item["shot"])
-                    )
+                prev_clip_list.append(
+                    SGCutClip(clip, index=i + 1, sg_shot=sg_shot)
+                )
+            logger.debug(
+                "Previous Cut list is %s" % ",".join(
+                    ["%s (%s)" % (x.name, x.sg_shot) for x in prev_clip_list]
+                )
+            )
         sg_shots_dict = {}
         # Retrieve details for Shots linked to the Clips
         if sg_shot_ids:
@@ -117,11 +123,11 @@ class SGTrackDiff(object):
                     clip.cut_item_name = "%s_%03d" % (clip.name, duplicate_names[clip.name])
                 # If we don't have a Shot name we can't match anything
                 if not shot_name:
-                    logger.debug("No Shot name for %s, not matching..." % clip)
+                    logger.debug("No Shot name for %s, not matching..." % clip.cut_item_name)
                     continue
                 clip.repeated = repeated
                 logger.debug("Matching %s for %s" % (
-                    shot_name, clip,
+                    shot_name, clip.cut_item_name,
                 ))
                 # If we found a SG Shot, we can match with its id.
                 if sg_shot:
@@ -153,9 +159,11 @@ class SGTrackDiff(object):
         # Process clips left over, they are all the clips which were
         # not matched to a clip from the new track.
         for clip in prev_clip_list:
+            logger.info("Processing un-matched old clip %s" % clip.cut_item_name)
             clip_sg_shot = clip.sg_shot
             # If no Shot, we don't really care about it
             if not clip_sg_shot:
+                logger.debug("Ignoring old clip %s with no SG Shot" % (clip.cut_item_name))
                 continue
             shot_name = "No Link"
             matching_shot = None
@@ -172,7 +180,7 @@ class SGTrackDiff(object):
                         logger.debug("Removing %s from leftovers..." % sg_shot)
                         leftover_shots.remove(sg_shot)
                     else:
-                        logger.warning("%s is not leftovers..." % sg_shot)
+                        logger.warning("Shot %s is not in leftovers..." % sg_shot)
                     break
             if shot_name not in self._diffs_by_shots:
                 self._diffs_by_shots[shot_name] = ClipGroup(
@@ -182,7 +190,12 @@ class SGTrackDiff(object):
             self._diffs_by_shots[shot_name].add_clip(
                 SGCutDiff(clip=clip.clip, index=clip.index, as_omitted=True)
             )
-
+            self.logger.info(
+                "Added %s as ommitted entry for %s" % (
+                    self._diffs_by_shots[shot_name][-1],
+                    shot_name,
+                )
+            )
         if leftover_shots:
             # This shouldn't happen, as our list of Shots comes from edits
             # and CutItems, and we should have processed all of them. Issue
