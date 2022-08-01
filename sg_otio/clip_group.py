@@ -391,14 +391,6 @@ class ClipGroup(object):
         """
         return self.tail_out - self.head_in
 
-    def __len__(self):
-        """
-        Return the total number of :class:`SGCutDiff` entries in this :class:`ClipGroup`.
-
-        :returns: An integer
-        """
-        return len(self._clips)
-
     @staticmethod
     def groups_from_track(video_track):
         """
@@ -430,10 +422,19 @@ class ClipGroup(object):
         """
         return "%s" % self.name
 
+    def __len__(self):
+        """
+        Return the total number of :class:`SGCutDiff` entries in this :class:`ClipGroup`.
+
+        :returns: An integer
+        """
+        return len(self._clips)
+
     def __getitem__(self, key):
         """
         Return the clip at the given index, if any.
 
         :param int key: A list index.
+        :returns: A :class:`SGCutClip` instance.
         """
         return self._clips[key]
