@@ -189,7 +189,7 @@ class TestCutDiff(SGBaseTest):
                 name="test_clip_%d" % i,
                 source_range=TimeRange(
                     RationalTime(i * 10, 24),
-                    RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
+                    RationalTime(10, 24),  # exclusive, 10 frames.
                 ),
             )
             track.append(clip)
@@ -205,7 +205,7 @@ class TestCutDiff(SGBaseTest):
             self.assertIsNone(clip.old_clip)
             self.assertIsNone(clip.old_cut_in)
             self.assertIsNone(clip.old_cut_out)
-            self.assertIsNone(clip.old_duration)
+            self.assertIsNone(clip.old_visible_duration)
             self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_LINK)
 
         # Add some markers to the Clips to provide Shot names
@@ -225,7 +225,7 @@ class TestCutDiff(SGBaseTest):
                 self.assertIsNone(clip.old_clip)
                 self.assertIsNone(clip.old_cut_in)
                 self.assertIsNone(clip.old_cut_out)
-                self.assertIsNone(clip.old_duration)
+                self.assertIsNone(clip.old_visible_duration)
                 self.assertTrue(clip.repeated)
                 # No Shot so all NEW
                 self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
@@ -267,7 +267,38 @@ class TestCutDiff(SGBaseTest):
                     new_track=track,
                     old_track=old_track,
                 )
-            self.assertEqual(sorted(list(track_diff)), ["marker_shot_000", "marker_shot_001"])
+            self.assertEqual(
+                sorted(list(track_diff)),
+                ["marker_shot_000", "marker_shot_001", "old_shot_001", "old_shot_002"]
+            )
+            for shot_name, clip_group in track_diff.items():
+                if shot_name.startswith("old"):
+                    # Omitted Shot
+                    for clip in clip_group.clips:
+                        self.assertIsNotNone(clip.sg_shot)
+                        self.assertIsNone(clip.current_clip)
+                        self.assertIsNotNone(clip.old_clip)
+                        self.assertEqual(clip.cut_in, clip.old_cut_in)
+                        self.assertFalse(clip.effect)
+                        self.assertEqual(clip.visible_duration.to_frames(), 10)
+                        self.assertEqual(clip.visible_duration, clip.old_visible_duration)
+                        self.assertEqual(clip.cut_out, clip.old_cut_out)
+                        self.assertTrue(clip.repeated)
+                        self.assertFalse(clip.rescan_needed)
+                        # No Shot so all ommitted
+                        self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
+                else:
+                    # new Shot
+                    for clip in clip_group.clips:
+                        self.assertIsNone(clip.sg_shot)
+                        self.assertIsNone(clip.old_clip)
+                        self.assertIsNone(clip.old_cut_in)
+                        self.assertIsNone(clip.old_cut_out)
+                        self.assertIsNone(clip.old_visible_duration)
+                        self.assertTrue(clip.repeated)
+                        # No Shot so all NEW
+                        self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
+
         finally:
             for sg_shot in sg_shots:
                 self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
@@ -278,8 +309,8 @@ class TestCutDiff(SGBaseTest):
 #                self.assertIsNotNone(clip.old_clip)
 #                self.assertEqual(clip.cut_in, clip.old_cut_in)
 #                self.assertEqual(clip.cut_out, clip.old_cut_out)
-#                self.assertIsNone(clip.old_duration)
-#                self.assertEqual(clip.duration, clip.old_duration)
+#                self.assertIsNone(clip.old_visible_duration)
+#                self.assertEqual(clip.visbile_duration, clip.old_visible_duration)
 #                self.assertTrue(clip.repeated)
 #                # No Shot so all NEW
 #                self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)

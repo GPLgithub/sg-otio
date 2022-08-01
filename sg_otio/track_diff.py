@@ -111,6 +111,8 @@ class SGTrackDiff(object):
         logger.debug("Matching clips...")
         for shot_name, clip_group in self._diffs_by_shots.items():
             sg_shot = clip_group.sg_shot
+            # Since we loop over all clips, take the opportunity to set their
+            # repeated flag
             repeated = len(clip_group) > 1
             for clip in clip_group.clips:
                 # Ensure unique names
@@ -182,15 +184,26 @@ class SGTrackDiff(object):
                     else:
                         logger.warning("Shot %s is not in leftovers..." % sg_shot)
                     break
+            repeated = False
             if shot_name not in self._diffs_by_shots:
                 self._diffs_by_shots[shot_name] = ClipGroup(
                     shot_name,
                     sg_shot=matching_shot
                 )
+            else:
+                repeated = True
+                for clip in self._diffs_by_shots[shot_name].clips:
+                    clip.repeated = True
             self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(clip=clip.clip, index=clip.index, as_omitted=True)
+                SGCutDiff(
+                    clip=clip.clip,
+                    index=clip.index,
+                    sg_shot=clip.sg_shot,
+                    as_omitted=True,
+                    repeated=repeated,
+                )
             )
-            self.logger.info(
+            logger.info(
                 "Added %s as ommitted entry for %s" % (
                     self._diffs_by_shots[shot_name][-1],
                     shot_name,

@@ -429,3 +429,11 @@ class ClipGroup(object):
         :returns: A string.
         """
         return "%s" % self.name
+
+    def __getitem__(self, key):
+        """
+        Return the clip at the given index, if any.
+
+        :param int key: A list index.
+        """
+        return self._clips[key]

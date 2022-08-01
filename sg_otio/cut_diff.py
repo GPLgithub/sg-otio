@@ -17,7 +17,7 @@ class SGCutDiff(SGCutClip):
     A SGCutDiff always have at least a current clip or an old clip, and can
     have both if the current clip was matched to an old one.
     """
-    def __init__(self, as_omitted=False, *args, **kwargs):
+    def __init__(self, as_omitted=False, repeated=False, *args, **kwargs):
         """
         Instantiate a new :class:`SGCutDiff`.
 
@@ -26,7 +26,7 @@ class SGCutDiff(SGCutClip):
         """
         super(SGCutDiff, self).__init__(*args, **kwargs)
         self._old_clip = None
-        self._repeated = False
+        self._repeated = repeated
         self._diff_type = _DIFF_TYPES.NO_CHANGE
         self._as_omitted = as_omitted
         self._cut_changes_reasons = []
@@ -117,16 +117,16 @@ class SGCutDiff(SGCutClip):
         return None
 
     @property
-    def old_duration(self):
+    def old_visible_duration(self):
         """
         Return the Cut duration value for the old Clip, if any.
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
         if self._as_omitted:
-            return self.duration
+            return self.visible_duration
         if self._old_clip:
-            return self._old_clip.duration
+            return self._old_clip.visible_duration
         return None
 
     @property
