@@ -12,6 +12,30 @@ from .utils import compute_clip_shot_name
 logger = logging.getLogger(__name__)
 
 
+class SGCutDiffGroup(ClipGroup):
+    """
+    A class representing groups of Cut differences.
+    """
+
+    def add_clip(self, clip):
+        """
+        Adds a Cut difference to the group.
+
+        Override base implementation to deal with ommitted entries.
+
+        :param clip: A :class:`SGCutDiff` instance.
+        """
+        if not clip.current_clip:
+            # Just append the clip without affecting the group values or checking
+            # the frame rate.
+            self._append_clip(clip)
+            logger.debug("Added omitted clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out))
+            return
+
+        # Just call the base implementation
+        super(SGCutDiffGroup, self).add_clip(clip)
+
+
 class SGTrackDiff(object):
     """
     A class to compare a track to one read from SG.
@@ -83,9 +107,9 @@ class SGTrackDiff(object):
                 # Matching Shots must be case insensitive
                 shot_name = shot_name.lower()
                 more_shot_names.add(shot_name)
-            # Ensure a ClipGroup and add SGCutDiff to it.
+            # Ensure a SGCutDiffGroup and add SGCutDiff to it.
             if shot_name not in self._diffs_by_shots:
-                self._diffs_by_shots[shot_name] = ClipGroup(shot_name)
+                self._diffs_by_shots[shot_name] = SGCutDiffGroup(shot_name)
             self._diffs_by_shots[shot_name].add_clip(
                 SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
             )
@@ -189,7 +213,7 @@ class SGTrackDiff(object):
 
             repeated = False
             if shot_name not in self._diffs_by_shots:
-                self._diffs_by_shots[shot_name] = ClipGroup(
+                self._diffs_by_shots[shot_name] = SGCutDiffGroup(
                     shot_name,
                     sg_shot=matching_shot
                 )
@@ -347,7 +371,7 @@ class SGTrackDiff(object):
 
     def __getitem__(self, key):
         """
-        Return the :class:`ClipGroup` for a given Shot name.
+        Return the :class:`SGCutDiffGroup` for a given Shot name.
 
         :param str key: A Shot name or ``None``.
         :returns: A list of :class:`SGCutDiff` instances or ``None``.
@@ -358,10 +382,10 @@ class SGTrackDiff(object):
 
     def iteritems(self):
         """
-        Iterate over Shot names for this SGTrackDiff, yielding (name, :class:`ClipGroup`)
+        Iterate over Shot names for this SGTrackDiff, yielding (name, :class:`SGCutDiffGroup`)
         tuple
 
-        :yields: (name, :class:`ClipGroup`) tuples
+        :yields: (name, :class:`SGCutDiffGroup`) tuples
         """
         for name, item in self._diffs_by_shots.items():
             yield (name, item)

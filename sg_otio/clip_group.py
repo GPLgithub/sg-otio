@@ -75,6 +75,16 @@ class ClipGroup(object):
         for clip in self._clips:
             yield(clip)
 
+    def _append_clip(self, clip):
+        """
+        Add the clip to this group.
+
+        :param clip: A :class:`SGCutClip` instance.
+        """
+        clip.sg_shot = self.sg_shot
+        clip.group = self
+        self._clips.append(clip)
+
     def add_clip(self, clip):
         """
         Adds a clip to the group.
@@ -92,7 +102,7 @@ class ClipGroup(object):
                     clip.name, clip.duration().rate, self._frame_rate
                 )
             )
-        clip.sg_shot = self.sg_shot
+        self._append_clip(clip)
         if self._earliest_clip is None or clip.source_in < self._earliest_clip.source_in:
             self._earliest_clip = clip
         if self._last_clip is None or clip.source_out > self._last_clip.source_out:
@@ -101,8 +111,6 @@ class ClipGroup(object):
             self._has_effects = True
         if not self._has_retime and clip.has_retime:
             self._has_retime = True
-        clip.group = self
-        self._clips.append(clip)
         logger.debug("Added clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out))
         self._compute_group_values()
 

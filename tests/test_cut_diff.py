@@ -275,7 +275,7 @@ class TestCutDiff(SGBaseTest):
                     "id": -1,
                     "cut_item_in": 1009,
                     "cut_item_out": 1018,  # inclusive, ten frames
-                    "cut_order": i+1,
+                    "cut_order": i + 1,
                     "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
                     "shot": sg_shots[i % 2]
                 }
@@ -354,8 +354,8 @@ class TestCutDiff(SGBaseTest):
                     "type": "CutItem",
                     "id": -1,
                     "cut_item_in": 1009 + (i // 2) * 10,
-                    "cut_item_out": 1009 + (i // 2) * 10 + 10 -1,
-                    "cut_order": i+1,
+                    "cut_item_out": 1009 + (i // 2) * 10 + 10 - 1,
+                    "cut_order": i + 1,
                     "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
                     "shot": sg_shots[i % 2],
                     "code": "test_clip_%d" % i,
@@ -400,6 +400,7 @@ class TestCutDiff(SGBaseTest):
                     new_track=track,
                     old_track=old_track,
                 )
+            # TODO: check group values
             for shot_name, clip_group in track_diff.items():
                 self.assertIsNotNone(clip_group.sg_shot)
                 for clip in clip_group.clips:

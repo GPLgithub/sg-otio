@@ -747,9 +747,9 @@ class SGCutTrackWriter(object):
 
     def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):
         """
-        Get a SG Shot payload for a given :class:`sg_otio.Shot` instance.
+        Get a SG Shot payload for a given :class:`sg_otio.ClipGroup` instance.
 
-        :param shot: A :class:`sg_otio.Shot` instance.
+        :param shot: A :class:`sg_otio.ClipGroup` instance.
         :param sg_project: The SG Project to write the Shot to.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
         :param sg_user: An optional user to provide when creating/updating Shots in SG.
