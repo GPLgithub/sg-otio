@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import logging
 
 from opentimelineio.opentime import RationalTime
 
 from .cut_clip import SGCutClip
 from .constants import _DIFF_TYPES
 from .sg_settings import SGSettings
+
+logger = logging.getLogger(__name__)
 
 
 class SGCutDiff(SGCutClip):
@@ -130,6 +133,24 @@ class SGCutDiff(SGCutClip):
         return None
 
     @property
+    def cut_in(self):
+        """
+        Override base implementation to take into account the previous Cut
+        entry, if any.
+
+        :returns: A :class:`RationalTime` instance.
+        """
+        if self.old_clip:
+            cut_in = self.old_cut_in
+            source_in = self.old_clip.source_in
+            if cut_in is not None and source_in is not None:
+                # Calculate the cut offset
+                offset = self.source_in - source_in
+                # Just apply the offset to the old cut in
+                return cut_in + offset
+        return super(SGCutDiff, self).cut_in
+
+    @property
     def diff_type(self):
         """
         Return the SGCutDiff type of this cut difference
@@ -206,9 +227,11 @@ class SGCutDiff(SGCutClip):
             return
 
         # We have both a Shot and a current clip.
-        if self.sg_shot_status in SGSettings().shot_omitted_statuses:
-            self._diff_type = _DIFF_TYPES.REINSTATED
-            return
+        if self.sg_shot_status and self.sg_shot_status.get("code"):
+            # TODO: check if matching by short code is right? #9320
+            if self.sg_shot_status["code"] in SGSettings().shot_omitted_statuses:
+                self._diff_type = _DIFF_TYPES.REINSTATED
+                return
 
         # This clip hasn't appeared in previous Cuts.
         if not self._old_clip:

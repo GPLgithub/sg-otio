@@ -550,7 +550,7 @@ class SGShotFieldsConfig(object):
         """
         if not self._use_smart_fields and self._shot_cut_fields_prefix:
             return _ALT_SHOT_STATUS_FIELD_TEMPLATE % self._shot_cut_fields_prefix
-        return "sg_status"
+        return "sg_status_list"
 
     @property
     def head_out(self):

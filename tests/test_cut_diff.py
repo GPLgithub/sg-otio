@@ -11,6 +11,7 @@ import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
 
 from sg_otio.track_diff import SGTrackDiff
+from sg_otio.cut_diff import SGCutDiff
 from sg_otio.utils import get_read_url, get_write_url
 from sg_otio.constants import _DIFF_TYPES
 from sg_otio.sg_settings import SGSettings
@@ -363,7 +364,7 @@ class TestCutDiff(SGBaseTest):
                 "cut_item_in": 1009 + (i // 2) * 10,
                 "cut_item_out": 1009 + (i // 2) * 10 + 10 - 1,
                 "cut_order": i + 1,
-                "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
+                "timecode_cut_item_in_text": "%s" % RationalTime((i // 2) * 10, 24).to_timecode(),
                 "shot": sg_shots[i % 2],
                 "code": "test_clip_%d" % i,
             }
@@ -465,11 +466,54 @@ class TestCutDiff(SGBaseTest):
                     self.assertIsNone(clip.current_clip)
                     self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
                 else:
-                    self.assertIsNotNone(clip.old_clip)
-                    self.assertIsNotNone(clip.old_index)
-                    self.assertIsNotNone(clip.old_cut_in)
-                    self.assertIsNotNone(clip.old_cut_out)
-                    self.assertIsNotNone(clip.old_visible_duration)
                     self.assertEqual(clip.cut_in, clip.old_cut_in)
                     self.assertEqual(clip.cut_out, clip.old_cut_out)
                     self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+
+    def test_cut_differences(self):
+        """
+        Check we're able to detect the right changes.
+        """
+        clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        clip.markers.append(
+            otio.schema.Marker("marker_shot")
+        )
+        sg_shot = {
+            "type": "Shot",
+            "code": "marker_shot",
+            "sg_status_list": None,
+            "project": self.mock_project,
+            "id": 1
+        }
+        self.add_to_sg_mock_db(sg_shot)
+        self._sg_entities_to_delete = [sg_shot]
+        cut_diff = SGCutDiff(
+            clip=clip, index=1, sg_shot=sg_shot,
+        )
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
+        sg_settings = SGSettings()
+        # It's just the short code in settings? #9320
+        sg_shot["sg_status_list"] = {
+            "code": sg_settings.shot_omitted_statuses[0],
+            "id": -1,
+        }
+        self.assertIsNotNone(cut_diff.sg_shot_status)
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.REINSTATED)
+        # TODO: check all the different change types
+#        clip.metadata["sg"] = {
+#            "type": "CutItem",
+#            "id": -1,
+#            "cut_item_in": 1009 + (i // 2) * 10,
+#            "cut_item_out": 1009 + (i // 2) * 10 + 10 - 1,
+#            "cut_order": i + 1,
+#            "timecode_cut_item_in_text": "%s" % RationalTime((i // 2) * 10, 24).to_timecode(),
+#            "shot": sg_shots[i % 2],
+#            "code": "test_clip_%d" % i,
+#        }
