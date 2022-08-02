@@ -185,9 +185,8 @@ class SGTrackDiff(object):
                     if sg_shot in leftover_shots:
                         logger.debug("Removing %s from leftovers..." % sg_shot)
                         leftover_shots.remove(sg_shot)
-                    else:
-                        logger.warning("Shot %s is not in leftovers..." % sg_shot)
                     break
+
             repeated = False
             if shot_name not in self._diffs_by_shots:
                 self._diffs_by_shots[shot_name] = ClipGroup(
@@ -196,8 +195,9 @@ class SGTrackDiff(object):
                 )
             else:
                 repeated = True
-                for clip in self._diffs_by_shots[shot_name].clips:
-                    clip.repeated = True
+                for clip2 in self._diffs_by_shots[shot_name].clips:
+                    clip2.repeated = True
+
             self._diffs_by_shots[shot_name].add_clip(
                 SGCutDiff(
                     clip=clip.clip,
@@ -209,7 +209,7 @@ class SGTrackDiff(object):
             )
             logger.info(
                 "Added %s as ommitted entry for %s" % (
-                    self._diffs_by_shots[shot_name][-1],
+                    self._diffs_by_shots[shot_name][-1].cut_item_name,
                     shot_name,
                 )
             )
@@ -286,18 +286,18 @@ class SGTrackDiff(object):
                         100 + self._get_matching_score(clip, for_clip)
                     ))
             else:
-                logger.debug("Rejecting %s for %s" % (clip, for_clip))
+                logger.debug("Rejecting %s for %s" % (clip.cut_item_name, for_clip.cut_item_name))
         if potential_matches:
             potential_matches.sort(key=lambda x: x[1], reverse=True)
             for pm in potential_matches:
                 logger.debug("Potential matches %s score %s" % (
-                    pm[0], pm[1],
+                    pm[0].cut_item_name, pm[1],
                 ))
             # Return just the CutItem, not including the score
             best = potential_matches[0][0]
             # Prevent this one to be matched multiple times
             prev_clip_list.remove(best)
-            logger.debug("Best is %s for %s" % (best, for_clip))
+            logger.debug("Best is %s for %s" % (best.cut_item_name, for_clip.cut_item_name))
             return best
         return None
 

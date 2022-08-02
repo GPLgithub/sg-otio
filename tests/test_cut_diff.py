@@ -388,8 +388,38 @@ class TestCutDiff(SGBaseTest):
                     self.assertEqual(clip.cut_out, clip.old_cut_out)
                     self.assertTrue(clip.repeated)
                     self.assertFalse(clip.rescan_needed)
-                    # No Shot so all ommitted
+                    # No changes
                     self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+            # Remove the second entries for the two Shots in the new Cut
+            del track[3]
+            del track[3]
+            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+                track_diff = SGTrackDiff(
+                    self.mock_sg,
+                    self.mock_project,
+                    new_track=track,
+                    old_track=old_track,
+                )
+            for shot_name, clip_group in track_diff.items():
+                self.assertIsNotNone(clip_group.sg_shot)
+                for clip in clip_group.clips:
+                    logger.info("Checking %s" % clip.name)
+                    if clip.name in ["test_clip_3", "test_clip_4"]:
+                        self.assertIsNone(clip.current_clip)
+                        self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
+                    else:
+                        self.assertIsNotNone(clip.current_clip)
+                        self.assertIsNotNone(clip.old_clip)
+                        self.assertEqual(clip.cut_in, clip.old_cut_in)
+                        self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+                        self.assertEqual(clip.current_clip.name, clip.old_clip.name)
+                        self.assertEqual(clip.cut_in, clip.old_cut_in)
+                        self.assertFalse(clip.effect)
+                        self.assertEqual(clip.visible_duration.to_frames(), 10)
+                        self.assertEqual(clip.visible_duration, clip.old_visible_duration)
+                        self.assertEqual(clip.cut_out, clip.old_cut_out)
+                        self.assertTrue(clip.repeated)
+                        self.assertFalse(clip.rescan_needed)
         finally:
             for sg_shot in sg_shots:
                 self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
