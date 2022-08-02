@@ -222,7 +222,7 @@ class SGCutDiff(SGCutClip):
             self.old_index is None
             or self.old_cut_in is None
             or self.old_cut_out is None
-            or self.old_duration is None
+            or self.old_visible_duration is None
         ):
             self._diff_type = _DIFF_TYPES.CUT_CHANGE
             return

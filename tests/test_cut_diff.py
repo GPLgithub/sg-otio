@@ -178,7 +178,7 @@ class TestCutDiff(SGBaseTest):
                 self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
                 self.assertFalse(cut_diff.rescan_needed)
 
-    def test_change_types(self):
+    def test_all_new(self):
         """
         Check we're able to detect the right changes.
         """
@@ -189,7 +189,7 @@ class TestCutDiff(SGBaseTest):
                 name="test_clip_%d" % i,
                 source_range=TimeRange(
                     RationalTime(i * 10, 24),
-                    RationalTime(10, 24),  # exclusive, 10 frames.
+                    RationalTime(10, 24),  # duration, 10 frames.
                 ),
             )
             track.append(clip)
@@ -229,6 +229,26 @@ class TestCutDiff(SGBaseTest):
                 self.assertTrue(clip.repeated)
                 # No Shot so all NEW
                 self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
+
+    def test_shot_mismatches(self):
+        """
+        Check we're able to detect the right changes.
+        """
+        # Test a tracks without shot names
+        track = otio.schema.Track()
+        for i in range(10):
+            clip = otio.schema.Clip(
+                name="test_clip_%d" % i,
+                source_range=TimeRange(
+                    RationalTime(i * 10, 24),
+                    RationalTime(10, 24),  # duration, 10 frames.
+                ),
+            )
+            clip.markers.append(
+                otio.schema.Marker("marker_shot_%03d XXX" % (i % 2))
+            )
+            track.append(clip)
+
         old_track = copy.deepcopy(track)
         # Without sg metada for the old track an error should be raised.
         with self.assertRaises(ValueError) as cm:
@@ -249,7 +269,6 @@ class TestCutDiff(SGBaseTest):
         ]
         self.add_to_sg_mock_db(sg_shots)
         try:
-
             for i, clip in enumerate(old_track.each_clip()):
                 clip.metadata["sg"] = {
                     "type": "CutItem",
@@ -303,36 +322,74 @@ class TestCutDiff(SGBaseTest):
             for sg_shot in sg_shots:
                 self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
 
-#        for shot_name, clip_group in track_diff.items():
-#            for clip in clip_group.clips:
-#                self.assertIsNone(clip.sg_shot)
-#                self.assertIsNotNone(clip.old_clip)
-#                self.assertEqual(clip.cut_in, clip.old_cut_in)
-#                self.assertEqual(clip.cut_out, clip.old_cut_out)
-#                self.assertIsNone(clip.old_visible_duration)
-#                self.assertEqual(clip.visbile_duration, clip.old_visible_duration)
-#                self.assertTrue(clip.repeated)
-#                # No Shot so all NEW
-#                self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
-#
+    def test_shot_matches(self):
+        """
+        Check we're able to detect the right changes.
+        """
+        # Test a tracks without shot names
+        track = otio.schema.Track()
+        for i in range(10):
+            # Make the clips contiguous for two Shots
+            clip = otio.schema.Clip(
+                name="test_clip_%d" % i,
+                source_range=TimeRange(
+                    RationalTime((i // 2) * 10, 24),
+                    RationalTime(10, 24),  # duration, 10 frames.
+                ),
+            )
+            clip.markers.append(
+                otio.schema.Marker("marker_shot_%03d XXX" % (i % 2))
+            )
+            track.append(clip)
 
-#        track = otio.schema.Track()
-#        for i in range(10):
-#            clip = otio.schema.Clip(
-#                name="test_clip_%d" % i,
-#                source_range=TimeRange(
-#                    RationalTime(i * 10, 24),
-#                    RationalTime((i + 1) * 10, 24),  # exclusive, 10 frames.
-#                ),
-#            )
-#            # Shot name
-#            clip.markers.append(otio.schema.Marker("marker_shot_%03d XXX" % i))
-#            track.append(clip)
-#        track_diff = SGTrackDiff(
-#            self.mock_sg,
-#            self.mock_project,
-#            new_track=track,
-#        )
-#        for shot_name, clip_group in track_diff.items():
-#            pass
-#        self.assertIn("marker_shot_001", track_diff)
+        old_track = copy.deepcopy(track)
+        sg_shots = [
+            {"type": "Shot", "code": "marker_shot_000", "project": self.mock_project, "id": 1},
+            {"type": "Shot", "code": "marker_shot_001", "project": self.mock_project, "id": 2}
+        ]
+        self.add_to_sg_mock_db(sg_shots)
+        try:
+            for i, clip in enumerate(old_track.each_clip()):
+                clip.metadata["sg"] = {
+                    "type": "CutItem",
+                    "id": -1,
+                    "cut_item_in": 1009 + (i // 2) * 10,
+                    "cut_item_out": 1009 + (i // 2) * 10 + 10 -1,
+                    "cut_order": i+1,
+                    "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
+                    "shot": sg_shots[i % 2],
+                    "code": "test_clip_%d" % i,
+                }
+            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+                track_diff = SGTrackDiff(
+                    self.mock_sg,
+                    self.mock_project,
+                    new_track=track,
+                    old_track=old_track,
+                )
+            self.assertEqual(
+                sorted(list(track_diff)),
+                ["marker_shot_000", "marker_shot_001"]
+            )
+            for shot_name, clip_group in track_diff.items():
+                self.assertIsNotNone(clip_group.sg_shot)
+                for clip in clip_group.clips:
+                    logger.info("Checking %s" % clip.name)
+                    self.assertIsNotNone(clip.sg_shot)
+                    self.assertIsNotNone(clip.current_clip)
+                    self.assertIsNotNone(clip.old_clip)
+                    # Two different clips
+                    self.assertNotEqual(clip.current_clip, clip.old_clip)
+                    self.assertEqual(clip.current_clip.name, clip.old_clip.name)
+                    self.assertEqual(clip.cut_in, clip.old_cut_in)
+                    self.assertFalse(clip.effect)
+                    self.assertEqual(clip.visible_duration.to_frames(), 10)
+                    self.assertEqual(clip.visible_duration, clip.old_visible_duration)
+                    self.assertEqual(clip.cut_out, clip.old_cut_out)
+                    self.assertTrue(clip.repeated)
+                    self.assertFalse(clip.rescan_needed)
+                    # No Shot so all ommitted
+                    self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+        finally:
+            for sg_shot in sg_shots:
+                self.mock_sg.delete(sg_shot["type"], sg_shot["id"])

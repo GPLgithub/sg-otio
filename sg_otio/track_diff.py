@@ -140,6 +140,10 @@ class SGTrackDiff(object):
                         clip.sg_version,
                     )
                     clip.old_clip = old_clip
+                    # We still need to remove the Shot from leftovers
+                    # Remove this entry from the leftovers
+                    if sg_shot in leftover_shots:
+                        leftover_shots.remove(sg_shot)
                 else:
                     # Do we have a matching Shot in SG ?
                     matching_shot = sg_shots_dict.get(shot_name)
