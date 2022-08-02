@@ -30,7 +30,11 @@ class TestCutDiff(SGBaseTest):
     Test related to computing differences between two Cuts
     """
     def setUp(self):
+        """
+        Called before each test.
+        """
         super(TestCutDiff, self).setUp()
+        self._sg_entities_to_delete = []
         sg_settings = SGSettings()
         sg_settings.reset_to_defaults()
 
@@ -48,6 +52,16 @@ class TestCutDiff(SGBaseTest):
             self.mock_sequence["id"],
             self._SESSION_TOKEN
         )
+
+    def tearDown(self):
+        """
+        Called inconditionally after each test.
+        """
+        super(TestCutDiff, self).tearDown()
+        for sg_entity in self._sg_entities_to_delete:
+            logger.debug("Deleting %s %s" % (sg_entity["type"], sg_entity["id"]))
+            self.mock_sg.delete(sg_entity["type"], sg_entity["id"])
+        self._sg_entities_to_delete = []
 
     def test_loading_edl(self):
         """
@@ -94,27 +108,23 @@ class TestCutDiff(SGBaseTest):
             "shot_002": sg_shots[1],
         }
         self.add_to_sg_mock_db(sg_shots)
-        try:
-            track_diff = SGTrackDiff(
-                self.mock_sg,
-                self.mock_project,
-                new_track=track,
-            )
-            for shot_name, cut_group in track_diff.items():
-                self.assertEqual(cut_group.sg_shot["id"], by_name[shot_name]["id"])
-                self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
-                for cut_diff in cut_group.clips:
-                    self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
-                    self.assertIsNone(cut_diff.old_clip)
-                    self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
-                    if shot_name == "shot_001":
-                        self.assertTrue(cut_diff.repeated)
-                    else:
-                        self.assertFalse(cut_diff.repeated)
-
-        finally:
-            for sg_shot in sg_shots:
-                self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
+        self._sg_entities_to_delete = sg_shots
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=track,
+        )
+        for shot_name, cut_group in track_diff.items():
+            self.assertEqual(cut_group.sg_shot["id"], by_name[shot_name]["id"])
+            self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
+            for cut_diff in cut_group.clips:
+                self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+                self.assertIsNone(cut_diff.old_clip)
+                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
+                if shot_name == "shot_001":
+                    self.assertTrue(cut_diff.repeated)
+                else:
+                    self.assertFalse(cut_diff.repeated)
 
     def test_same_cut(self):
         """
@@ -148,6 +158,7 @@ class TestCutDiff(SGBaseTest):
         # Shots are created by the SG writer, check them
         sg_shots = self.mock_sg.find("Shot", [], ["code"])
         self.assertEqual(len(sg_shots), 2)
+        self._sg_entities_to_delete = sg_shots
         for sg_shot in sg_shots:
             self.assertIn("test_same_cut_shot", sg_shot["code"])
 
@@ -268,59 +279,55 @@ class TestCutDiff(SGBaseTest):
             {"type": "Shot", "code": "old_shot_002", "project": self.mock_project, "id": 2}
         ]
         self.add_to_sg_mock_db(sg_shots)
-        try:
-            for i, clip in enumerate(old_track.each_clip()):
-                clip.metadata["sg"] = {
-                    "type": "CutItem",
-                    "id": -1,
-                    "cut_item_in": 1009,
-                    "cut_item_out": 1018,  # inclusive, ten frames
-                    "cut_order": i + 1,
-                    "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
-                    "shot": sg_shots[i % 2]
-                }
-            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-                track_diff = SGTrackDiff(
-                    self.mock_sg,
-                    self.mock_project,
-                    new_track=track,
-                    old_track=old_track,
-                )
-            self.assertEqual(
-                sorted(list(track_diff)),
-                ["marker_shot_000", "marker_shot_001", "old_shot_001", "old_shot_002"]
+        self._sg_entities_to_delete = sg_shots
+        for i, clip in enumerate(old_track.each_clip()):
+            clip.metadata["sg"] = {
+                "type": "CutItem",
+                "id": -1,
+                "cut_item_in": 1009,
+                "cut_item_out": 1018,  # inclusive, ten frames
+                "cut_order": i + 1,
+                "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
+                "shot": sg_shots[i % 2]
+            }
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
             )
-            for shot_name, clip_group in track_diff.items():
-                if shot_name.startswith("old"):
-                    # Omitted Shot
-                    for clip in clip_group.clips:
-                        self.assertIsNotNone(clip.sg_shot)
-                        self.assertIsNone(clip.current_clip)
-                        self.assertIsNotNone(clip.old_clip)
-                        self.assertEqual(clip.cut_in, clip.old_cut_in)
-                        self.assertFalse(clip.effect)
-                        self.assertEqual(clip.visible_duration.to_frames(), 10)
-                        self.assertEqual(clip.visible_duration, clip.old_visible_duration)
-                        self.assertEqual(clip.cut_out, clip.old_cut_out)
-                        self.assertTrue(clip.repeated)
-                        self.assertFalse(clip.rescan_needed)
-                        # No Shot so all ommitted
-                        self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
-                else:
-                    # new Shot
-                    for clip in clip_group.clips:
-                        self.assertIsNone(clip.sg_shot)
-                        self.assertIsNone(clip.old_clip)
-                        self.assertIsNone(clip.old_cut_in)
-                        self.assertIsNone(clip.old_cut_out)
-                        self.assertIsNone(clip.old_visible_duration)
-                        self.assertTrue(clip.repeated)
-                        # No Shot so all NEW
-                        self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
-
-        finally:
-            for sg_shot in sg_shots:
-                self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
+        self.assertEqual(
+            sorted(list(track_diff)),
+            ["marker_shot_000", "marker_shot_001", "old_shot_001", "old_shot_002"]
+        )
+        for shot_name, clip_group in track_diff.items():
+            if shot_name.startswith("old"):
+                # Omitted Shot
+                for clip in clip_group.clips:
+                    self.assertIsNotNone(clip.sg_shot)
+                    self.assertIsNone(clip.current_clip)
+                    self.assertIsNotNone(clip.old_clip)
+                    self.assertEqual(clip.cut_in, clip.old_cut_in)
+                    self.assertFalse(clip.effect)
+                    self.assertEqual(clip.visible_duration.to_frames(), 10)
+                    self.assertEqual(clip.visible_duration, clip.old_visible_duration)
+                    self.assertEqual(clip.cut_out, clip.old_cut_out)
+                    self.assertTrue(clip.repeated)
+                    self.assertFalse(clip.rescan_needed)
+                    # No Shot so all ommitted
+                    self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
+            else:
+                # new Shot
+                for clip in clip_group.clips:
+                    self.assertIsNone(clip.sg_shot)
+                    self.assertIsNone(clip.old_clip)
+                    self.assertIsNone(clip.old_cut_in)
+                    self.assertIsNone(clip.old_cut_out)
+                    self.assertIsNone(clip.old_visible_duration)
+                    self.assertTrue(clip.repeated)
+                    # No Shot so all NEW
+                    self.assertEqual(clip.diff_type, _DIFF_TYPES.NEW)
 
     def test_shot_matches(self):
         """
@@ -348,38 +355,72 @@ class TestCutDiff(SGBaseTest):
             {"type": "Shot", "code": "marker_shot_001", "project": self.mock_project, "id": 2}
         ]
         self.add_to_sg_mock_db(sg_shots)
-        try:
-            for i, clip in enumerate(old_track.each_clip()):
-                clip.metadata["sg"] = {
-                    "type": "CutItem",
-                    "id": -1,
-                    "cut_item_in": 1009 + (i // 2) * 10,
-                    "cut_item_out": 1009 + (i // 2) * 10 + 10 - 1,
-                    "cut_order": i + 1,
-                    "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
-                    "shot": sg_shots[i % 2],
-                    "code": "test_clip_%d" % i,
-                }
-            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-                track_diff = SGTrackDiff(
-                    self.mock_sg,
-                    self.mock_project,
-                    new_track=track,
-                    old_track=old_track,
-                )
-            self.assertEqual(
-                sorted(list(track_diff)),
-                ["marker_shot_000", "marker_shot_001"]
+        self._sg_entities_to_delete = sg_shots
+        for i, clip in enumerate(old_track.each_clip()):
+            clip.metadata["sg"] = {
+                "type": "CutItem",
+                "id": -1,
+                "cut_item_in": 1009 + (i // 2) * 10,
+                "cut_item_out": 1009 + (i // 2) * 10 + 10 - 1,
+                "cut_order": i + 1,
+                "timecode_cut_item_in_text": "%s" % RationalTime(i * 10, 24).to_timecode(),
+                "shot": sg_shots[i % 2],
+                "code": "test_clip_%d" % i,
+            }
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
             )
-            for shot_name, clip_group in track_diff.items():
-                self.assertIsNotNone(clip_group.sg_shot)
-                for clip in clip_group.clips:
-                    logger.info("Checking %s" % clip.name)
-                    self.assertIsNotNone(clip.sg_shot)
+        self.assertEqual(
+            sorted(list(track_diff)),
+            ["marker_shot_000", "marker_shot_001"]
+        )
+        for shot_name, clip_group in track_diff.items():
+            self.assertIsNotNone(clip_group.sg_shot)
+            for clip in clip_group.clips:
+                logger.info("Checking %s" % clip.name)
+                self.assertIsNotNone(clip.sg_shot)
+                self.assertIsNotNone(clip.current_clip)
+                self.assertIsNotNone(clip.old_clip)
+                # Two different clips
+                self.assertNotEqual(clip.current_clip, clip.old_clip)
+                self.assertEqual(clip.current_clip.name, clip.old_clip.name)
+                self.assertEqual(clip.cut_in, clip.old_cut_in)
+                self.assertFalse(clip.effect)
+                self.assertEqual(clip.visible_duration.to_frames(), 10)
+                self.assertEqual(clip.visible_duration, clip.old_visible_duration)
+                self.assertEqual(clip.cut_out, clip.old_cut_out)
+                self.assertTrue(clip.repeated)
+                self.assertFalse(clip.rescan_needed)
+                # No changes
+                self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+        # Remove the second entries for the two Shots in the new Cut
+        logger.info("Deleting %s" % track[3].name)
+        del track[2]
+        logger.info("Deleting %s" % track[3].name)
+        del track[2]
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
+            )
+        for shot_name, clip_group in track_diff.items():
+            self.assertIsNotNone(clip_group.sg_shot)
+            for clip in clip_group.clips:
+                logger.info("Checking %s" % clip.name)
+                if clip.name in ["test_clip_2", "test_clip_3"]:
+                    self.assertIsNone(clip.current_clip)
+                    self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
+                else:
                     self.assertIsNotNone(clip.current_clip)
                     self.assertIsNotNone(clip.old_clip)
-                    # Two different clips
-                    self.assertNotEqual(clip.current_clip, clip.old_clip)
+                    self.assertEqual(clip.cut_in, clip.old_cut_in)
+                    self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
                     self.assertEqual(clip.current_clip.name, clip.old_clip.name)
                     self.assertEqual(clip.cut_in, clip.old_cut_in)
                     self.assertFalse(clip.effect)
@@ -388,39 +429,47 @@ class TestCutDiff(SGBaseTest):
                     self.assertEqual(clip.cut_out, clip.old_cut_out)
                     self.assertTrue(clip.repeated)
                     self.assertFalse(clip.rescan_needed)
-                    # No changes
+        # Remove first and last entries in the new track and check how this
+        # affects groups values
+        logger.info("Deleting %s" % track[0].name)
+        del track[0]
+        logger.info("Deleting %s" % track[0].name)
+        del track[0]
+        logger.info("Deleting %s" % track[-1].name)
+        del track[-1]
+        logger.info("Deleting %s" % track[-1].name)
+        del track[-1]
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
+            )
+        for shot_name, clip_group in track_diff.items():
+            self.assertIsNotNone(clip_group.sg_shot)
+            # We removed the two first entries for each group
+            self.assertEqual(clip_group.source_in.to_frames(), 20)
+            # We only have left two 10 frames clips for each Shot.
+            # The source out is an exclusive value
+            self.assertEqual(clip_group.source_out.to_frames(), 40)
+            self.assertEqual(clip_group.cut_in.to_frames(), 1009)
+            self.assertEqual(clip_group.cut_out.to_frames(), 1028)
+            for clip in clip_group.clips:
+                logger.info("Checking %s" % clip.name)
+                if clip.name in [
+                    "test_clip_0", "test_clip_1",
+                    "test_clip_2", "test_clip_3",
+                    "test_clip_8", "test_clip_9",
+                ]:
+                    self.assertIsNone(clip.current_clip)
+                    self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
+                else:
+                    self.assertIsNotNone(clip.old_clip)
+                    self.assertIsNotNone(clip.old_index)
+                    self.assertIsNotNone(clip.old_cut_in)
+                    self.assertIsNotNone(clip.old_cut_out)
+                    self.assertIsNotNone(clip.old_visible_duration)
+                    self.assertEqual(clip.cut_in, clip.old_cut_in)
+                    self.assertEqual(clip.cut_out, clip.old_cut_out)
                     self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
-            # Remove the second entries for the two Shots in the new Cut
-            del track[3]
-            del track[3]
-            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-                track_diff = SGTrackDiff(
-                    self.mock_sg,
-                    self.mock_project,
-                    new_track=track,
-                    old_track=old_track,
-                )
-            # TODO: check group values
-            for shot_name, clip_group in track_diff.items():
-                self.assertIsNotNone(clip_group.sg_shot)
-                for clip in clip_group.clips:
-                    logger.info("Checking %s" % clip.name)
-                    if clip.name in ["test_clip_3", "test_clip_4"]:
-                        self.assertIsNone(clip.current_clip)
-                        self.assertEqual(clip.diff_type, _DIFF_TYPES.OMITTED_IN_CUT)
-                    else:
-                        self.assertIsNotNone(clip.current_clip)
-                        self.assertIsNotNone(clip.old_clip)
-                        self.assertEqual(clip.cut_in, clip.old_cut_in)
-                        self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
-                        self.assertEqual(clip.current_clip.name, clip.old_clip.name)
-                        self.assertEqual(clip.cut_in, clip.old_cut_in)
-                        self.assertFalse(clip.effect)
-                        self.assertEqual(clip.visible_duration.to_frames(), 10)
-                        self.assertEqual(clip.visible_duration, clip.old_visible_duration)
-                        self.assertEqual(clip.cut_out, clip.old_cut_out)
-                        self.assertTrue(clip.repeated)
-                        self.assertFalse(clip.rescan_needed)
-        finally:
-            for sg_shot in sg_shots:
-                self.mock_sg.delete(sg_shot["type"], sg_shot["id"])
