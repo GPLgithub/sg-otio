@@ -169,11 +169,55 @@ class SGCutDiff(SGCutClip):
         """
         Sets the head handle duration.
 
-        Needed because we override the property.
+        Needed because we override the corresponding property.
 
         :param value: A :class:`RationalTime` instance.
         """
         self._head_in_duration = value
+
+    @property
+    def tail_out(self):
+        """
+        Return tail out value.
+
+        This is the very last frame number for this clip, including handles.
+
+        Override base implementation to take into account the previous value
+        set on the Shot, if any.
+
+        :returns: A :class:`RationalTime` instance.
+        """
+        if self.sg_shot_tail_out is not None:
+            return RationalTime(self.sg_shot_tail_out, self._frame_rate)
+        return super(SGCutDiff, self).tail_out
+
+    @property
+    def tail_out_duration(self):
+        """
+        Return the tail handle duration.
+
+        Override base implementation to take into account the previous value
+        set on the Shot, if any.
+
+        :returns: A :class:`RationalTime` instance.
+        """
+        if self.current_clip:
+            cut_out = self.cut_out
+            tail_out = self.sg_shot_tail_out
+            if tail_out is not None:
+                return RationalTime(tail_out, self._frame_rate) - cut_out
+        return super(SGCutDiff, self).tail_out_duration
+
+    @tail_out_duration.setter
+    def tail_out_duration(self, value):
+        """
+        Sets the tail handle duration.
+
+        Needed because we override the corresponding property.
+
+        :param value: A :class:`RationalTime` instance.
+        """
+        self._tail_out_duration = value
 
     @property
     def diff_type(self):

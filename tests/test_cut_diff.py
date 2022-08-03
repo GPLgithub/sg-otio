@@ -564,6 +564,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
         self.assertEqual(cut_diff.reasons, ["Head extended 1 frs", "Tail extended 1 frs"])
 
+        # Check rescan are correctly detected.
         self.assertIsNone(cut_diff.sg_shot_head_in)
         sg_shot["sg_head_in"] = 1001
         sg_shot["sg_tail_out"] = 1026
@@ -575,6 +576,8 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.head_in_duration.to_frames(), 9)
         # Within handles
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+
+        # Cut in one frame before registered head in.
         clip.source_range = TimeRange(
             RationalTime(101, 24),  # one frame before head in
             RationalTime(10, 24),  # duration, 10 frames.
@@ -586,6 +589,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.head_in_duration.to_frames(), -1)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
+        # Same cut in, cut out after registered handles.
         clip.source_range = TimeRange(
             RationalTime(110, 24),
             RationalTime(19, 24),  # duration, 19 frames, one frame after tail out.
@@ -595,6 +599,23 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
         self.assertEqual(cut_diff.tail_out.to_frames(), 1026)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1009)
-        self.assertEqual(cut_diff.cut_out.to_frames(), 1009 + 19 -1)
-        self.assertEqual(cut_diff.tail_out_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.cut_out.to_frames(), 1009 + 19 - 1)
+        self.assertEqual(cut_diff.tail_out_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
+
+        # Both cut in and cut out out of handle margins.
+        clip.source_range = TimeRange(
+            RationalTime(101, 24),  # one frame before head in
+            RationalTime(28, 24),  # duration, 28 frames, one frame after tail out.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_head_in, 1001)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.head_in_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
+        self.assertEqual(cut_diff.tail_out.to_frames(), 1026)  # Retrieved from the Shot
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.cut_out.to_frames(), 1000 + 28 - 1)
+        self.assertEqual(cut_diff.tail_out_duration.to_frames(), - 1)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)

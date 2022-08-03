@@ -508,6 +508,8 @@ class SGCutClip(object):
     def tail_out_duration(self):
         """
         Return the tail handle duration.
+
+        :returns: A :class:`RationalTime` instance.
         """
         return self._tail_out_duration
 
