@@ -1,5 +1,15 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
-python  `dirname $0`/sg-otio.py $*
+import os
+import sys
+import subprocess
+
+dirname = os.path.dirname(os.path.realpath(sys.argv[0]))
+args = [
+    sys.executable,
+    os.path.join(dirname, "sg-otio.py"),
+]
+args.extend(sys.argv[1:])
+subprocess.call(args)

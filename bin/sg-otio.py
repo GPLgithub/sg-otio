@@ -28,7 +28,10 @@ def run():
     """
     Parse command line arguments and read Cuts from SG to a file, or write files to SG as Cuts.
     """
-    parser = argparse.ArgumentParser(description="Read Cuts from SG to a file, or write files to SG as Cuts.")
+    parser = argparse.ArgumentParser(
+        prog="sg-otio",
+        description="Read Cuts from SG to a file, write files to SG as Cuts, compare files to SG Cuts."
+    )
     subparser = parser.add_subparsers(dest="command")
     # Read sub parser
     read_parser = subparser.add_parser(
@@ -39,6 +42,11 @@ def run():
     write_parser = subparser.add_parser(
         "write",
         help="Write a Timeline or a video track to SG as a Cut."
+    )
+    # Write sub parser
+    compare_parser = subparser.add_parser(
+        "compare",
+        help="Compare a Timeline or a video track to a SG Cut."
     )
     # Common arguments for read and write.
     # We need to add them to the subparsers and not the main parser so that
@@ -79,8 +87,20 @@ def run():
     write_parser.add_argument(
         "--movie", "-m",
         required=False,
-        help="An optional movie of the timeline so that it can be published as a Version and used to create Versions" \
+        help="An optional movie of the timeline so that it can be published as a Version and used to create Versions"
              "for each clip"
+    )
+
+    # Compare parameters
+    compare_parser.add_argument(
+        "--file", "-f",
+        required=True,
+        help="The file to read the Timeline from (can be OTIO, EDL, etc)."
+    )
+    compare_parser.add_argument(
+        "--cut-id", "-i",
+        required=True,
+        help="The ID of the SG Cut to read."
     )
 
     args = parser.parse_args()
@@ -200,7 +220,7 @@ def add_common_args(parser):
     parser.add_argument(
         "--login", "-l",
         required=False,
-        help="The SG login to use to login."
+        help="The SG login to use to login.",
     )
     parser.add_argument(
         "--password", "-p",
