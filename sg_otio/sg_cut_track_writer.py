@@ -745,11 +745,11 @@ class SGCutTrackWriter(object):
 
         return sg_shots
 
-    def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):
+    def _get_shot_payload(self, clip_group, sg_project, sg_linked_entity, sg_user=None):
         """
         Get a SG Shot payload for a given :class:`sg_otio.ClipGroup` instance.
 
-        :param shot: A :class:`sg_otio.ClipGroup` instance.
+        :param clip_group: A :class:`sg_otio.ClipGroup` instance.
         :param sg_project: The SG Project to write the Shot to.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
         :param sg_user: An optional user to provide when creating/updating Shots in SG.
@@ -759,29 +759,29 @@ class SGCutTrackWriter(object):
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
         shot_payload = {
             "project": sg_project,
-            "code": shot.name,
-            sfg.head_in: shot.head_in.to_frames(),
-            sfg.cut_in: shot.cut_in.to_frames(),
-            sfg.cut_out: shot.cut_out.to_frames(),
-            sfg.tail_out: shot.tail_out.to_frames(),
-            sfg.cut_duration: shot.duration.to_frames(),
-            sfg.cut_order: shot.index
+            "code": clip_group.name,
+            sfg.head_in: clip_group.head_in.to_frames(),
+            sfg.cut_in: clip_group.cut_in.to_frames(),
+            sfg.cut_out: clip_group.cut_out.to_frames(),
+            sfg.tail_out: clip_group.tail_out.to_frames(),
+            sfg.cut_duration: clip_group.duration.to_frames(),
+            sfg.cut_order: clip_group.index
         }
         if sg_user:
             shot_payload["created_by"] = sg_user
             shot_payload["updated_by"] = sg_user
         if sfg.working_duration:
-            shot_payload[sfg.working_duration] = shot.working_duration.to_frames()
+            shot_payload[sfg.working_duration] = clip_group.working_duration.to_frames()
         if sfg.head_out:
-            shot_payload[sfg.head_out] = shot.head_out.to_frames()
+            shot_payload[sfg.head_out] = clip_group.head_out.to_frames()
         if sfg.tail_in:
-            shot_payload[sfg.tail_in] = shot.tail_in.to_frames()
+            shot_payload[sfg.tail_in] = clip_group.tail_in.to_frames()
         if sfg.tail_duration:
-            shot_payload[sfg.tail_duration] = shot.tail_duration.to_frames()
+            shot_payload[sfg.tail_duration] = clip_group.tail_duration.to_frames()
         # TODO: Add setting for flagging retimes and effects?
         if True:
-            shot_payload[sfg.has_effects] = shot.has_effects
-            shot_payload[sfg.has_retime] = shot.has_retime
+            shot_payload[sfg.has_effects] = clip_group.has_effects
+            shot_payload[sfg.has_retime] = clip_group.has_retime
         if sfg.absolute_cut_order:
             # TODO: maybe create Shot fields config before so that
             #       we can get the field without an extra query?
@@ -792,7 +792,7 @@ class SGCutTrackWriter(object):
             )
             entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
             if entity_cut_order:
-                absolute_cut_order = 1000 * entity_cut_order + shot.index
+                absolute_cut_order = 1000 * entity_cut_order + clip_group.index
                 shot_payload[sfg.absolute_cut_order] = absolute_cut_order
         if sfg.shot_link_field and sg_linked_entity:
             shot_payload[sfg.shot_link_field] = sg_linked_entity

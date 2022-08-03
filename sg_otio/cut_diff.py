@@ -79,10 +79,7 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        if self._as_omitted:
-            old_clip = self
-        else:
-            old_clip = self._old_clip
+        old_clip = self.old_clip
         if old_clip:
             value = old_clip.metadata.get("sg", {}).get("cut_item_in")
             if value is not None:
@@ -96,10 +93,7 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        if self._as_omitted:
-            old_clip = self
-        else:
-            old_clip = self._old_clip
+        old_clip = self.old_clip
         if old_clip:
             value = old_clip.metadata.get("sg", {}).get("cut_item_out")
             if value is not None:
