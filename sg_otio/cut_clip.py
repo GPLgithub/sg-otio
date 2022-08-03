@@ -156,7 +156,7 @@ class SGCutClip(object):
         """
         if self._clip_group:
             if value:
-                if(
+                if (
                     not self._clip_group.sg_shot
                     or self._clip_group.sg_shot["id"] != value["id"]
                     or self._clip_group.sg_shot["type"] != value["type"]
@@ -682,7 +682,7 @@ class SGCutClip(object):
             # tail_out - (cut_out + 1) -1, we use a simplified formula below
             tail_duration = tail_out - cut_out
 
-        return(
+        return (
             head_in,
             head_duration,
             tail_duration,

@@ -667,7 +667,7 @@ class SGShotFieldsConfig(object):
         entity_type_name = schema_entity_type["name"]["value"]
         field_name = "sg_%s" % entity_type_name.lower()
         field = self.shot_schema.get(field_name)
-        if(
+        if (
             field
             and field["data_type"]["value"] == "entity"
             and self._linked_entity_type in field["properties"]["valid_types"]["value"]
@@ -678,7 +678,7 @@ class SGShotFieldsConfig(object):
             # General lookup
             for field_name, field in self.shot_schema.items():
                 # the field has to accept entities and be editable.
-                if(
+                if (
                     field["data_type"]["value"] == "entity"
                     and field["editable"]["value"]
                     and self._linked_entity_type in field["properties"]["valid_types"]["value"]

@@ -7,13 +7,13 @@ import unittest
 from functools import partial
 
 import opentimelineio as otio
-from shotgun_api3.lib import mockgun
 
 from sg_otio.constants import _DEFAULT_HEAD_IN
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import add_media_references_from_sg, get_platform_name
 from sg_otio.utils import compute_clip_version_name
-from utils import add_to_sg_mock_db
+
+from .python.sg_test import SGBaseTest
 
 try:
     # Python 3.3 forward includes the mock module
@@ -22,40 +22,30 @@ except ImportError:
     import mock
 
 
-class TestUtils(unittest.TestCase):
+class TestUtils(SGBaseTest):
     """
     Test various utilities provided by the package
     """
 
     def setUp(self):
+        super(TestUtils, self).setUp()
         sg_settings = SGSettings()
         sg_settings.reset_to_defaults()
 
-        # Setup mockgun.
-        self.mock_sg = mockgun.Shotgun(
-            "https://mysite.shotgunstudio.com",
-            "foo",
-            "xxxx"
-        )
         self.mock_sg.find = mock.Mock(side_effect=partial(self.mock_find, self.mock_sg.find))
-        self.mock_project = {"type": "Project", "name": "project", "id": 1}
-        add_to_sg_mock_db(
-            self.mock_sg,
-            self.mock_project
-        )
         self.path_field = "%s_path" % get_platform_name()
         self.mock_local_storage = {
             "type": "LocalStorage",
             "code": "primary",
             "id": 1,
             self.path_field: tempfile.mkdtemp()}
-        add_to_sg_mock_db(self.mock_sg, self.mock_local_storage)
+        self.add_to_sg_mock_db(self.mock_local_storage)
         self.published_file_type = {
             "type": "PublishedFileType",
             "code": "mov",
             "id": 1,
         }
-        add_to_sg_mock_db(self.mock_sg, self.published_file_type)
+        self.add_to_sg_mock_db(self.published_file_type)
 
     def mock_find(self, mockgun_find, *args, **kwargs):
         """
@@ -193,7 +183,7 @@ class TestUtils(unittest.TestCase):
                 "type": "Attachment",
                 "id": 1
             }
-            add_to_sg_mock_db(self.mock_sg, attachment)
+            self.add_to_sg_mock_db(attachment)
             version = {
                 "type": "Version",
                 "code": "foo",
@@ -203,7 +193,7 @@ class TestUtils(unittest.TestCase):
                 "sg_last_frame": 1019,
                 "sg_uploaded_movie": attachment,
             }
-            add_to_sg_mock_db(self.mock_sg, version)
+            self.add_to_sg_mock_db(version)
             # We also need a Cut Item.
             cut_item = {
                 "type": "CutItem",
@@ -213,7 +203,7 @@ class TestUtils(unittest.TestCase):
                 "cut_item_out": 1009,
                 "project": self.mock_project,
             }
-            add_to_sg_mock_db(self.mock_sg, cut_item)
+            self.add_to_sg_mock_db(cut_item)
             add_media_references_from_sg(track, self.mock_sg, self.mock_project)
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(clip.media_reference.name, version["code"])
@@ -266,7 +256,7 @@ class TestUtils(unittest.TestCase):
                 "sg_first_frame": 1000,
                 "sg_last_frame": 1019,
             }
-            add_to_sg_mock_db(self.mock_sg, version)
+            self.add_to_sg_mock_db(version)
             published_file_data = {
                 "code": "foo",
                 "project": self.mock_project,
@@ -291,7 +281,7 @@ class TestUtils(unittest.TestCase):
                 "cut_item_out": 1009,
                 "project": self.mock_project,
             }
-            add_to_sg_mock_db(self.mock_sg, cut_item)
+            self.add_to_sg_mock_db(cut_item)
             add_media_references_from_sg(track, self.mock_sg, self.mock_project)
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(clip.media_reference.name, published_file["code"])

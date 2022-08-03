@@ -61,10 +61,8 @@ jobs:
           pip install -e .[dev]  # Why 2 pip installs?
 
       - name: Lint with flake8
-        uses: py-actions/flake8@v2
-        with:
-          ignore: "E501, E402, N802, N806, W503"
-          exclude: "vendors, python/__init__.py, python/*/__init__.py, python/*/ui"
+        run: |
+          flake8 --show-source --statistics --config .flake8
 
       - name: Test with pytest
         run: |

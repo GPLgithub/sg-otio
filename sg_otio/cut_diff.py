@@ -270,14 +270,14 @@ class SGCutDiff(SGCutClip):
         # on the Shot and the Cut which was previously imported is imported again
         # some entries might be flagged as "Need rescan", even if there are no
         # cut changes.
-        if(
+        if (
             self.sg_shot_head_in is not None  # Report rescan only if value is set on the Shot
             and self.head_in_duration is not None
             and self.head_in_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.RESCAN
 
-        if(
+        if (
             self.sg_shot_tail_out is not None  # Report rescan only if value is set on the Shot
             and self.tail_out_duration is not None
             and self.tail_out_duration.to_frames() < 0
@@ -286,7 +286,7 @@ class SGCutDiff(SGCutClip):
 
         # We use cut in and cut out values which accurately report changes since
         # they are not based on Shot values.
-        if(
+        if (
             self.old_cut_in is not None
             and self.cut_in is not None
             and self.old_cut_in != self.cut_in
@@ -299,7 +299,7 @@ class SGCutDiff(SGCutClip):
             else:
                 self._cut_changes_reasons.append("Head trimmed %d frs" % -diff)
 
-        if(
+        if (
             self.old_cut_out is not None
             and self.cut_out is not None
             and self.old_cut_out != self.cut_out

@@ -1,15 +1,11 @@
-# Copyright 2022 GPL Solutions, LLC.  All rights reserved.
-#
-# Use of this software is subject to the terms of the GPL Solutions license
-# agreement provided at the time of installation or download, or which otherwise
-# accompanies this software in either electronic or hard copy form.
-#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Contributors to the SG Otio project
 
 # Flake 8 PEP and lint configuration - https://gitlab.com/pycqa/flake8
 #
 # This defines the official lint and PEP8 rules for this repository
 #
-# You can run this locally by doing pep install flake8 and then
+# You can run this locally by doing pip install flake8 and then
 # >flake8 .
 
 [flake8]
