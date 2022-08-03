@@ -13,6 +13,7 @@ from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_write_url, get_read_url, add_media_references_from_sg
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.constants import _SG_OTIO_MANIFEST_PATH
+from sg_otio.track_diff import SGTrackDiff
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
@@ -53,6 +54,7 @@ def run():
     # the first positional argument is "read" or "write".
     add_common_args(read_parser)
     add_common_args(write_parser)
+    add_common_args(compare_parser)
 
     # Read parameters
     read_parser.add_argument(
@@ -118,7 +120,8 @@ def run():
         read_from_sg(args)
     elif args.command == "write":
         write_to_sg(args)
-
+    elif args.command == "compare":
+        compare_to_sg(args)
 
 def read_from_sg(args):
     """
@@ -196,6 +199,40 @@ def write_to_sg(args):
         input_media=args.movie,
     )
     logger.info("File %s successfully written to %s" % (args.file, url))
+
+
+def compare_to_sg(args):
+    """
+    Compare an input file to a SG Cut.
+
+    :param args: The command line arguments.
+    """
+    timeline = otio.adapters.read_from_file(
+        args.file, adapter_name=args.adapter
+    )
+    if not timeline.video_tracks():
+        raise ValueError("The input file does not contain any video tracks.")
+    new_track = timeline.video_tracks()[0]
+    session_token=_get_session_token(args)
+    url = get_read_url(
+        sg_site_url=args.sg_site_url,
+        cut_id=args.cut_id,
+        session_token=session_token
+    )
+    old_timeline = otio.adapters.read_from_file(
+        url,
+        adapter_name="ShotGrid",
+    )
+    if not old_timeline.video_tracks():
+        raise ValueError("The SG Cut does not contain any video tracks.")
+    sg_track = old_timeline.video_tracks()[0]
+    sg = Shotgun(args.sg_site_url, session_token=session_token)
+    track_diff = SGTrackDiff(
+        sg,
+        sg_track.metadata["sg"]["project"],
+        new_track=new_track,
+        old_track=sg_track
+    )
 
 
 def add_common_args(parser):
