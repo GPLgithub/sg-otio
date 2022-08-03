@@ -123,6 +123,7 @@ def run():
     elif args.command == "compare":
         compare_to_sg(args)
 
+
 def read_from_sg(args):
     """
     Reads information from a Cut in ShotGrid and print it
@@ -213,7 +214,7 @@ def compare_to_sg(args):
     if not timeline.video_tracks():
         raise ValueError("The input file does not contain any video tracks.")
     new_track = timeline.video_tracks()[0]
-    session_token=_get_session_token(args)
+    session_token = _get_session_token(args)
     url = get_read_url(
         sg_site_url=args.sg_site_url,
         cut_id=args.cut_id,
@@ -227,7 +228,7 @@ def compare_to_sg(args):
         raise ValueError("The SG Cut does not contain any video tracks.")
     sg_track = old_timeline.video_tracks()[0]
     sg = Shotgun(args.sg_site_url, session_token=session_token)
-    track_diff = SGTrackDiff(
+    SGTrackDiff(
         sg,
         sg_track.metadata["sg"]["project"],
         new_track=new_track,
