@@ -260,9 +260,9 @@ class SGTrackDiff(object):
 
         :param for_clip: A Clip instance.
         :param prev_clip_list: A list of Clip instances to consider.
-        :param sg_shot: A SG Shot dictionary
-        :param sg_version: A SG Version dictionary
-        :returns: A Clip, or ``None``
+        :param sg_shot: A SG Shot dictionary.
+        :param sg_version: A SG Version dictionary.
+        :returns: A Clip, or ``None``.
         """
 
         potential_matches = []
@@ -356,15 +356,15 @@ class SGTrackDiff(object):
         """
         Return the total number of :class:`SGCutDiff` entries in this SGTrackDiff.
 
-        :returns: An integer
+        :returns: An integer.
         """
         return sum([len(self._diffs_by_shots[k]) for k in self._diffs_by_shots], 0)
 
     def __iter__(self):
         """
-        Iterate over Shots for this SGTrackDiff
+        Iterate over Shots for this SGTrackDiff.
 
-        :yields: Shot names, as strings
+        :yields: Shot names, as strings.
         """
         for name in self._diffs_by_shots.keys():
             yield name
@@ -383,9 +383,9 @@ class SGTrackDiff(object):
     def iteritems(self):
         """
         Iterate over Shot names for this SGTrackDiff, yielding (name, :class:`SGCutDiffGroup`)
-        tuple
+        tuples.
 
-        :yields: (name, :class:`SGCutDiffGroup`) tuples
+        :yields: (name, :class:`SGCutDiffGroup`) tuples.
         """
         for name, item in self._diffs_by_shots.items():
             yield (name, item)
