@@ -49,7 +49,7 @@ class SGCutClip(object):
         self._frame_rate = self._clip.duration().rate
         self._index = index
         self.sg_shot = sg_shot
-        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+        self.compute_head_tail_values()
         self._cut_item_name = self.name
 
     @property
@@ -132,7 +132,7 @@ class SGCutClip(object):
         if not self._clip_group:
             # Recompute values only if we don't have a clip group.
             # Otherwise we assume that values are maintained by the group.
-            self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+            self.compute_head_tail_values()
 
     @property
     def sg_shot(self):
@@ -177,7 +177,7 @@ class SGCutClip(object):
         # If the Clip is part of a group, assume that the values are set by
         # the group
         if not self._clip_group:
-            self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+            self.compute_head_tail_values()
 
     @property
     def cut_item_name(self):
@@ -652,6 +652,12 @@ class SGCutClip(object):
             status_field = config.status
             return self.sg_shot[status_field]
         return None
+
+    def compute_head_tail_values(self):
+        """
+        Compute and set the head and tail values for this clip.
+        """
+        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
 
     def get_head_tail_values(self):
         """

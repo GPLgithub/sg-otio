@@ -477,7 +477,7 @@ class TestCutDiff(SGBaseTest):
         clip = otio.schema.Clip(
             name="test_clip",
             source_range=TimeRange(
-                RationalTime(10, 24),
+                RationalTime(110, 24),
                 RationalTime(10, 24),  # duration, 10 frames.
             ),
         )
@@ -504,16 +504,97 @@ class TestCutDiff(SGBaseTest):
             "id": -1,
         }
         self.assertIsNotNone(cut_diff.sg_shot_status)
+        cut_diff.compute_head_tail_values()
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.REINSTATED)
-        # TODO: check all the different change types
-#        clip.metadata["sg"] = {
-#            "type": "CutItem",
-#            "id": -1,
-#            "cut_item_in": 1009 + (i // 2) * 10,
-#            "cut_item_out": 1009 + (i // 2) * 10 + 10 - 1,
-#            "cut_order": i + 1,
-#            "timecode_cut_item_in_text": "%s" % RationalTime((i // 2) * 10, 24).to_timecode(),
-#            "shot": sg_shots[i % 2],
-#            "code": "test_clip_%d" % i,
-#        }
+        old_clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(110, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        old_clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": -1,
+            "cut_item_in": 1009,
+            "cut_item_out": 1018,
+            "cut_order": 1,
+            "timecode_cut_item_in_text": "%s" % RationalTime(110, 24).to_timecode(),
+            "shot": sg_shot,
+            "code": "test_clip",
+        }
+        cut_diff.old_clip = SGCutDiff(
+            clip=old_clip,
+            index=1,
+            sg_shot=sg_shot,
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.REINSTATED)
+        sg_shot["sg_status_list"] = {
+            "code": "notomitted",
+            "id": -1,
+        }
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
+        clip.source_range = TimeRange(
+            RationalTime(110, 24),
+            RationalTime(20, 24),  # duration, 20 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        self.assertEqual(cut_diff.reasons, ["Tail trimmed 10 frs"])
+        clip.source_range = TimeRange(
+            RationalTime(100, 24),
+            RationalTime(20, 24),  # duration, 20 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        self.assertEqual(cut_diff.reasons, ["Head trimmed 10 frs"])
+        clip.source_range = TimeRange(
+            RationalTime(111, 24),
+            RationalTime(8, 24),  # duration, 8 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        self.assertEqual(cut_diff.reasons, ["Head extended 1 frs", "Tail extended 1 frs"])
+
+        self.assertIsNone(cut_diff.sg_shot_head_in)
+        sg_shot["sg_head_in"] = 1001
+        sg_shot["sg_tail_out"] = 1026
+        self.assertEqual(cut_diff.sg_shot_head_in, 1001)
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.head_in.to_frames(), 1001)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1010)
+        self.assertEqual(cut_diff.head_in_duration.to_frames(), 9)
+        # Within handles
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        clip.source_range = TimeRange(
+            RationalTime(101, 24),  # one frame before head in
+            RationalTime(10, 24),  # duration, 10 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_head_in, 1001)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.head_in_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
+
+        clip.source_range = TimeRange(
+            RationalTime(110, 24),
+            RationalTime(19, 24),  # duration, 19 frames, one frame after tail out.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
+        self.assertEqual(cut_diff.tail_out.to_frames(), 1026)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.cut_out.to_frames(), 1009 + 19 -1)
+        self.assertEqual(cut_diff.tail_out_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)

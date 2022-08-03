@@ -129,6 +129,8 @@ class SGCutDiff(SGCutClip):
     @property
     def cut_in(self):
         """
+        Return the cut in time of the clip.
+
         Override base implementation to take into account the previous Cut
         entry, if any.
 
@@ -143,6 +145,35 @@ class SGCutDiff(SGCutClip):
                 # Just apply the offset to the old cut in
                 return cut_in + offset
         return super(SGCutDiff, self).cut_in
+
+    @property
+    def head_in_duration(self):
+        """
+        Return the head duration.
+
+        Override base implementation to take into account the previous Cut
+        cut in value, if any.
+
+        :returns: A :class:`RationalTime` instance.
+        """
+        if self.current_clip:
+            cut_in = self.cut_in
+            head_in = self.head_in
+            # head_out would be cut_in -1, so head_duration would be:
+            # cut_in -1 - head_in + 1, we use a simplified formula below
+            return cut_in - head_in
+        return super(SGCutDiff, self).head_in_duration
+
+    @head_in_duration.setter
+    def head_in_duration(self, value):
+        """
+        Sets the head handle duration.
+
+        Needed because we override the property.
+
+        :param value: A :class:`RationalTime` instance.
+        """
+        self._head_in_duration = value
 
     @property
     def diff_type(self):
