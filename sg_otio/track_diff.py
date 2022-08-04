@@ -186,6 +186,7 @@ class SGCutDiffGroup(ClipGroup):
             shot_diff_type,
         )
 
+
 class SGTrackDiff(object):
     """
     A class to compare a track to one read from SG.
@@ -684,7 +685,6 @@ class SGTrackDiff(object):
         )
         return diff_groups
 
-
     def _get_matching_score(self, clip_a, clip_b):
         """
         Return a matching score for the given two clips, based on:
@@ -757,7 +757,7 @@ class SGTrackDiff(object):
         )
         field_name = "sg_%s" % type_display_name.lower()
         field = shot_schema.get(field_name)
-        if(
+        if (
             field
             and field["data_type"]["value"] == "entity"
             and sg_entity_type in field["properties"]["valid_types"]["value"]
