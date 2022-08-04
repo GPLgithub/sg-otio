@@ -44,12 +44,12 @@ def run():
         "write",
         help="Write a Timeline or a video track to SG as a Cut."
     )
-    # Write sub parser
+    # Compare sub parser
     compare_parser = subparser.add_parser(
         "compare",
         help="Compare a Timeline or a video track to a SG Cut."
     )
-    # Common arguments for read and write.
+    # Common arguments for read, write and compare.
     # We need to add them to the subparsers and not the main parser so that
     # the first positional argument is "read" or "write".
     add_common_args(read_parser)
