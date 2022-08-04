@@ -238,6 +238,7 @@ def compare_to_sg(args):
         diff.get_report("Changes for %s" % os.path.basename(args.file))
     )
 
+
 def add_common_args(parser):
     """
     Add common arguments for reading and writing from/to SG.
