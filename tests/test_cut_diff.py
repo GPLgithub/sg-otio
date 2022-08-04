@@ -827,5 +827,6 @@ class TestCutDiff(SGBaseTest):
                 old_track=sg_track,
             )
         # FIXME: we don't get the right results here (no changes)
+        # sg_otio.utils.compute_clip_shot_name must be patched.
         for diff_type, items in track_diff.get_diffs_by_change_type().items():
             logger.info("%s" % items)
