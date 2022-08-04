@@ -2,14 +2,58 @@
 # Copyright Contributors to the SG Otio project
 
 import logging
+from collections import defaultdict
 
 from .sg_settings import SGShotFieldsConfig
 from .clip_group import ClipGroup
+from .constants import _DIFF_TYPES
 from .cut_clip import SGCutClip
 from .cut_diff import SGCutDiff
 from .utils import compute_clip_shot_name, get_entity_type_display_name
 
 logger = logging.getLogger(__name__)
+
+
+# Some counts are per Shot, some others per edits
+# As a rule of thumb, everything which directly affects the Shot is per
+# Shot:
+# - Creation of new Shots (NEW)
+# - Omission of existing Shots (OMITTED)
+# - Re-enabling existing Shots (REINSTATED)
+# - Need for a rescan (RESCAN)
+# On the other hand, in and out point changes, some repeated Shots being
+# added or removed are counted per item and are considered CUT_CHANGES
+_PER_SHOT_TYPE_COUNTS = [
+    _DIFF_TYPES.NEW,
+    _DIFF_TYPES.OMITTED,
+    _DIFF_TYPES.REINSTATED,
+    _DIFF_TYPES.RESCAN
+]
+
+
+# Template used by summary report
+_BODY_REPORT_FORMAT = """
+%s
+Links: %s
+
+The changes in %s are as follows:
+
+%d New Shots
+%s
+
+%d Omitted Shots
+%s
+
+%d Reinstated Shot
+%s
+
+%d Cut Changes
+%s
+
+%d Rescan Needed
+%s
+
+"""
 
 
 class SGCutDiffGroup(ClipGroup):
@@ -29,12 +73,118 @@ class SGCutDiffGroup(ClipGroup):
             # Just append the clip without affecting the group values or checking
             # the frame rate.
             self._append_clip(clip)
-            logger.debug("Added omitted clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out))
+            logger.debug(
+                "Added omitted clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out)
+            )
             return
 
         # Just call the base implementation
         super(SGCutDiffGroup, self).add_clip(clip)
 
+    def get_shot_values(self):
+        """
+        Loop over our Cut diff list and return values which should be set on the
+        Shot.
+
+        The Shot difference type can be different from individual Cut difference
+        types, for example a new edit can be added, but the Shot itself is not
+        new.
+
+        Return a tuple with :
+        - A SG Shot dictionary or None
+        - The smallest cut order
+        - The earliest head in
+        - The earliest cut in
+        - The last cut out
+        - The last tail out
+        - The Shot difference type
+
+        :returns: A tuple
+        """
+        min_cut_order = None
+        min_head_in = None
+        min_cut_in = None
+        max_cut_out = None
+        max_tail_out = None
+        sg_shot = None
+        shot_diff_type = None
+        # Do a first pass with all entries to get min and max
+        for cut_diff in self:
+            if sg_shot is None and cut_diff.sg_shot:
+                sg_shot = cut_diff.sg_shot
+            cut_order = cut_diff.index
+            if cut_order is not None and (min_cut_order is None or cut_order < min_cut_order):
+                min_cut_order = cut_order
+            if cut_diff.head_in is not None and (
+                    min_head_in is None or cut_diff.head_in < min_head_in):
+                min_head_in = cut_diff.head_in
+            if cut_diff.cut_in is not None and (
+                    min_cut_in is None or cut_diff.cut_in < min_cut_in):
+                min_cut_in = cut_diff.cut_in
+            if cut_diff.cut_out is not None and (
+                    max_cut_out is None or cut_diff.cut_out > max_cut_out):
+                max_cut_out = cut_diff.cut_out
+            if cut_diff.tail_out is not None and (
+                    max_tail_out is None or cut_diff.tail_out > max_tail_out):
+                max_tail_out = cut_diff.tail_out
+        # We do a second pass for the Shot difference type, as we might stop
+        # iteration at some point. Given that the number of duplicated shots is
+        # usually low, there shouldn't be a big performance hit in iterating twice
+        for cut_diff in self:
+            # Special cases for diff type:
+            # - A Shot is NO_LINK if any of its items is NO_LINK (should be all of them)
+            # - A Shot is OMITTED if all its items are OMITTED
+            # - A Shot is NEW if any of its items is NEW (should be all of them)
+            # - A Shot is REINSTATED if at least one of its items is REINSTATED (should
+            #       be all of them)
+            # - A Shot needs RESCAN if any of its items need RESCAN
+            cut_diff_type = cut_diff.diff_type
+            if cut_diff_type in [
+                _DIFF_TYPES.NO_LINK,
+                _DIFF_TYPES.NEW,
+                _DIFF_TYPES.REINSTATED,
+                _DIFF_TYPES.OMITTED,
+                _DIFF_TYPES.RESCAN
+            ]:
+                shot_diff_type = cut_diff_type
+                # Can't be changed by another entry, no need to loop further
+                break
+
+            if cut_diff_type == _DIFF_TYPES.OMITTED_IN_CUT:
+                # Could be a repeated Shot entry removed from the Cut
+                # or really the whole Shot being removed
+                if shot_diff_type is None:
+                    # Set initial value
+                    shot_diff_type = _DIFF_TYPES.OMITTED
+                elif shot_diff_type == _DIFF_TYPES.NO_CHANGE:
+                    shot_diff_type = _DIFF_TYPES.CUT_CHANGE
+                else:
+                    # Shot is already with the right state, no need to do anything
+                    pass
+
+            elif cut_diff_type == _DIFF_TYPES.NEW_IN_CUT:
+                shot_diff_type = _DIFF_TYPES.CUT_CHANGE
+            else:    # _DIFF_TYPES.NO_CHANGE, _DIFF_TYPES.CUT_CHANGE
+                if shot_diff_type is None:
+                    # initial value
+                    shot_diff_type = cut_diff_type
+                elif shot_diff_type != cut_diff_type:
+                    # If different values fall back to CUT_CHANGE
+                    # If values are identical, do nothing
+                    shot_diff_type = _DIFF_TYPES.CUT_CHANGE
+        # Having _OMITTED_IN_CUT here means that all entries were _OMITTED_IN_CUT
+        # so the whole Shot is _OMITTED
+        if shot_diff_type == _DIFF_TYPES.OMITTED_IN_CUT:
+            shot_diff_type = _DIFF_TYPES.OMITTED
+        return (
+            sg_shot,
+            min_cut_order,
+            min_head_in,
+            min_cut_in,
+            max_cut_out,
+            max_tail_out,
+            shot_diff_type,
+        )
 
 class SGTrackDiff(object):
     """
@@ -58,6 +208,8 @@ class SGTrackDiff(object):
         self._sg_project = sg_project
         self._sg_entity = None
         self._sg_shot_link_field_name = None
+        self._counts = defaultdict(int)
+        self._total_count = 0
 
         self._diffs_by_shots = {}
         # Retrieve the Shot fields we need to query from SG.
@@ -130,13 +282,13 @@ class SGTrackDiff(object):
                 SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
             )
         if more_shot_names:
+            filters = [
+                ["project", "is", self._sg_project],
+                ["code", "in", list(more_shot_names)]
+            ]
             # If we have a linked SG Entity from a previous Cut, restrict
             # to Shots linked to this SG Entity.
             if self._sg_shot_link_field_name:
-                filters = [
-                    ["project", "is", self._sg_project],
-                    ["code", "in", list(more_shot_names)]
-                ]
                 filters.append(
                     [self._sg_shot_link_field_name, "is", self._sg_entity]
                 )
@@ -146,6 +298,7 @@ class SGTrackDiff(object):
                 filters,
                 sg_shot_fields,
             )
+
             for sg_shot in sg_more_shots:
                 shot_name = sg_shot["code"].lower()
                 self._diffs_by_shots[shot_name].sg_shot = sg_shot
@@ -158,7 +311,6 @@ class SGTrackDiff(object):
         duplicate_names = {}
         logger.debug("Matching clips...")
         for shot_name, clip_group in self._diffs_by_shots.items():
-            sg_shot = clip_group.sg_shot
             # Since we loop over all clips, take the opportunity to set their
             # repeated flag
             repeated = len(clip_group) > 1
@@ -176,22 +328,22 @@ class SGTrackDiff(object):
                     logger.debug("No Shot name for %s, not matching..." % clip.cut_item_name)
                     continue
                 clip.repeated = repeated
-                logger.debug("Matching %s for %s" % (
-                    shot_name, clip.cut_item_name,
+                logger.debug("Matching %s for %s (%s)" % (
+                    shot_name, clip.cut_item_name, clip_group.sg_shot,
                 ))
                 # If we found a SG Shot, we can match with its id.
-                if sg_shot:
+                if clip_group.sg_shot:
                     old_clip = self.old_clip_for_shot(
                         clip,
                         prev_clip_list,
-                        sg_shot,
+                        clip_group.sg_shot,
                         clip.sg_version,
                     )
                     clip.old_clip = old_clip
                     # We still need to remove the Shot from leftovers
                     # Remove this entry from the leftovers
-                    if sg_shot in leftover_shots:
-                        leftover_shots.remove(sg_shot)
+                    if clip_group.sg_shot in leftover_shots:
+                        leftover_shots.remove(clip_group.sg_shot)
                 else:
                     # Do we have a matching Shot in SG ?
                     matching_shot = sg_shots_dict.get(shot_name)
@@ -203,6 +355,7 @@ class SGTrackDiff(object):
                             leftover_shots.remove(matching_shot)
                         else:
                             logger.warning("%s is not in existing Shots" % shot_name)
+                        clip_group.sg_shot = matching_shot
                         old_clip = self.old_clip_for_shot(
                             clip,
                             prev_clip_list,
@@ -261,6 +414,7 @@ class SGTrackDiff(object):
                     shot_name,
                 )
             )
+        self._recompute_counts()
         if leftover_shots:
             # This shouldn't happen, as our list of Shots comes from edits
             # and CutItems, and we should have processed all of them. Issue
@@ -349,20 +503,33 @@ class SGTrackDiff(object):
             return best
         return None
 
-    def diffs_for_type(self, diff_type, just_earliest=False):
+    def count_for_type(self, diff_type):
         """
-        Iterate over CutDiff instances for the given CutDiffType
+        Return the number of entries for the given CutDiffType
 
         :param diff_type: A CutDiffType
-        :param just_earliest: Whether or not all matching CutDiff should be
-                              returned or just the earliest(s)
-        :yields: CutDiff instances
+        :returns: An integer
         """
-        for name, items in self.self._diffs_by_shots.items():
-            for item in items:
-                cut_diff = item.cut_diff
-                if cut_diff.interpreted_diff_type == diff_type and (not just_earliest or cut_diff.is_earliest()):
+        return self._counts.get(diff_type, 0)
+
+    def diffs_for_type(self, diff_type, just_earliest=False):
+        """
+        Iterate over SGCutDiff instances for the given CutDiffType
+
+        :param diff_type: A CutDiffType
+        :param just_earliest: Whether or not all matching SGCutDiff should be
+                              returned or just the earliest(s)
+        :yields: SGCutDiff instances.
+        """
+        for shot_name, clip_group in self._diffs_by_shots.items():
+            if just_earliest:
+                cut_diff = clip_group.earliest_clip
+                if cut_diff.interpreted_diff_type == diff_type:
                     yield cut_diff
+            else:
+                for cut_diff in clip_group.clips:
+                    if cut_diff.interpreted_diff_type == diff_type:
+                        yield cut_diff
 
     def get_report(self, title, sg_links):
         """
@@ -472,14 +639,16 @@ class SGTrackDiff(object):
 
     def get_summary_title(self, subject):
         """
-        Return a string suitable as a title for cut changes reports.
+        Return a string suitable as a title for Cut changes reports.
 
-        :param str subject: A string, usually a Cut name.
+        :param str subject: A string, usually a SG Cut name.
         """
-        return "%s Cut Summary changes on %s" % (
-            self._sg_entity["type"].title(),
-            subject
-        )
+        if self._sg_entity:
+            return "%s Cut Summary changes on %s" % (
+                self._sg_entity["type"].title(),
+                subject
+            )
+        return "Cut Summary for %s" % subject
 
     def get_diffs_by_change_type(self):
         """
@@ -491,27 +660,27 @@ class SGTrackDiff(object):
         diff_groups = {}
         diff_groups[_DIFF_TYPES.CUT_CHANGE] = sorted(
             self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
-            key=lambda x: x.new_cut_order
+            key=lambda x: x.cut_order
         )
         diff_groups[_DIFF_TYPES.RESCAN] = sorted(
             self.diffs_for_type(_DIFF_TYPES.RESCAN),
-            key=lambda x: x.new_cut_order
+            key=lambda x: x.cut_order
         )
         diff_groups[_DIFF_TYPES.NO_LINK] = sorted(
             self.diffs_for_type(_DIFF_TYPES.NO_LINK),
-            key=lambda x: x.new_cut_order
+            key=lambda x: x.cut_order
         )
         diff_groups[_DIFF_TYPES.NEW] = sorted(
             self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
-            key=lambda x: x.new_cut_order
+            key=lambda x: x.cut_order
         )
         diff_groups[_DIFF_TYPES.OMITTED] = sorted(
             self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
-            key=lambda x: x.cut_order or -1
+            key=lambda x: x.old_cut_order or -1
         )
         diff_groups[_DIFF_TYPES.REINSTATED] = sorted(
             self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
-            key=lambda x: x.new_cut_order
+            key=lambda x: x.cut_order
         )
         return diff_groups
 
@@ -542,6 +711,37 @@ class SGTrackDiff(object):
             score += 1
 
         return score
+
+    def _recompute_counts(self):
+        """
+        Recompute internal counts from Cut differences
+        """
+        # Use a defaultdict so we don't have to worry about key existence
+        self._counts = defaultdict(int)
+        self._total_count = 0
+        for shot_name, clip_group in self._diffs_by_shots.items():
+            _, _, _, _, _, _, shot_diff_type = clip_group.get_shot_values()
+            if shot_diff_type in _PER_SHOT_TYPE_COUNTS:
+                # We count these per shots
+                self._counts[shot_diff_type] += 1
+                # We don't want to include omitted entries in our total
+                if shot_diff_type != _DIFF_TYPES.OMITTED:
+                    self._total_count += 1
+            else:
+                # We count others per entries
+                for cut_diff in clip_group:
+                    # We don't use cut_diff.interpreted_type here, as it will
+                    # loop over all siblings, repeated shots cases are handled
+                    # with the shot_diff_type
+                    diff_type = self._interpreted_diff_type(cut_diff.diff_type)
+                    self._counts[diff_type] += 1
+                    # We don't want to include omitted entries in our total
+                    if cut_diff.diff_type not in [
+                        _DIFF_TYPES.OMITTED_IN_CUT,
+                        _DIFF_TYPES.OMITTED
+                    ]:
+                        self._total_count += 1
+        logger.debug("%s" % self._counts)
 
     def _get_shot_link_field(self, sg_entity_type):
         """
@@ -582,6 +782,17 @@ class SGTrackDiff(object):
             )
         )
         return None
+
+    def _interpreted_diff_type(self, diff_type):
+        """
+        Some difference types are grouped under a common type, return
+        this group type for the given difference type
+
+        :returns: A _DIFF_TYPES
+        """
+        if diff_type in [_DIFF_TYPES.NEW_IN_CUT, _DIFF_TYPES.OMITTED_IN_CUT]:
+            return _DIFF_TYPES.CUT_CHANGE
+        return diff_type
 
     def __len__(self):
         """

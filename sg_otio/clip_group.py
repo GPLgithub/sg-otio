@@ -199,6 +199,15 @@ class ClipGroup(object):
         self._compute_group_values()
 
     @property
+    def earliest_clip(self):
+        """
+        Return the earliest Clip in this group.
+
+        :returns: A :class:`sg_otio.SGCutClip`.
+        """
+        return self._earliest_clip
+
+    @property
     def index(self):
         """
         Returns the index of the group, i.e. the smallest index of all clips in the Track.

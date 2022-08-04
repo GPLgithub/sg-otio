@@ -69,6 +69,13 @@ class SGCutDiff(SGCutClip):
             raise ValueError(
                 "Setting the old clip for an omitted SGCutDiff is not allowed."
             )
+        if self.sg_shot:
+            if value and value.sg_shot and value.sg_shot["id"] != self.sg_shot["id"]:
+                raise ValueError(
+                    "Shot mismatch between current clip and old one %s vs %s" % (
+                        self.sg_shot["id"], value.sg_shot["id"]
+                    )
+                )
         self._old_clip = value
         self._check_and_set_changes()
 
@@ -239,6 +246,39 @@ class SGCutDiff(SGCutClip):
         :returns: A possibly empty list of strings
         """
         return self._cut_changes_reasons
+
+    @property
+    def interpreted_diff_type(self):
+        """
+        Some difference types are grouped under a common type to deal with repeated
+        Shots. Invididual entries can be flagged as NEW_IN_CUT or OMITTED_IN_CUT.
+
+        - If all entries for a given Shot are OMITTED_IN_CUT, then the Shot is
+        OMITTED, and this is the returned type. Otherwise it is just a CUT_CHANGE.
+
+        - NEW_IN_CUT is different, even if all entries for a Shot are NEW_IN_CUT,
+        if a Shot exists it is not NEW. Individual entries will be set to NEW if
+        the Shot does not exist in Shotgun.
+
+        Other cases fall back to the actual diff type.
+
+        :returns: A _DIFF_TYPES
+        """
+        if self.diff_type in [_DIFF_TYPES.NEW_IN_CUT, _DIFF_TYPES.OMITTED_IN_CUT]:
+            return _DIFF_TYPES.CUT_CHANGE
+
+        # Please note that a loop is potentially done over all siblings, so this
+        # must be used with care as it can be inefficient
+        if self.diff_type == _DIFF_TYPES.OMITTED_IN_CUT and self.repeated:
+            # Check if all our siblings are omitted_in_cut as well
+            for sibling in self.group.clips:
+                if sibling != _DIFF_TYPES.OMITTED_IN_CUT:
+                    break
+            else:
+                return _DIFF_TYPES.OMITTED
+
+        # Fall back to reality!
+        return self.diff_type
 
     @property
     def rescan_needed(self):

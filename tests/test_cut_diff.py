@@ -58,8 +58,10 @@ class TestCutDiff(SGBaseTest):
     def _add_sg_cut_data(self):
         """
         """
+        # SG is case insensitive but mockun is case sensitive so better to
+        # keep everything lower case.
         self.sg_sequences = [{
-            "code": "SEQ_6666",
+            "code": "seq_6666",
             "project": self.mock_project,
             "type": "Sequence",
             "id": 6666,
@@ -67,34 +69,34 @@ class TestCutDiff(SGBaseTest):
         self.add_to_sg_mock_db(self.sg_sequences)
         self._sg_entities_to_delete.extend(self.sg_sequences)
         self.sg_shots = [{
-            "code": "SHOT_6666",
+            "code": "shot_6666",
             "project": self.mock_project,
             "type": "Shot",
-            "sequence": self.sg_sequences[0],
+            "sg_sequence": self.sg_sequences[0],
             "id": 6666,
         }, {
-            "code": "SHOT_6667",
+            "code": "shot_6667",
             "project": self.mock_project,
             "type": "Shot",
-            "sequence": self.sg_sequences[0],
+            "sg_sequence": self.sg_sequences[0],
             "id": 6667,
         }, {
-            "code": "SHOT_6668",
+            "code": "shot_6668",
             "project": self.mock_project,
             "type": "Shot",
-            "sequence": self.sg_sequences[0],
+            "sg_sequence": self.sg_sequences[0],
             "id": 6668,
         }, {
-            "code": "SHOT_6669",
+            "code": "shot_6669",
             "project": self.mock_project,
             "type": "Shot",
-            "sequence": self.sg_sequences[0],
+            "sg_sequence": self.sg_sequences[0],
             "id": 6669,
         }]
         self.add_to_sg_mock_db(self.sg_shots)
         self._sg_entities_to_delete.extend(self.sg_shots)
         self.sg_cuts = [{
-            "code": "CUT_6666",
+            "code": "cut_6666",
             "project": self.mock_project,
             "type": "Cut",
             "entity": self.sg_sequences[0],
@@ -383,6 +385,24 @@ class TestCutDiff(SGBaseTest):
                 new_track=track,
                 old_track=old_track,
             )
+        # Should have choked on the track not being linked to a Cut
+        self.assertEqual(
+            "%s" % cm.exception,
+            "Invalid track  not linked to a SG Cut"
+        )
+        old_track.metadata["sg"] = {
+            "type": "Cut",
+            "id": -1,
+            "code": "Faked Cut"
+        }
+        # It should choke now on invalid clips
+        with self.assertRaises(ValueError) as cm:
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
+            )
         # Should have choked on the first clip
         self.assertEqual(
             "%s" % cm.exception,
@@ -464,6 +484,11 @@ class TestCutDiff(SGBaseTest):
             track.append(clip)
 
         old_track = copy.deepcopy(track)
+        old_track.metadata["sg"] = {
+            "type": "Cut",
+            "id": -1,
+            "code": "Faked Cut"
+        }
         sg_shots = [
             {"type": "Shot", "code": "marker_shot_000", "project": self.mock_project, "id": 1},
             {"type": "Shot", "code": "marker_shot_001", "project": self.mock_project, "id": 2}
@@ -765,3 +790,28 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(track_diff._sg_shot_link_field_name, "sg_sequence")
         self.assertEqual(track_diff._sg_entity["id"], self.sg_sequences[0]["id"])
         self.assertEqual(track_diff._sg_entity["type"], self.sg_sequences[0]["type"])
+        self.assertEqual(
+            track_diff.get_summary_title("This is a Test"),
+            "Sequence Cut Summary changes on This is a Test"
+        )
+        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
+
+        for shot_name, clip_group in track_diff.items():
+            for clip in clip_group.clips:
+                self.assertIsNotNone(clip.sg_shot)
+                self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_CHANGE)
+        diffs = [x for x in track_diff.diffs_for_type(_DIFF_TYPES.NO_CHANGE, just_earliest=False)]
+        self.assertEqual(
+            len(diffs),
+            len(self.sg_cut_items),
+        )
+        for diff_type, items in track_diff.get_diffs_by_change_type().items():
+            self.assertEqual(items, [])
+        report = track_diff.get_report("This is a Test", [])
+        self.assertEqual(
+            report,
+            (
+                "Sequence Cut Summary changes on This is a Test",
+                "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n0 New Shots\n\n\n0 Omitted Shots\n\n\n0 Reinstated Shot\n\n\n0 Cut Changes\n\n\n0 Rescan Needed\n\n\n"
+            )
+        )
