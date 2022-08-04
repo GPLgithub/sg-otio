@@ -1,0 +1,11 @@
+TITLE: RFE_JRUN_demo_relative_frames
+FCM: NON-DROP FRAME
+
+001  AX       V     C        9           64          00:00:00:00 00:00:02:07
+* FROM CLIP NAME: RFE_JRUN_0010_Anim_v09.mov
+
+002  AX       V     C        9           41          00:00:02:07 00:00:03:15
+* FROM CLIP NAME: RFE_JRUN_0020_Anim_v04.mov
+
+003  AX       V     C        9           30          00:00:03:15 00:00:04:12
+* FROM CLIP NAME: RFE_JRUN_0030_Anim_v04.mov

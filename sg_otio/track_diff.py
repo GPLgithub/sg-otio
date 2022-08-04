@@ -60,6 +60,12 @@ class SGCutDiffGroup(ClipGroup):
     """
     A class representing groups of Cut differences.
     """
+    def __init__(self, name, clips=None, sg_shot=None):
+        """
+        Override base implementation to add members we need.
+        """
+        super(SGCutDiffGroup, self).__init__(name, clips, sg_shot)
+        self._old_earliest_clip = None
 
     def add_clip(self, clip):
         """
@@ -73,6 +79,9 @@ class SGCutDiffGroup(ClipGroup):
             # Just append the clip without affecting the group values or checking
             # the frame rate.
             self._append_clip(clip)
+            if self._old_earliest_clip is None or clip.source_in < self._old_earliest_clip.source_in:
+                self._old_earliest_clip = clip
+
             logger.debug(
                 "Added omitted clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out)
             )
@@ -80,6 +89,21 @@ class SGCutDiffGroup(ClipGroup):
 
         # Just call the base implementation
         super(SGCutDiffGroup, self).add_clip(clip)
+
+    @property
+    def earliest_clip(self):
+        """
+        Return the earliest Clip in this group.
+
+        :returns: A :class:`sg_otio.SGCutClip`.
+        """
+        # We might have a mix of omitted edits (no new value) and non omitted edits
+        # (with new values) in our list. If we have at least one entry which is
+        # not omitted (has new value) we consider entries with new values, so we
+        # will consider omitted edits only if all edits are omitted
+        if self._earliest_clip:
+            return self._earliest_clip
+        return self._old_earliest_clip
 
     def get_shot_values(self):
         """
@@ -525,6 +549,8 @@ class SGTrackDiff(object):
         for shot_name, clip_group in self._diffs_by_shots.items():
             if just_earliest:
                 cut_diff = clip_group.earliest_clip
+                if not cut_diff:
+                    raise ValueError(clip_group._clips[0].name)
                 if cut_diff.interpreted_diff_type == diff_type:
                     yield cut_diff
             else:
@@ -575,7 +601,7 @@ class SGTrackDiff(object):
 #                edit.name, ", ".join(edit.reasons)
 #            ) for edit in sorted(
 #                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
-#                key=lambda x: x.new_cut_order
+#                key=lambda x: x.index
 #            )
 #        ]
         cut_changes_details = [
@@ -583,7 +609,7 @@ class SGTrackDiff(object):
                 diff.name
             ) for diff in sorted(
                 self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
-                key=lambda x: x.new_cut_order
+                key=lambda x: x.index
             )
         ]
         rescan_details = [
@@ -591,13 +617,13 @@ class SGTrackDiff(object):
                 diff.name, ", ".join(diff.reasons)
             ) for diff in sorted(
                 self.diffs_for_type(_DIFF_TYPES.RESCAN),
-                key=lambda x: x.new_cut_order
+                key=lambda x: x.index
             )
         ]
         no_link_details = [
             diff.version_name or str(diff.new_cut_order) for diff in sorted(
                 self.diffs_for_type(_DIFF_TYPES.NO_LINK),
-                key=lambda x: x.new_cut_order
+                key=lambda x: x.index
             )
         ]
         body = _BODY_REPORT_FORMAT % (
@@ -614,21 +640,21 @@ class SGTrackDiff(object):
             "\n".join([
                 diff.name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
-                    key=lambda x: x.new_cut_order
+                    key=lambda x: x.index
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.OMITTED),
             "\n".join([
                 diff.name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
-                    key=lambda x: x.cut_order or -1
+                    key=lambda x: x.index or -1
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.REINSTATED),
             "\n".join([
                 diff.name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
-                    key=lambda x: x.new_cut_order
+                    key=lambda x: x.index
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.CUT_CHANGE),
@@ -661,27 +687,27 @@ class SGTrackDiff(object):
         diff_groups = {}
         diff_groups[_DIFF_TYPES.CUT_CHANGE] = sorted(
             self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
-            key=lambda x: x.cut_order
+            key=lambda x: x.index
         )
         diff_groups[_DIFF_TYPES.RESCAN] = sorted(
             self.diffs_for_type(_DIFF_TYPES.RESCAN),
-            key=lambda x: x.cut_order
+            key=lambda x: x.index
         )
         diff_groups[_DIFF_TYPES.NO_LINK] = sorted(
             self.diffs_for_type(_DIFF_TYPES.NO_LINK),
-            key=lambda x: x.cut_order
+            key=lambda x: x.index
         )
         diff_groups[_DIFF_TYPES.NEW] = sorted(
             self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
-            key=lambda x: x.cut_order
+            key=lambda x: x.index
         )
         diff_groups[_DIFF_TYPES.OMITTED] = sorted(
             self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
-            key=lambda x: x.old_cut_order or -1
+            key=lambda x: x.old_index or -1
         )
         diff_groups[_DIFF_TYPES.REINSTATED] = sorted(
             self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
-            key=lambda x: x.cut_order
+            key=lambda x: x.index
         )
         return diff_groups
 

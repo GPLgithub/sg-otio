@@ -144,9 +144,9 @@ class ClipGroup(object):
         if not self._clips:
             return
         # Get some values from the first and last clips
-        self._index = self._earliest_clip.index
-        self._source_in = self._earliest_clip.source_in
-        head_in, head_duration, _ = self._earliest_clip.get_head_tail_values()
+        self._index = self.earliest_clip.index
+        self._source_in = self.earliest_clip.source_in
+        head_in, head_duration, _ = self.earliest_clip.get_head_tail_values()
 
         self._source_out = self._last_clip.source_out
         _, _, tail_duration = self._last_clip.get_head_tail_values()
@@ -168,9 +168,9 @@ class ClipGroup(object):
             )
 
         # Get other values from first and last clips now that they have been set.
-        self._head_in = self._earliest_clip.head_in
-        self._head_out = self._earliest_clip.head_out
-        self._cut_in = self._earliest_clip.cut_in
+        self._head_in = self.earliest_clip.head_in
+        self._head_out = self.earliest_clip.head_out
+        self._cut_in = self.earliest_clip.cut_in
         self._cut_out = self._last_clip.cut_out
         self._tail_in = self._last_clip.tail_in
         self._tail_out = self._last_clip.tail_out

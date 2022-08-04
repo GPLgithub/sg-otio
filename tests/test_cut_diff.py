@@ -763,11 +763,6 @@ class TestCutDiff(SGBaseTest):
         Test generating a diff report.
         """
         self._add_sg_cut_data()
-        path = os.path.join(
-            self.resources_dir,
-            "edl",
-            "R7v26.0_Turnover001_WiP_VFX__1_.edl"
-        )
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             mock_cut_url = get_read_url(
                 self.mock_sg.base_url,
@@ -778,6 +773,7 @@ class TestCutDiff(SGBaseTest):
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             sg_track = timeline_from_sg.tracks[0]
 
+        # Compare the existing Cut to itself.
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             track_diff = SGTrackDiff(
                 self.mock_sg,
@@ -815,3 +811,21 @@ class TestCutDiff(SGBaseTest):
                 "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n0 New Shots\n\n\n0 Omitted Shots\n\n\n0 Reinstated Shot\n\n\n0 Cut Changes\n\n\n0 Rescan Needed\n\n\n"
             )
         )
+        # Compare to Cut from EDL
+        path = os.path.join(
+            self.resources_dir,
+            "edls",
+            "R7v26.0_Turnover001_WiP_VFX__1_.edl"
+        )
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            timeline_from_edl = otio.adapters.read_from_file(path)
+            new_track = timeline_from_edl.tracks[0]
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=new_track,
+                old_track=sg_track,
+            )
+        # FIXME: we don't get the right results here (no changes)
+        for diff_type, items in track_diff.get_diffs_by_change_type().items():
+            logger.info("%s" % items)
