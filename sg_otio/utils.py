@@ -415,3 +415,27 @@ def add_version_media_reference_to_clip(clip, version, cut_item=None):
         else:
             pf_data[field] = None
     clip.media_reference.metadata["sg"] = pf_data
+
+
+def get_entity_type_display_name(sg, sg_entity_type):
+    """
+    Returns the display name for an Entity type given its type name.
+
+    For example, if a custom entity is named "Workspace" in the
+    Shotgun preferences, but is addressed as "CustomEntity03" in the
+    Shotgun API, this method will resolve the display name::
+        >>> get_entity_type_display_name(sg, "CustomEntity03")
+        'Workspace'
+
+    :param sg: A SG session handle.
+    :param sg_entity_type: SG API entity type name.
+    :returns: The display name for the Entity type as a string.
+    """
+    # TODO: cache the schema so it can be re-used
+    schema_data = sg.schema_entity_read()
+    if sg_entity_type in schema_data:
+        display_name = schema_data[sg_entity_type].get("name", {}).get("value")
+        if display_name:
+            return display_name
+
+    return sg_entity_type

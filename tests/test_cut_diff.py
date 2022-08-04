@@ -3,6 +3,7 @@
 
 import copy
 import logging
+import os
 import shotgun_api3
 
 from .python.sg_test import SGBaseTest
@@ -53,6 +54,118 @@ class TestCutDiff(SGBaseTest):
             self.mock_sequence["id"],
             self._SESSION_TOKEN
         )
+
+    def _add_sg_cut_data(self):
+        """
+        """
+        self.sg_sequences = [{
+            "code": "SEQ_6666",
+            "project": self.mock_project,
+            "type": "Sequence",
+            "id": 6666,
+        }]
+        self.add_to_sg_mock_db(self.sg_sequences)
+        self._sg_entities_to_delete.extend(self.sg_sequences)
+        self.sg_shots = [{
+            "code": "SHOT_6666",
+            "project": self.mock_project,
+            "type": "Shot",
+            "sequence": self.sg_sequences[0],
+            "id": 6666,
+        }, {
+            "code": "SHOT_6667",
+            "project": self.mock_project,
+            "type": "Shot",
+            "sequence": self.sg_sequences[0],
+            "id": 6667,
+        }, {
+            "code": "SHOT_6668",
+            "project": self.mock_project,
+            "type": "Shot",
+            "sequence": self.sg_sequences[0],
+            "id": 6668,
+        }, {
+            "code": "SHOT_6669",
+            "project": self.mock_project,
+            "type": "Shot",
+            "sequence": self.sg_sequences[0],
+            "id": 6669,
+        }]
+        self.add_to_sg_mock_db(self.sg_shots)
+        self._sg_entities_to_delete.extend(self.sg_shots)
+        self.sg_cuts = [{
+            "code": "CUT_6666",
+            "project": self.mock_project,
+            "type": "Cut",
+            "entity": self.sg_sequences[0],
+            "id": 6666,
+            "fps": 24.0,
+        }]
+        self.add_to_sg_mock_db(self.sg_cuts)
+        self._sg_entities_to_delete.extend(self.sg_cuts)
+        self.sg_cut_items = [{
+            "timecode_cut_item_out_text": "01:00:08:00",
+            "cut": self.sg_cuts[0],
+            "shot": self.sg_shots[0],
+            "cut_item_duration": 192,
+            "cut_item_in": 1008,
+            "cut_order": 1,
+            "timecode_cut_item_in_text": "01:00:00:00",
+            "version": None,
+            "cut_item_out": 1199,
+            "type": "CutItem",
+            "id": 54,
+            "code": "Item 54",
+            "timecode_edit_in_text": "07:00:00:00",
+            "timecode_edit_out_text": "07:00:08:00",
+        }, {
+            "timecode_cut_item_out_text": "00:00:05:00",
+            "cut": self.sg_cuts[0],
+            "shot": self.sg_shots[1],
+            "cut_item_duration": 111,
+            "cut_item_in": 1008,
+            "cut_order": 2,
+            "timecode_cut_item_in_text": "00:00:00:09",
+            "version": None,
+            "cut_item_out": 1118,
+            "type": "CutItem",
+            "id": 53,
+            "code": "Item 53",
+            "timecode_edit_in_text": "07:00:08:00",
+            "timecode_edit_out_text": "07:00:12:15",
+        }, {
+            "timecode_cut_item_out_text": "00:00:06:10",
+            "cut": self.sg_cuts[0],
+            "shot": self.sg_shots[2],
+            "cut_item_duration": 145,
+            "cut_item_in": 1008,
+            "cut_order": 3,
+            "timecode_cut_item_in_text": "00:00:00:09",
+            "version": None,
+            "cut_item_out": 1152,
+            "type": "CutItem",
+            "id": 52,
+            "code": "Item 52",
+            "timecode_edit_in_text": "07:00:12:15",
+            "timecode_edit_out_text": "07:00:18:16",
+        }, {
+            "timecode_cut_item_out_text": "00:00:07:16",
+            "cut": self.sg_cuts[0],
+            "shot": self.sg_shots[3],
+            "cut_item_duration": 175,
+            "cut_item_in": 1008,
+            "cut_order": 4,
+            "timecode_cut_item_in_text": "00:00:00:09",
+            "version": None,
+            "cut_item_out": 1182,
+            "type": "CutItem",
+            "id": 58,
+            "code": "Item 58",
+            "timecode_edit_in_text": "07:00:18:16",
+            "timecode_edit_out_text": "07:00:25:23",
+        }]
+        self.add_to_sg_mock_db(self.sg_cut_items)
+        self._sg_entities_to_delete.extend(self.sg_cut_items)
 
     def tearDown(self):
         """
@@ -186,7 +299,7 @@ class TestCutDiff(SGBaseTest):
                 self.assertEqual(
                     cut_diff.cut_out, cut_diff.old_cut_out
                 )
-                logger.info(cut_diff.reasons)
+                self.assertEqual(cut_diff.reasons, [])
                 self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
                 self.assertFalse(cut_diff.rescan_needed)
 
@@ -619,3 +732,36 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.cut_out.to_frames(), 1000 + 28 - 1)
         self.assertEqual(cut_diff.tail_out_duration.to_frames(), - 1)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
+
+    def test_report(self):
+        """
+        Test generating a diff report.
+        """
+        self._add_sg_cut_data()
+        path = os.path.join(
+            self.resources_dir,
+            "edl",
+            "R7v26.0_Turnover001_WiP_VFX__1_.edl"
+        )
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            mock_cut_url = get_read_url(
+                self.mock_sg.base_url,
+                self.sg_cuts[0]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
+            sg_track = timeline_from_sg.tracks[0]
+
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=sg_track,
+                old_track=sg_track,
+            )
+        # Check that the common container for the Cut was correctly detected
+        self.assertIsNotNone(track_diff._sg_entity)
+        self.assertEqual(track_diff._sg_shot_link_field_name, "sg_sequence")
+        self.assertEqual(track_diff._sg_entity["id"], self.sg_sequences[0]["id"])
+        self.assertEqual(track_diff._sg_entity["type"], self.sg_sequences[0]["type"])

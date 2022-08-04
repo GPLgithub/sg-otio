@@ -7,7 +7,7 @@ from .sg_settings import SGShotFieldsConfig
 from .clip_group import ClipGroup
 from .cut_clip import SGCutClip
 from .cut_diff import SGCutDiff
-from .utils import compute_clip_shot_name
+from .utils import compute_clip_shot_name, get_entity_type_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +56,27 @@ class SGTrackDiff(object):
         """
         self._sg = sg
         self._sg_project = sg_project
+        self._sg_entity = None
+        self._sg_shot_link_field_name = None
+
         self._diffs_by_shots = {}
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
             None, None
         ).all
 
-        # Retrieve Shots from the old_track
+        # Retrieve SG Entities from the old_track
         sg_shot_ids = []
         prev_clip_list = []
         if old_track:
+            sg_cut = old_track.metadata.get("sg")
+            if not sg_cut or sg_cut["type"] != "Cut":
+                raise ValueError(
+                    "Invalid track %s not linked to a SG Cut" % old_track.name
+                )
+            self._sg_entity = sg_cut.get("entity") or self._sg_project
+            logger.debug("Previous SG Cut was linked to %s" % self._sg_entity)
+            self._sg_shot_link_field_name = self._get_shot_link_field(self._sg_entity["type"])
             for i, clip in enumerate(old_track.each_clip()):
                 # Check if we have some SG meta data
                 sg_cut_item = clip.metadata.get("sg")
@@ -86,6 +97,11 @@ class SGTrackDiff(object):
                     ["%s (%s)" % (x.name, x.sg_shot) for x in prev_clip_list]
                 )
             )
+        # Add the linked Entity field to the fields to retrieve for Shots if
+        # we have one from the previous Cut.
+        if self._sg_shot_link_field_name:
+            sg_shot_fields.append(self._sg_shot_link_field_name)
+
         sg_shots_dict = {}
         # Retrieve details for Shots linked to the Clips
         if sg_shot_ids:
@@ -114,12 +130,20 @@ class SGTrackDiff(object):
                 SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
             )
         if more_shot_names:
-            sg_more_shots = self._sg.find(
-                "Shot",
-                [
+            # If we have a linked SG Entity from a previous Cut, restrict
+            # to Shots linked to this SG Entity.
+            if self._sg_shot_link_field_name:
+                filters = [
                     ["project", "is", self._sg_project],
                     ["code", "in", list(more_shot_names)]
-                ],
+                ]
+                filters.append(
+                    [self._sg_shot_link_field_name, "is", self._sg_entity]
+                )
+
+            sg_more_shots = self._sg.find(
+                "Shot",
+                filters,
                 sg_shot_fields,
             )
             for sg_shot in sg_more_shots:
@@ -325,6 +349,173 @@ class SGTrackDiff(object):
             return best
         return None
 
+    def diffs_for_type(self, diff_type, just_earliest=False):
+        """
+        Iterate over CutDiff instances for the given CutDiffType
+
+        :param diff_type: A CutDiffType
+        :param just_earliest: Whether or not all matching CutDiff should be
+                              returned or just the earliest(s)
+        :yields: CutDiff instances
+        """
+        for name, items in self.self._diffs_by_shots.items():
+            for item in items:
+                cut_diff = item.cut_diff
+                if cut_diff.interpreted_diff_type == diff_type and (not just_earliest or cut_diff.is_earliest()):
+                    yield cut_diff
+
+    def get_report(self, title, sg_links):
+        """
+        Build a text report for this summary, highlighting changes
+
+        :param title: A title for the report
+        :param sg_links: Shotgun URLs to display in the report as links
+        :return: A (subject, body) tuple, as strings
+        """
+        # Body should look like this:
+        # The changes in {Name of Cut/EDL} are as follows:
+        #
+        # 5 New Shots
+        # HT0500
+        # HT0510
+        # HT0520
+        # HT0530
+        # HT0540
+        #
+        # 2 Omitted Shots
+        # HT0050
+        # HT0060
+        #
+        # 1 Reinstated Shot
+        # HT0110
+        #
+        # 4 Cut Changes
+        # HT0070 - Head extended 2 frs
+        # HT0080 - Tail extended 6 frs
+        # HT0090 - Tail trimmed 5 frs
+        # HT0100 - Head extended 5 frs
+        #
+        # 1 Rescan Needed
+        # HT0120 - Head extended 15 frs
+
+        subject = self.get_summary_title(title)
+        # Note: Cut changes were previously reported with sometimes some reasons
+        # and some other times no reasons at all. This was confusing for clients.
+        # So for now we don't show any reason.
+#        cut_changes_details = [
+#            "%s - %s" % (
+#                edit.name, ", ".join(edit.reasons)
+#            ) for edit in sorted(
+#                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
+#                key=lambda x: x.new_cut_order
+#            )
+#        ]
+        cut_changes_details = [
+            "%s" % (
+                diff.name
+            ) for diff in sorted(
+                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
+                key=lambda x: x.new_cut_order
+            )
+        ]
+        rescan_details = [
+            "%s - %s" % (
+                diff.name, ", ".join(diff.reasons)
+            ) for diff in sorted(
+                self.diffs_for_type(_DIFF_TYPES.RESCAN),
+                key=lambda x: x.new_cut_order
+            )
+        ]
+        no_link_details = [
+            diff.version_name or str(diff.new_cut_order) for diff in sorted(
+                self.diffs_for_type(_DIFF_TYPES.NO_LINK),
+                key=lambda x: x.new_cut_order
+            )
+        ]
+        body = _BODY_REPORT_FORMAT % (
+            # Let the user know that something is potentially wrong
+            "WARNING, following edits couldn't be linked to any Shot :\n%s\n" % (
+                "\n".join(no_link_details)
+            ) if no_link_details else "",
+            # Urls
+            " , ".join(sg_links),
+            # Title
+            title,
+            # And then counts and lists per type of changes
+            self.count_for_type(_DIFF_TYPES.NEW),
+            "\n".join([
+                diff.name for diff in sorted(
+                    self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
+                    key=lambda x: x.new_cut_order
+                )
+            ]),
+            self.count_for_type(_DIFF_TYPES.OMITTED),
+            "\n".join([
+                diff.name for diff in sorted(
+                    self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
+                    key=lambda x: x.cut_order or -1
+                )
+            ]),
+            self.count_for_type(_DIFF_TYPES.REINSTATED),
+            "\n".join([
+                diff.name for diff in sorted(
+                    self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
+                    key=lambda x: x.new_cut_order
+                )
+            ]),
+            self.count_for_type(_DIFF_TYPES.CUT_CHANGE),
+            "\n".join(cut_changes_details),
+            self.count_for_type(_DIFF_TYPES.RESCAN),
+            "\n".join(rescan_details),
+        )
+        return subject, body
+
+    def get_summary_title(self, subject):
+        """
+        Return a string suitable as a title for cut changes reports.
+
+        :param str subject: A string, usually a Cut name.
+        """
+        return "%s Cut Summary changes on %s" % (
+            self._sg_entity["type"].title(),
+            subject
+        )
+
+    def get_diffs_by_change_type(self):
+        """
+        Returns a dictionary with lists of CutDiffs grouped by cut change type.
+
+        :returns: A dictionary where keys are cut change types and values are sorted
+                  list of :class:`CutDiff` instances.
+        """
+        diff_groups = {}
+        diff_groups[_DIFF_TYPES.CUT_CHANGE] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
+            key=lambda x: x.new_cut_order
+        )
+        diff_groups[_DIFF_TYPES.RESCAN] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.RESCAN),
+            key=lambda x: x.new_cut_order
+        )
+        diff_groups[_DIFF_TYPES.NO_LINK] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.NO_LINK),
+            key=lambda x: x.new_cut_order
+        )
+        diff_groups[_DIFF_TYPES.NEW] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
+            key=lambda x: x.new_cut_order
+        )
+        diff_groups[_DIFF_TYPES.OMITTED] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
+            key=lambda x: x.cut_order or -1
+        )
+        diff_groups[_DIFF_TYPES.REINSTATED] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
+            key=lambda x: x.new_cut_order
+        )
+        return diff_groups
+
+
     def _get_matching_score(self, clip_a, clip_b):
         """
         Return a matching score for the given two clips, based on:
@@ -351,6 +542,46 @@ class SGTrackDiff(object):
             score += 1
 
         return score
+
+    def _get_shot_link_field(self, sg_entity_type):
+        """
+
+        :returns: A SG Shot field name.
+        """
+        # Retrieve a "link" field on Shots which accepts our Entity type
+        shot_schema = self._sg.schema_field_read("Shot")
+        # Prefer a sg_<entity type> field if available
+        type_display_name = get_entity_type_display_name(
+            self._sg,
+            sg_entity_type,
+        )
+        field_name = "sg_%s" % type_display_name.lower()
+        field = shot_schema.get(field_name)
+        if(
+            field
+            and field["data_type"]["value"] == "entity"
+            and sg_entity_type in field["properties"]["valid_types"]["value"]
+        ):
+            logger.debug("Found preferred Shot field %s" % field_name)
+            return field_name
+
+        # General lookup
+        for field_name, field in shot_schema.items():
+            # the field has to accept entities and be editable.
+            if field["data_type"]["value"] == "entity" and field["editable"]["value"]:
+                if sg_entity_type in field["properties"]["valid_types"]["value"]:
+                    logger.debug("Found field %s to link %s to shots" % (
+                        field_name,
+                        sg_entity_type
+                    ))
+                    return field_name
+
+        logger.warning(
+            "Couldn't retrieve a SG Shot field accepting %s" % (
+                self._sg_entity_type,
+            )
+        )
+        return None
 
     def __len__(self):
         """

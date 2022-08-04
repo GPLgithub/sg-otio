@@ -147,7 +147,7 @@ def read_from_sg(args):
         adapter_name="ShotGrid",
     )
     if not args.file:
-        logger.info(otio.adapters.write_to_string(timeline))
+        logger.info(otio.adapters.write_to_string(timeline, adapter_name=args.adapter))
     else:
         otio.adapters.write_to_file(timeline, args.file, adapter_name=args.adapter)
 
@@ -228,13 +228,15 @@ def compare_to_sg(args):
         raise ValueError("The SG Cut does not contain any video tracks.")
     sg_track = old_timeline.video_tracks()[0]
     sg = Shotgun(args.sg_site_url, session_token=session_token)
-    SGTrackDiff(
+    diff = SGTrackDiff(
         sg,
         sg_track.metadata["sg"]["project"],
         new_track=new_track,
         old_track=sg_track
     )
-
+    logger.info(
+        diff.get_report("Changes for %s" % os.path.basename(args.file))
+    )
 
 def add_common_args(parser):
     """
