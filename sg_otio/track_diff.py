@@ -530,20 +530,20 @@ class SGTrackDiff(object):
 
     def count_for_type(self, diff_type):
         """
-        Return the number of entries for the given CutDiffType
+        Return the number of entries for the given CutDiffType.
 
-        :param diff_type: A CutDiffType
-        :returns: An integer
+        :param diff_type: A CutDiffType.
+        :returns: An integer.
         """
         return self._counts.get(diff_type, 0)
 
     def diffs_for_type(self, diff_type, just_earliest=False):
         """
-        Iterate over SGCutDiff instances for the given CutDiffType
+        Iterate over SGCutDiff instances for the given CutDiffType.
 
-        :param diff_type: A CutDiffType
+        :param diff_type: A CutDiffType.
         :param just_earliest: Whether or not all matching SGCutDiff should be
-                              returned or just the earliest(s)
+                              returned or just the earliest(s).
         :yields: SGCutDiff instances.
         """
         for shot_name, clip_group in self._diffs_by_shots.items():
@@ -560,11 +560,11 @@ class SGTrackDiff(object):
 
     def get_report(self, title, sg_links):
         """
-        Build a text report for this summary, highlighting changes
+        Build a text report for this summary, highlighting changes.
 
-        :param title: A title for the report
-        :param sg_links: Shotgun URLs to display in the report as links
-        :return: A (subject, body) tuple, as strings
+        :param title: A title for the report.
+        :param sg_links: Shotgun URLs to display in the report as links.
+        :return: A (subject, body) tuple, as strings.
         """
         # Body should look like this:
         # The changes in {Name of Cut/EDL} are as follows:
