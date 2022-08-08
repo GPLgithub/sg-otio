@@ -723,7 +723,7 @@ class SGCutClip(object):
         if timecode_in_to_frame_mapping_mode == _TC2FRAME_RELATIVE_MODE:
             tc_base, frame = sg_settings.timecode_in_to_frame_relative_mapping
             tc_base = otio.opentime.from_timecode(tc_base, self._frame_rate)
-            logger.info("Using mapping %s %s" % (tc_base, frame))
+            logger.debug("Using mapping %s %s" % (tc_base, frame))
             return self.source_in - tc_base + RationalTime(frame, self._frame_rate)
 
         # Automatic mode

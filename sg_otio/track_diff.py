@@ -284,7 +284,7 @@ class SGTrackDiff(object):
         self._diffs_by_shots = {}
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
-            None, None
+            self._sg, None
         ).all
 
         # Retrieve SG Entities from the old_track
@@ -702,21 +702,21 @@ class SGTrackDiff(object):
             # And then counts and lists per type of changes
             self.count_for_type(_DIFF_TYPES.NEW),
             "\n".join([
-                diff.name for diff in sorted(
+                diff.shot_name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
                     key=lambda x: x.index
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.OMITTED),
             "\n".join([
-                diff.name for diff in sorted(
+                diff.shot_name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
                     key=lambda x: x.index or -1
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.REINSTATED),
             "\n".join([
-                diff.name for diff in sorted(
+                diff.shot_name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
                     key=lambda x: x.index
                 )
