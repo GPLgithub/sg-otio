@@ -46,12 +46,46 @@ class TestClipGroup(unittest.TestCase):
         track = edl_timeline.tracks[0]
         shot_groups = ClipGroup.groups_from_track(track)
         self.assertEqual(set(shot_groups.keys()), {"shot_001", "shot_002", "shot_003"})
+        self.assertIsNone(shot_groups["shot_001"].sg_shot)
         shot_001_clips = shot_groups["shot_001"].clips
         self.assertEqual({clip.name for clip in shot_001_clips}, {"clip_1", "clip_3"})
         shot_002_clips = shot_groups["shot_002"].clips
         self.assertEqual({clip.name for clip in shot_002_clips}, {"clip_2", "clip_4"})
         shot_003_clips = shot_groups["shot_003"].clips
         self.assertEqual({clip.name for clip in shot_003_clips}, {"clip_5"})
+
+        # Test setting Shots
+        sg_shot = {
+            "type": "Shot",
+            "id": 1,
+        }
+        for clip in shot_groups["shot_001"].clips:
+            self.assertEqual(clip.sg_shot, None)
+            with self.assertRaises(ValueError) as cm:
+                clip.sg_shot = sg_shot
+            self.assertIn(
+                "Can't change the SG Shot value controlled by",
+                str(cm.exception)
+            )
+            # This shouldn't cause any problem
+            clip.sg_shot = shot_groups["shot_001"].sg_shot
+        shot_groups["shot_001"].sg_shot = sg_shot
+        for clip in shot_groups["shot_001"].clips:
+            self.assertEqual(clip.sg_shot, sg_shot)
+            with self.assertRaises(ValueError) as cm:
+                clip.sg_shot = None
+            self.assertIn(
+                "Can't change the SG Shot value controlled by",
+                str(cm.exception)
+            )
+            with self.assertRaises(ValueError) as cm:
+                clip.sg_shot = {"type": "Shot", "id": 10234}
+            self.assertIn(
+                "Can't change the SG Shot value controlled by",
+                str(cm.exception)
+            )
+            # This shouldn't cause any problem
+            clip.sg_shot = shot_groups["shot_001"].sg_shot
 
     def test_group_values(self):
         """
@@ -68,7 +102,7 @@ class TestClipGroup(unittest.TestCase):
             * COMMENT: shot_002
             003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: shot_001
+            * COMMENT: SHOT_001
         """
         # set multiple head_in, head_in_duration, tail_out_duration
         # to show that the results are still consistent.
@@ -87,6 +121,7 @@ class TestClipGroup(unittest.TestCase):
             shot_groups = ClipGroup.groups_from_track(track)
 
             shot = shot_groups["shot_001"]
+            # Matching Shots is case insensitive
             self.assertEqual(shot.name, "shot_001")
             self.assertEqual(shot.index, 3)  # first clip is the last starting at 01:00:00:00
             self.assertEqual(shot.cut_in.to_frames(), head_in + head_in_duration)
@@ -103,6 +138,10 @@ class TestClipGroup(unittest.TestCase):
             self.assertTrue(not shot.has_retime)
             self.assertEqual(shot.duration.to_frames(), 10 * 24)
             self.assertEqual(shot.working_duration.to_frames(), head_in_duration + 10 * 24 + tail_out_duration - 1)
+            clips = list(shot.clips)
+            self.assertEqual(len(clips), 2)
+            self.assertEqual(clips[0].cut_in.to_frames(), head_in + head_in_duration + 24)
+            self.assertEqual(clips[1].cut_in.to_frames(), head_in + head_in_duration)
 
 
 if __name__ == '__main__':

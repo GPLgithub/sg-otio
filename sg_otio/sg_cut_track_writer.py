@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
-import copy
 import datetime
 import logging
 import os
@@ -17,6 +16,7 @@ from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
 from .utils import get_available_filename, compute_clip_version_name
 from .utils import get_platform_name, get_path_from_target_url
+from .track_diff import SGTrackDiff
 
 try:
     # For Python 3.4 or later
@@ -60,7 +60,7 @@ class SGCutTrackWriter(object):
             self._cut_item_schema[self._sg.base_url] = self._sg.schema_field_read("CutItem")
         return self._cut_item_schema[self._sg.base_url]
 
-    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description=""):
+    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description="", previous_track=None):
         """
         Gather information about a Cut, its Cut Items and their linked Shots and create
         or update Entities accordingly in SG.
@@ -90,39 +90,48 @@ class SGCutTrackWriter(object):
             self._sg,
             sg_linked_entity["type"] if sg_linked_entity else None,
         )
-        clips_by_shots = ClipGroup.groups_from_track(video_track)
-
-        # Grab Shots and enforce unique cut item names
-        shot_names = []
-        seen_names = []
-        duplicate_names = {}
-        for shot, clip_group in clips_by_shots.items():
-            if shot:
-                shot_names.append(shot)
-            for clip in clip_group.clips:
-                if clip.name not in seen_names:
-                    seen_names.append(clip.name)
-                else:
-                    if clip.name not in duplicate_names:
-                        duplicate_names[clip.name] = []
-                    duplicate_names[clip.name].append(clip)
-
-        for name, clips in duplicate_names.items():
-            clip_name_index = 1
-            for clip in clips:
-                clip.cut_item_name = "%s_%03d" % (clip.name, clip_name_index)
-                clip_name_index += 1
-
-        if shot_names:
-            sg_shots = self._sg.find(
-                "Shot",
-                [["project", "is", sg_project], ["code", "in", shot_names]],
-                sfg.all
+        if previous_track:
+            track_diff = SGTrackDiff(
+                self._sg,
+                sg_project,
+                new_track=video_track,
+                old_track=previous_track,
             )
-            # Apply retrieved Shots to ClipGroups
-            for sg_shot in sg_shots:
-                shot_name = sg_shot["code"]
-                clips_by_shots[shot_name].sg_shot = sg_shot
+            clips_by_shots = track_diff.diffs_by_shots
+        else:
+            clips_by_shots = ClipGroup.groups_from_track(video_track)
+
+            # Grab Shots and enforce unique cut item names
+            shot_names = []
+            seen_names = []
+            duplicate_names = {}
+            for shot, clip_group in clips_by_shots.items():
+                if shot:
+                    shot_names.append(shot)
+                for clip in clip_group.clips:
+                    if clip.name not in seen_names:
+                        seen_names.append(clip.name)
+                    else:
+                        if clip.name not in duplicate_names:
+                            duplicate_names[clip.name] = []
+                        duplicate_names[clip.name].append(clip)
+
+            for name, clips in duplicate_names.items():
+                clip_name_index = 1
+                for clip in clips:
+                    clip.cut_item_name = "%s_%03d" % (clip.name, clip_name_index)
+                    clip_name_index += 1
+
+            if shot_names:
+                sg_shots = self._sg.find(
+                    "Shot",
+                    [["project", "is", sg_project], ["code", "in", shot_names]],
+                    sfg.all
+                )
+                # Apply retrieved Shots to ClipGroups
+                for sg_shot in sg_shots:
+                    shot_name = sg_shot["code"]
+                    clips_by_shots[shot_name].sg_shot = sg_shot
 
         sg_cut_version = None
         sg_cut_pf = None
@@ -240,7 +249,7 @@ class SGCutTrackWriter(object):
             track_start = RationalTime(0, video_track.duration().rate)
         track_end = track_start + video_track.duration()
         cut_payload = {
-            "code": video_track.name,
+            "code": video_track.name or "New Cut %s" % datetime.date.today(),
             "fps": video_track.duration().rate,
             "timecode_start_text": track_start.to_timecode(),
             "timecode_end_text": track_end.to_timecode(),
@@ -280,9 +289,15 @@ class SGCutTrackWriter(object):
 
         # Loop over all clips
         for shot_name, clip_group in clips_by_shots.items():
+            if clip_group.sg_shot_is_omitted:
+                logger.info("Skipping omitted Shot %s" % shot_name)
+                continue
             for clip in clip_group.clips:
+                logger.debug("Getting payload for %s %s %s %s %s" % (
+                    clip.name, clip.head_in, clip.cut_in, clip.cut_out, clip.tail_out
+                ))
                 # TODO: check if the medata is updated if we created Versions
-                sg_version = clip.media_reference.metadata.get("sg", {}).get("version")
+                sg_version = clip.sg_version
                 sg_data = self.get_sg_cut_item_payload(
                     clip,
                     sg_shot=clip.sg_shot,
@@ -728,26 +743,38 @@ class SGCutTrackWriter(object):
                     sg_linked_entity,
                     sg_user
                 )
-                sg_batch_data.append({
-                    "request_type": "update",
-                    "entity_type": "Shot",
-                    "entity_id": sg_shot["id"],
-                    "data": shot_payload
-                })
+                if shot_payload:
+                    sg_batch_data.append({
+                        "request_type": "update",
+                        "entity_type": "Shot",
+                        "entity_id": sg_shot["id"],
+                        "data": shot_payload
+                    })
+                else:
+                    logger.info(
+                        "No update to perform for Shot %s..." % clip_group.name
+                    )
+
         if sg_batch_data:
             sg_shots = self._sg.batch(sg_batch_data)
             # Update the clips Shots
             for sg_shot in sg_shots:
                 clip_group = clips_by_shots[sg_shot["code"]]
-                for clip in clip_group.clips:
-                    clip.sg_shot = copy.deepcopy(sg_shot)
+                if not clip_group.sg_shot:
+                    clip_group.sg_shot = sg_shot
+                else:
+                    # Only update with values which were updated in case it
+                    # was a partial update.
+                    for k in sg_shot.keys():
+                        clip_group.sg_shot[k] = sg_shot[k]
+
         return sg_shots
 
-    def _get_shot_payload(self, shot, sg_project, sg_linked_entity, sg_user=None):
+    def _get_shot_payload(self, clip_group, sg_project, sg_linked_entity, sg_user=None):
         """
-        Get a SG Shot payload for a given :class:`sg_otio.Shot` instance.
+        Get a SG Shot payload for a given :class:`sg_otio.ClipGroup` instance.
 
-        :param shot: A :class:`sg_otio.Shot` instance.
+        :param clip_group: A :class:`sg_otio.ClipGroup` instance.
         :param sg_project: The SG Project to write the Shot to.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
         :param sg_user: An optional user to provide when creating/updating Shots in SG.
@@ -755,31 +782,43 @@ class SGCutTrackWriter(object):
         """
         sg_linked_entity = sg_linked_entity or sg_project
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
+        if clip_group.sg_shot_is_omitted:
+            # Just update the status of the Shot.
+            omit_statuses = SGSettings().shot_omitted_statuses
+            if omit_statuses:
+                return {
+                    "code": clip_group.name,
+                    "sg_status_list": omit_statuses[0]
+                }
+            return None
+
         shot_payload = {
             "project": sg_project,
-            "code": shot.name,
-            sfg.head_in: shot.head_in.to_frames(),
-            sfg.cut_in: shot.cut_in.to_frames(),
-            sfg.cut_out: shot.cut_out.to_frames(),
-            sfg.tail_out: shot.tail_out.to_frames(),
-            sfg.cut_duration: shot.duration.to_frames(),
-            sfg.cut_order: shot.index
+            "code": clip_group.name,
+            sfg.head_in: clip_group.head_in.to_frames(),
+            sfg.cut_in: clip_group.cut_in.to_frames(),
+            sfg.cut_out: clip_group.cut_out.to_frames(),
+            sfg.tail_out: clip_group.tail_out.to_frames(),
+            sfg.cut_duration: clip_group.duration.to_frames(),
+            sfg.cut_order: clip_group.index
         }
         if sg_user:
             shot_payload["created_by"] = sg_user
             shot_payload["updated_by"] = sg_user
         if sfg.working_duration:
-            shot_payload[sfg.working_duration] = shot.working_duration.to_frames()
+            shot_payload[sfg.working_duration] = clip_group.working_duration.to_frames()
+        if sfg.head_duration:
+            shot_payload[sfg.head_duration] = self.head_duration.to_frames()
         if sfg.head_out:
-            shot_payload[sfg.head_out] = shot.head_out.to_frames()
+            shot_payload[sfg.head_out] = clip_group.head_out.to_frames()
         if sfg.tail_in:
-            shot_payload[sfg.tail_in] = shot.tail_in.to_frames()
+            shot_payload[sfg.tail_in] = clip_group.tail_in.to_frames()
         if sfg.tail_duration:
-            shot_payload[sfg.tail_duration] = shot.tail_duration.to_frames()
+            shot_payload[sfg.tail_duration] = clip_group.tail_duration.to_frames()
         # TODO: Add setting for flagging retimes and effects?
         if True:
-            shot_payload[sfg.has_effects] = shot.has_effects
-            shot_payload[sfg.has_retime] = shot.has_retime
+            shot_payload[sfg.has_effects] = clip_group.has_effects
+            shot_payload[sfg.has_retime] = clip_group.has_retime
         if sfg.absolute_cut_order:
             # TODO: maybe create Shot fields config before so that
             #       we can get the field without an extra query?
@@ -790,7 +829,7 @@ class SGCutTrackWriter(object):
             )
             entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
             if entity_cut_order:
-                absolute_cut_order = 1000 * entity_cut_order + shot.index
+                absolute_cut_order = 1000 * entity_cut_order + clip_group.index
                 shot_payload[sfg.absolute_cut_order] = absolute_cut_order
         if sfg.shot_link_field and sg_linked_entity:
             shot_payload[sfg.shot_link_field] = sg_linked_entity

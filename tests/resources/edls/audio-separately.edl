@@ -1,0 +1,14 @@
+TITLE: audio-separately
+FCM: NON-DROP FRAME
+
+001  AX       V     C        00:00:00:00 00:56:55:22 00:00:00:00 00:56:55:22
+* FROM CLIP NAME: mad.men.714.hdtv-lol.mp4
+
+002  AX       AA    C        00:00:00:00 00:56:55:22 00:00:00:00 00:56:55:22
+* FROM CLIP NAME: mad.men.714.hdtv-lol.mp4
+
+003  AX       V     C        00:00:00:00 00:53:56:23 00:56:55:22 01:50:52:21
+* FROM CLIP NAME: Mr.Robot.S01E10.HDTV.x264-KILLERS.mp4
+
+004  AX       AA    C        00:00:00:00 00:53:56:23 00:56:55:22 01:50:52:21
+* FROM CLIP NAME: Mr.Robot.S01E10.HDTV.x264-KILLERS.mp4

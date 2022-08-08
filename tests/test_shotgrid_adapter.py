@@ -6,19 +6,18 @@ import os
 import re
 import tempfile
 import unittest
-from functools import partial
 
 import opentimelineio as otio
 import shotgun_api3
-from shotgun_api3.lib import mockgun
 
+from .python.sg_test import SGBaseTest
 from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import compute_clip_version_name, get_platform_name, get_write_url
+from sg_otio.utils import compute_clip_version_name, get_platform_name
+from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.cut_clip import SGCutClip
 
-from utils import add_to_sg_mock_db
 
 try:
     # Python 3.3 forward includes the mock module
@@ -29,7 +28,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class ShotgridAdapterTest(unittest.TestCase):
+class ShotgridAdapterTest(SGBaseTest):
     """
     Tests for the ShotGrid adapter.
 
@@ -45,32 +44,8 @@ class ShotgridAdapterTest(unittest.TestCase):
         sg_settings.reset_to_defaults()
         self.resources_dir = os.path.join(os.path.dirname(__file__), "resources")
         sg_settings.use_clip_names_for_shot_names = True
-        # Setup mockgun.
-        self.mock_sg = mockgun.Shotgun(
-            "https://mysite.shotgunstudio.com",
-            "foo",
-            "xxxx"
-        )
-        self._SESSION_TOKEN = self.mock_sg.get_session_token()
 
-        # Avoid NotImplementedError for mock_sg.upload
-        self.mock_sg.upload = mock.MagicMock()
-        # Fix the mockgun update method since it returns a list instead of a dict
-        # We unfortunately also need to fix the batch method since it assumes a list
-        self.mock_sg.update = mock.MagicMock(side_effect=partial(self.mock_sg_update, self.mock_sg.update))
-        self.mock_sg.batch = mock.MagicMock(side_effect=self.mock_sg_batch)
-        project = {"type": "Project", "name": "project", "id": 1}
-        add_to_sg_mock_db(
-            self.mock_sg,
-            project
-        )
-        self.mock_project = project
-        user = {"type": "HumanUser", "name": "James Bond", "id": 1}
-        add_to_sg_mock_db(
-            self.mock_sg,
-            user
-        )
-        self.mock_user = user
+        super(ShotgridAdapterTest, self).setUp()
 
         self.mock_sequence = {
             "project": self.mock_project,
@@ -79,28 +54,28 @@ class ShotgridAdapterTest(unittest.TestCase):
             "id": 2,
             "sg_cut_order": 2
         }
-        add_to_sg_mock_db(self.mock_sg, self.mock_sequence)
+        self.add_to_sg_mock_db(self.mock_sequence)
         self.path_field = "%s_path" % get_platform_name()
         self.mock_local_storage = {
             "type": "LocalStorage",
             "code": "primary",
             "id": 1,
             self.path_field: tempfile.mkdtemp()}
-        add_to_sg_mock_db(self.mock_sg, self.mock_local_storage)
+        self.add_to_sg_mock_db(self.mock_local_storage)
         # Create some Shots
         self.mock_shots = []
         for i in range(1, 4):
             self.mock_shots.append(
-                {"type": "Shot", "code": "%03d" % i, "project": project, "id": i}
+                {"type": "Shot", "code": "%03d" % i, "project": self.mock_project, "id": i}
             )
-        add_to_sg_mock_db(self.mock_sg, self.mock_shots)
+        self.add_to_sg_mock_db(self.mock_shots)
         # Create a Cut
         self.fps = 24
         self.mock_cut = {
             "type": "Cut",
             "id": 1,
             "code": "Cut01",
-            "project": project,
+            "project": self.mock_project,
             "fps": self.fps,
             "timecode_start_text": "01:00:00:00",
             "timecode_end_text": "01:04:00:00",  # 5760 frames at 24 fps.
@@ -110,7 +85,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             "image": None,
             "description": "Mocked Cut",
         }
-        add_to_sg_mock_db(self.mock_sg, self.mock_cut)
+        self.add_to_sg_mock_db(self.mock_cut)
         self.mock_cut_id = self.mock_cut["id"]
         # Create a Version for each Shot
         self.mock_versions = []
@@ -118,12 +93,12 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.mock_versions.append({
                 "type": "Version",
                 "id": i + 1,
-                "project": project,
+                "project": self.mock_project,
                 "entity": shot,
                 "code": "%s_v001" % shot["code"],
                 "image": "file:///my_image.jpg",
             })
-        add_to_sg_mock_db(self.mock_sg, self.mock_versions)
+        self.add_to_sg_mock_db(self.mock_versions)
         # Create some Cut Items for each Version/Shot
         self.mock_cut_items = []
         for i, (shot, version) in enumerate(zip(self.mock_shots, self.mock_versions)):
@@ -153,7 +128,7 @@ class ShotgridAdapterTest(unittest.TestCase):
                     "cut_order": i + 1,
                 }
             )
-        add_to_sg_mock_db(self.mock_sg, self.mock_cut_items)
+        self.add_to_sg_mock_db(self.mock_cut_items)
         self._SG_CUT_URL = get_write_url(
             self.mock_sg.base_url,
             "Cut",
@@ -166,47 +141,6 @@ class ShotgridAdapterTest(unittest.TestCase):
             self.mock_sequence["id"],
             self._SESSION_TOKEN
         )
-
-    def mock_sg_update(self, update, entity_type, entity_id, data):
-        """
-        Update using mockgun.
-
-        Mockgun returns a list whereas shotgun returns a dict.
-
-        :param update: The mockgun update method.
-        :param entity_type: The entity type to update.
-        :param entity_id: The entity id to update.
-        :param data: The data to update.
-        """
-        return update(entity_type, entity_id, data)[0]
-
-    def mock_sg_batch(self, requests):
-        """
-        Mockgun batch method.
-
-        Mockgun update returns a list instead of a dict, since we patch it, we also need to
-        patch batch.
-
-        :param requests: A list of requests
-        :returns: A list of SG Entities.
-        """
-        # Same code as in mockgun.batch(), except for update we append the result and not the first item.
-        results = []
-        for request in requests:
-            if request["request_type"] == "create":
-                results.append(self.mock_sg.create(request["entity_type"], request["data"]))
-            elif request["request_type"] == "update":
-                # note: This is the only different line with mockgun.batch.
-                # Since mockgun.update returns a list instead of a dict (which is the case for shotgun),
-                # mockgun.batch here returns the first item of the list, but since we patch mockgun.update
-                # to return a dict, we also need to amend this line to append the dict and not the first element
-                # of a list.
-                results.append(self.mock_sg.update(request["entity_type"], request["entity_id"], request["data"]))
-            elif request["request_type"] == "delete":
-                results.append(self.mock_sg.delete(request["entity_type"], request["entity_id"]))
-            else:
-                raise shotgun_api3.ShotgunError("Invalid request type %s in request %s" % (request["request_type"], request))
-        return results
 
     def test_read(self):
         """
@@ -315,8 +249,8 @@ class ShotgridAdapterTest(unittest.TestCase):
             }
         ]
         try:
-            add_to_sg_mock_db(self.mock_sg, mock_cut)
-            add_to_sg_mock_db(self.mock_sg, mock_cut_items)
+            self.add_to_sg_mock_db(mock_cut)
+            self.add_to_sg_mock_db(mock_cut_items)
             SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
                 self.mock_sg.base_url,
                 self._SESSION_TOKEN,
@@ -399,8 +333,8 @@ class ShotgridAdapterTest(unittest.TestCase):
             }
         ]
         try:
-            add_to_sg_mock_db(self.mock_sg, mock_cut)
-            add_to_sg_mock_db(self.mock_sg, mock_cut_items)
+            self.add_to_sg_mock_db(mock_cut)
+            self.add_to_sg_mock_db(mock_cut_items)
             SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
                 self.mock_sg.base_url,
                 self._SESSION_TOKEN,
@@ -605,7 +539,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             mock_cut["id"],
             self._SESSION_TOKEN
         )
-        add_to_sg_mock_db(self.mock_sg, mock_cut)
+        self.add_to_sg_mock_db(mock_cut)
         try:
             edl = """
             TITLE: Cut01
@@ -694,7 +628,7 @@ class ShotgridAdapterTest(unittest.TestCase):
             mock_cut["id"],
             self._SESSION_TOKEN
         )
-        add_to_sg_mock_db(self.mock_sg, mock_cut)
+        self.add_to_sg_mock_db(mock_cut)
         try:
             with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
                 otio.adapters.write_to_file(timeline, mock_cut_url, "ShotGrid")
@@ -758,6 +692,52 @@ class ShotgridAdapterTest(unittest.TestCase):
                         clip.metadata["sg"]["code"]
                     )
                 )
+
+    def test_write_shot(self):
+        """
+        Test saving a Cut to SG with Shots created from the save.
+        """
+        edl = """
+            TITLE:   CUT_DIFF_TEST
+
+            001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: test_write_shot_shot_001
+            002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
+            * FROM CLIP NAME: shot_002_v001
+            * COMMENT: test_write_shot_shot_002
+            003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: test_write_shot_SHOT_001
+        """
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        track = timeline.tracks[0]
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            clip = track[0]
+            self.assertEqual(clip.metadata["sg"]["cut_order"], 1)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            clip = track[1]
+            self.assertEqual(clip.metadata["sg"]["cut_order"], 2)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            clip = track[2]
+            self.assertEqual(clip.metadata["sg"]["cut_order"], 3)
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+
+            mock_cut_url = get_read_url(
+                self.mock_sg.base_url,
+                track.metadata["sg"]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
+            sg_track = timeline_from_sg.tracks[0]
+            clip = sg_track[0]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            clip = sg_track[1]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            clip = sg_track[2]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
 
 
 if __name__ == "__main__":

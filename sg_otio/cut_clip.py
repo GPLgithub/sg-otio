@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 class SGCutClip(object):
     """
     A Clip in the context of a SG Cut.
+
+    SGCutClips can be grouped together in a :class:`ClipGroup` instance if they
+    represent the same source, typically a Shot. In this case, their Cut values
+    are adjusted to represent parts of the same source.
     """
 
     def __init__(
@@ -35,6 +39,7 @@ class SGCutClip(object):
         """
         super(SGCutClip, self).__init__(*args, **kwargs)
         self._clip = clip
+        self._clip_group = None
         self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
@@ -44,8 +49,26 @@ class SGCutClip(object):
         self._frame_rate = self._clip.duration().rate
         self._index = index
         self.sg_shot = sg_shot
-        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+        self.compute_head_tail_values()
         self._cut_item_name = self.name
+
+    @property
+    def clip(self):
+        """
+        Return the linked Clip.
+
+        :returns: A :class:`otio.schema.Clip` instance.
+        """
+        return self._clip
+
+    @property
+    def frame_rate(self):
+        """
+        Return the linked Clip frame rate.
+
+        :returns: A float.
+        """
+        return self._frame_rate
 
     @property
     def media_reference(self):
@@ -90,6 +113,28 @@ class SGCutClip(object):
         return self._clip.metadata
 
     @property
+    def group(self):
+        """
+        Return the :class:`ClipGroup` this Clip is in, if any.
+
+        :returns: A :class:`ClipGroup` or ``None``.
+        """
+        return self._clip_group
+
+    @group.setter
+    def group(self, value):
+        """
+        Set the :class:`ClipGroup` this Clip is in.
+
+        :param value: :class:`ClipGroup` instance.
+        """
+        self._clip_group = value
+        if not self._clip_group:
+            # Recompute values only if we don't have a clip group.
+            # Otherwise we assume that values are maintained by the group.
+            self.compute_head_tail_values()
+
+    @property
     def sg_shot(self):
         """
         Return the SG Shot associated with this Clip, if any.
@@ -107,13 +152,32 @@ class SGCutClip(object):
         which depend on the SG Shot.
 
         :param value: A SG Shot dictionary.
+        :raises ValueError: For invalid values.
         """
+        if self._clip_group:
+            if value:
+                if (
+                    not self._clip_group.sg_shot
+                    or self._clip_group.sg_shot["id"] != value["id"]
+                    or self._clip_group.sg_shot["type"] != value["type"]
+                ):
+                    raise ValueError(
+                        "Can't change the SG Shot value controlled by %s" % self._clip_group
+                    )
+            elif self._clip_group.sg_shot:
+                raise ValueError(
+                    "Can't change the SG Shot value controlled by %s" % self._clip_group
+                )
+
         self._sg_shot = value
         if self._sg_shot and self._sg_shot.get("code"):
             self._shot_name = self._sg_shot["code"]
         else:
             self._shot_name = compute_clip_shot_name(self._clip)
-        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+        # If the Clip is part of a group, assume that the values are set by
+        # the group
+        if not self._clip_group:
+            self.compute_head_tail_values()
 
     @property
     def cut_item_name(self):
@@ -444,6 +508,8 @@ class SGCutClip(object):
     def tail_out_duration(self):
         """
         Return the tail handle duration.
+
+        :returns: A :class:`RationalTime` instance.
         """
         return self._tail_out_duration
 
@@ -574,6 +640,27 @@ class SGCutClip(object):
             return self.sg_shot.get(tail_out_field)
         return None
 
+    @property
+    def sg_shot_status(self):
+        """
+        Return the status value from associated SG Shot, or None
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            status_field = config.status
+            return self.sg_shot[status_field]
+        return None
+
+    def compute_head_tail_values(self):
+        """
+        Compute and set the head and tail values for this clip.
+        """
+        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+
     def get_head_tail_values(self):
         """
         Compute head and tail values for this clip.
@@ -603,7 +690,7 @@ class SGCutClip(object):
             # tail_out - (cut_out + 1) -1, we use a simplified formula below
             tail_duration = tail_out - cut_out
 
-        return(
+        return (
             head_in,
             head_duration,
             tail_duration,
@@ -644,3 +731,26 @@ class SGCutClip(object):
         if head_in is None:
             head_in = sg_settings.default_head_in
         return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
+
+    @property
+    def sg_version(self):
+        """
+        Return the SG Version associated with this Clip, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        sg_version = self.media_reference.metadata.get("sg", {}).get("version")
+        return sg_version
+
+    @property
+    def sg_version_name(self):
+        """
+        Return the name of SG Version associated with this Clip, if any.
+
+        :returns: A string or ``None``.
+        """
+
+        sg_version = self.sg_version
+        if sg_version:
+            return sg_version["code"]
+        return None

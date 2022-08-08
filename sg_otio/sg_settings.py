@@ -346,6 +346,24 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._shot_cut_fields_prefix = value
 
+    @property
+    def shot_omitted_statuses(self):
+        """
+        Return the list of omitted statuses used for Shots.
+
+        :returns: A list of SG statuses short codes or ``None``.
+        """
+        return self._shot_omitted_statuses
+
+    @shot_omitted_statuses.setter
+    def shot_omitted_statuses(self, value):
+        """
+        Set the list of omitted statuses used for Shots.
+
+        :param value: A list of SG statuses short codes or ``None``.
+        """
+        self._shot_omitted_statuses = value or None
+
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -365,12 +383,13 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         )
         self._use_smart_fields = False
         self._shot_cut_fields_prefix = None
+        self._shot_omitted_statuses = ["omt", "hld"]
 
 
 class SGShotFieldsConfig(object):
     """
-    This class is used to configure the fields that are used to represent cut information
-    on a SG Shot.
+    This class is used to configure the fields that are used to represent Cut
+    information on a SG Shot.
 
     There are three possible set of fields used to represent cut information:
     - The default fields (e.g. sg_cut_in, sg_cut_out, sg_cut_duration, sg_cut_order...)
@@ -531,7 +550,7 @@ class SGShotFieldsConfig(object):
         """
         if not self._use_smart_fields and self._shot_cut_fields_prefix:
             return _ALT_SHOT_STATUS_FIELD_TEMPLATE % self._shot_cut_fields_prefix
-        return "sg_status"
+        return "sg_status_list"
 
     @property
     def head_out(self):
@@ -618,6 +637,8 @@ class SGShotFieldsConfig(object):
         sg_shot_fields = list(_SHOT_FIELDS)  # Make a copy, smart cut fields are included
         if self.shot_link_field:
             sg_shot_fields.append(self.shot_link_field)
+        if self.status:
+            sg_shot_fields.append(self.status)
         if self._shot_cut_fields_prefix:
             sg_shot_fields.extend([
                 x % self._shot_cut_fields_prefix for x in _ALT_SHOT_FIELDS
@@ -646,7 +667,7 @@ class SGShotFieldsConfig(object):
         entity_type_name = schema_entity_type["name"]["value"]
         field_name = "sg_%s" % entity_type_name.lower()
         field = self.shot_schema.get(field_name)
-        if(
+        if (
             field
             and field["data_type"]["value"] == "entity"
             and self._linked_entity_type in field["properties"]["valid_types"]["value"]
@@ -657,7 +678,7 @@ class SGShotFieldsConfig(object):
             # General lookup
             for field_name, field in self.shot_schema.items():
                 # the field has to accept entities and be editable.
-                if(
+                if (
                     field["data_type"]["value"] == "entity"
                     and field["editable"]["value"]
                     and self._linked_entity_type in field["properties"]["valid_types"]["value"]

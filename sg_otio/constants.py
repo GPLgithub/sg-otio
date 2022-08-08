@@ -145,3 +145,22 @@ _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE = ran
 
 # The path to the sg-otio manifest file.
 _SG_OTIO_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "plugin_manifest.json")
+
+
+# Define difference types as enums
+def diff_types(**enums):
+    return type("CutDiffType", (), enums)
+
+
+# Values for CutDiff types
+_DIFF_TYPES = diff_types(
+    NEW=0,              # A new Shot will be created
+    OMITTED=1,          # The Shot is not part of the cut anymore
+    REINSTATED=2,       # The Shot is back in the cut
+    RESCAN=3,           # A rescan will be needed with the new in / out points
+    CUT_CHANGE=4,       # Some values changed, but don't fall in previous categories
+    NO_CHANGE=5,        # Values are identical to previous ones
+    NO_LINK=6,          # Related Shot name couldn't be found
+    NEW_IN_CUT=7,       # A new Shot entry is added, but the Shot already exists
+    OMITTED_IN_CUT=8,   # A repeated Shot entry was removed
+)

@@ -291,6 +291,7 @@ class TestCutClip(unittest.TestCase):
             # cut out values differ, with different handle durations.
             tail_out = RationalTime(head_in + head_in_duration + 10 * 30 + tail_out_duration - 1, 30)
             for clip in clip_group.clips:
+                self.assertEqual(clip.group, clip_group)
                 self.assertEqual(clip.head_in.to_frames(), clip_group.head_in.to_frames())
                 self.assertEqual(clip.tail_out.to_frames(), clip_group.tail_out.to_frames())
                 self.assertEqual(
