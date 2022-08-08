@@ -741,3 +741,16 @@ class SGCutClip(object):
         """
         sg_version = self.media_reference.metadata.get("sg", {}).get("version")
         return sg_version
+
+    @property
+    def sg_version_name(self):
+        """
+        Return the name of SG Version associated with this Clip, if any.
+
+        :returns: A string or ``None``.
+        """
+
+        sg_version = self.sg_version
+        if sg_version:
+            return sg_version["code"]
+        return None

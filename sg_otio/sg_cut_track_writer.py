@@ -16,6 +16,7 @@ from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
 from .utils import get_available_filename, compute_clip_version_name
 from .utils import get_platform_name, get_path_from_target_url
+from .track_diff import SGTrackDiff
 
 try:
     # For Python 3.4 or later
@@ -59,7 +60,7 @@ class SGCutTrackWriter(object):
             self._cut_item_schema[self._sg.base_url] = self._sg.schema_field_read("CutItem")
         return self._cut_item_schema[self._sg.base_url]
 
-    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description=""):
+    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description="", previous_track=None):
         """
         Gather information about a Cut, its Cut Items and their linked Shots and create
         or update Entities accordingly in SG.
@@ -89,39 +90,48 @@ class SGCutTrackWriter(object):
             self._sg,
             sg_linked_entity["type"] if sg_linked_entity else None,
         )
-        clips_by_shots = ClipGroup.groups_from_track(video_track)
-
-        # Grab Shots and enforce unique cut item names
-        shot_names = []
-        seen_names = []
-        duplicate_names = {}
-        for shot, clip_group in clips_by_shots.items():
-            if shot:
-                shot_names.append(shot)
-            for clip in clip_group.clips:
-                if clip.name not in seen_names:
-                    seen_names.append(clip.name)
-                else:
-                    if clip.name not in duplicate_names:
-                        duplicate_names[clip.name] = []
-                    duplicate_names[clip.name].append(clip)
-
-        for name, clips in duplicate_names.items():
-            clip_name_index = 1
-            for clip in clips:
-                clip.cut_item_name = "%s_%03d" % (clip.name, clip_name_index)
-                clip_name_index += 1
-
-        if shot_names:
-            sg_shots = self._sg.find(
-                "Shot",
-                [["project", "is", sg_project], ["code", "in", shot_names]],
-                sfg.all
+        if previous_track:
+            track_diff = SGTrackDiff(
+                self._sg,
+                sg_project,
+                new_track=video_track,
+                old_track=previous_track,
             )
-            # Apply retrieved Shots to ClipGroups
-            for sg_shot in sg_shots:
-                shot_name = sg_shot["code"]
-                clips_by_shots[shot_name].sg_shot = sg_shot
+            clips_by_shots = track_diff.diffs_by_shots
+        else:
+            clips_by_shots = ClipGroup.groups_from_track(video_track)
+
+            # Grab Shots and enforce unique cut item names
+            shot_names = []
+            seen_names = []
+            duplicate_names = {}
+            for shot, clip_group in clips_by_shots.items():
+                if shot:
+                    shot_names.append(shot)
+                for clip in clip_group.clips:
+                    if clip.name not in seen_names:
+                        seen_names.append(clip.name)
+                    else:
+                        if clip.name not in duplicate_names:
+                            duplicate_names[clip.name] = []
+                        duplicate_names[clip.name].append(clip)
+
+            for name, clips in duplicate_names.items():
+                clip_name_index = 1
+                for clip in clips:
+                    clip.cut_item_name = "%s_%03d" % (clip.name, clip_name_index)
+                    clip_name_index += 1
+
+            if shot_names:
+                sg_shots = self._sg.find(
+                    "Shot",
+                    [["project", "is", sg_project], ["code", "in", shot_names]],
+                    sfg.all
+                )
+                # Apply retrieved Shots to ClipGroups
+                for sg_shot in sg_shots:
+                    shot_name = sg_shot["code"]
+                    clips_by_shots[shot_name].sg_shot = sg_shot
 
         sg_cut_version = None
         sg_cut_pf = None
@@ -239,7 +249,7 @@ class SGCutTrackWriter(object):
             track_start = RationalTime(0, video_track.duration().rate)
         track_end = track_start + video_track.duration()
         cut_payload = {
-            "code": video_track.name,
+            "code": video_track.name or "New Cut %s" % datetime.date.today(),
             "fps": video_track.duration().rate,
             "timecode_start_text": track_start.to_timecode(),
             "timecode_end_text": track_end.to_timecode(),
@@ -757,6 +767,8 @@ class SGCutTrackWriter(object):
         """
         sg_linked_entity = sg_linked_entity or sg_project
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
+#        shot_values = clip_group.get_shot_values()
+#        raise ValueError(shot_values)
         shot_payload = {
             "project": sg_project,
             "code": clip_group.name,
@@ -772,6 +784,8 @@ class SGCutTrackWriter(object):
             shot_payload["updated_by"] = sg_user
         if sfg.working_duration:
             shot_payload[sfg.working_duration] = clip_group.working_duration.to_frames()
+        if sfg.head_duration:
+            shot_payload[sfg.head_duration] = sel.head_duration.to_frames()
         if sfg.head_out:
             shot_payload[sfg.head_out] = clip_group.head_out.to_frames()
         if sfg.tail_in:

@@ -202,7 +202,7 @@ def read_from_file(filepath):
     return timeline
 
 
-def write_to_file(input_otio, filepath, input_media=None):
+def write_to_file(input_otio, filepath, input_media=None, previous_track=None):
     """
     Write the given timeline to SG.
 
@@ -218,9 +218,11 @@ def write_to_file(input_otio, filepath, input_media=None):
     If an input_media is provided, it will be used to create a Version and a Published File
     for the cut, and possibly Versions for individual clips.
 
-    :param input_otio: An :class:`otio.schema.Timeline` instance.
+    :param input_otio: A :class:`otio.schema.Timeline` instance
+                       or
     :param str filepath: A query URL.
     :param str input_media: A path to a media file representing the video track, if any.
+    :param previous_track: An optional :class:`otio.schema.Track` instance.
     :raises ValueError: For unsupported SG Entity types.
     """
     if not isinstance(input_otio, otio.schema.Timeline) and not isinstance(input_otio, otio.schema.Track):
@@ -247,6 +249,8 @@ def write_to_file(input_otio, filepath, input_media=None):
         entity_id,
         video_track,
         description="Generated from sg-otio",
-        input_media=input_media
+        input_media=input_media,
+        previous_track=previous_track,
+
     )
     return

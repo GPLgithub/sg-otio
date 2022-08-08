@@ -66,6 +66,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         super(SGCutDiffGroup, self).__init__(name, clips, sg_shot)
         self._old_earliest_clip = None
+        self._old_last_clip = None
 
     def add_clip(self, clip):
         """
@@ -76,12 +77,12 @@ class SGCutDiffGroup(ClipGroup):
         :param clip: A :class:`SGCutDiff` instance.
         """
         if not clip.current_clip:
-            # Just append the clip without affecting the group values or checking
-            # the frame rate.
+            # Just append the clip without affecting the group values.
             self._append_clip(clip)
             if self._old_earliest_clip is None or clip.source_in < self._old_earliest_clip.source_in:
                 self._old_earliest_clip = clip
-
+            if self._old_last_clip is None or clip.source_out > self._old_last_clip.source_out:
+                self._old_last_clip = clip
             logger.debug(
                 "Added omitted clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out)
             )
@@ -104,6 +105,21 @@ class SGCutDiffGroup(ClipGroup):
         if self._earliest_clip:
             return self._earliest_clip
         return self._old_earliest_clip
+
+    @property
+    def last_clip(self):
+        """
+        Return the last Clip in this group.
+
+        :returns: A :class:`sg_otio.SGCutClip`.
+        """
+        # We might have a mix of omitted edits (no new value) and non omitted edits
+        # (with new values) in our list. If we have at least one entry which is
+        # not omitted (has new value) we consider entries with new values, so we
+        # will consider omitted edits only if all edits are omitted
+        if self._last_clip:
+            return self._last_clip
+        return self._old_last_clip
 
     def get_shot_values(self):
         """
@@ -209,6 +225,70 @@ class SGCutDiffGroup(ClipGroup):
             max_tail_out,
             shot_diff_type,
         )
+
+    def get_sg_shot_payload(self, sg_project, sg_linked_entity, sg_user=None):
+        """
+        Get a SG Shot payload for this :class:`sg_otio.SGCutDiffGroup` instance.
+
+        :param sg_project: The SG Project to write the Shot to.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param sg_user: An optional user to provide when creating/updating Shots in SG.
+        :returns: A dictionary with the Shot payload.
+        """
+        sg_linked_entity = sg_linked_entity or sg_project
+        sfg = SGShotFieldsConfig(None, sg_linked_entity["type"])
+        sg_shot, cut_order, head_in, cut_in, cut_out, tail_out, diff_type = self.get_shot_values()
+        cut_duration = cut_out.to_frames() - cut_in.to_frames() + 1
+
+        shot_payload = {
+            "project": sg_project,
+            "code": self.name,
+            sfg.head_in: head_in.to_frames(),
+            sfg.cut_in: cut_in.to_frames(),
+            sfg.cut_out: cut_out.to_frames(),
+            sfg.tail_out: tail_out.to_frames(),
+            sfg.cut_duration: cut_duration,
+            sfg.cut_order: cut_order
+        }
+        if sg_user:
+            shot_payload["created_by"] = sg_user
+            shot_payload["updated_by"] = sg_user
+
+
+        if sfg.working_duration:
+            working_duration = tail_out.to_frames() - head_in.to_frames() + 1
+            shot_payload[sfg.working_duration] = working_duration
+        if sfg.head_duration:
+            head_duration = head_out.to_frames() - head_in.to_frames() + 1
+            shot_payload[sfg.head_duration] = head_duration
+        if sfg.head_out:
+            head_out = cut_in.to_frames() - 1
+            shot_payload[sfg.head_out] = head_out
+        if sfg.tail_in:
+            tail_in = cut_out.to_frames() + 1
+            shot_payload[sfg.tail_in] = tail_in
+        if sfg.tail_duration:
+            tail_duration = tail_out.to_frames() - tail_in.to_frames() + 1
+            shot_payload[sfg.tail_duration] = tail_duration
+        # TODO: Add setting for flagging retimes and effects?
+        if True:
+            shot_payload[sfg.has_effects] = self.has_effects
+            shot_payload[sfg.has_retime] = self.has_retime
+        if sfg.absolute_cut_order:
+            # TODO: maybe create Shot fields config before so that
+            #       we can get the field without an extra query?
+            sg_entity = self._sg.find_one(
+                sg_linked_entity["type"],
+                [["id", "is", sg_linked_entity["id"]]],
+                [sfg.absolute_cut_order]
+            )
+            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
+            if entity_cut_order:
+                absolute_cut_order = 1000 * entity_cut_order + self.index
+                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
+        if sfg.shot_link_field and sg_linked_entity:
+            shot_payload[sfg.shot_link_field] = sg_linked_entity
+        return shot_payload
 
 
 class SGTrackDiff(object):
@@ -446,6 +526,25 @@ class SGTrackDiff(object):
             # a warning if it is the case.
             logger.warning("Found %s left over Shots..." % leftover_shots)
 
+    @property
+    def sg_link(self):
+        """
+        Return the SG Entity the previous Cut was linked to.
+
+        :returns: A SG Entity dictionary, or ``None``.
+        """
+        return self._sg_entity
+
+    @property
+    def diffs_by_shots(self):
+        """
+        Return the :class:`SGCutDiffGroup` grouped by Shots.
+
+        :returns: A dictionary where keys are Shot names and values :class:`SGCutDiffGroup`
+                  instances.
+        """
+        return self._diffs_by_shots
+
     def old_clip_for_shot(self, for_clip, prev_clip_list, sg_shot, sg_version=None):
         """
         Return a Clip for the given Clip and Shot from the given list of Clip list.
@@ -621,7 +720,7 @@ class SGTrackDiff(object):
             )
         ]
         no_link_details = [
-            diff.version_name or str(diff.new_cut_order) for diff in sorted(
+            diff.sg_version_name or str(diff.index) for diff in sorted(
                 self.diffs_for_type(_DIFF_TYPES.NO_LINK),
                 key=lambda x: x.index
             )

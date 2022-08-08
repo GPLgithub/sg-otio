@@ -592,8 +592,9 @@ class TestCutDiff(SGBaseTest):
             # We only have left two 10 frames clips for each Shot.
             # The source out is an exclusive value
             self.assertEqual(clip_group.source_out.to_frames(), 40)
-            self.assertEqual(clip_group.cut_in.to_frames(), 1009)
-            self.assertEqual(clip_group.cut_out.to_frames(), 1028)
+            # Should match what is still left
+            self.assertEqual(clip_group.cut_in.to_frames(), 1029)
+            self.assertEqual(clip_group.cut_out.to_frames(), 1048)
             for clip in clip_group.clips:
                 logger.info("Checking %s" % clip.name)
                 if clip.name in [
