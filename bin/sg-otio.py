@@ -104,6 +104,12 @@ def run():
         required=True,
         help="The ID of the SG Cut to read."
     )
+    compare_parser.add_argument(
+        "--write", "-w",
+        required=False,
+        default=False,
+        help="If true, update SG with values from the new Cut."
+    )
 
     args = parser.parse_args()
 
@@ -235,8 +241,33 @@ def compare_to_sg(args):
         old_track=sg_track
     )
     logger.info(
-        diff.get_report("Changes for %s" % os.path.basename(args.file))
+        diff.get_report(
+            "Changes for %s" % os.path.basename(args.file),
+            sg_links=[url],
+        )
     )
+    if args.write:
+        sg_entity = diff.sg_link
+        if not sg_entity:
+            raise ValueError("Can't update a Cut without a SG link.")
+        logger.info(
+            "Writing Cut %s to SG for %s %s..." % (
+                new_track.name, sg_entity["type"], sg_entity["id"]
+            )
+        )
+        write_url = get_write_url(
+            sg_site_url=args.sg_site_url,
+            entity_type=sg_entity["type"],
+            entity_id=sg_entity["id"],
+            session_token=session_token
+        )
+
+        otio.adapters.write_to_file(
+            new_track,
+            write_url,
+            adapter_name="ShotGrid",
+            previous_track=sg_track,
+        )
 
 
 def add_common_args(parser):

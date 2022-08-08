@@ -66,6 +66,19 @@ class SGCutDiffGroup(ClipGroup):
         """
         super(SGCutDiffGroup, self).__init__(name, clips, sg_shot)
         self._old_earliest_clip = None
+        self._old_last_clip = None
+
+    @property
+    def clips(self):
+        """
+        Returns the clips that are part of the group and are not omitted entries.
+
+        :yields: :class:`SGCutClip` instances.
+        """
+        # Don't return the original list, because it might be modified.
+        for clip in self._clips:
+            if clip.current_clip:
+                yield clip
 
     def add_clip(self, clip):
         """
@@ -76,12 +89,12 @@ class SGCutDiffGroup(ClipGroup):
         :param clip: A :class:`SGCutDiff` instance.
         """
         if not clip.current_clip:
-            # Just append the clip without affecting the group values or checking
-            # the frame rate.
+            # Just append the clip without affecting the group values.
             self._append_clip(clip)
             if self._old_earliest_clip is None or clip.source_in < self._old_earliest_clip.source_in:
                 self._old_earliest_clip = clip
-
+            if self._old_last_clip is None or clip.source_out > self._old_last_clip.source_out:
+                self._old_last_clip = clip
             logger.debug(
                 "Added omitted clip %s %s %s" % (clip.name, clip.cut_in, clip.cut_out)
             )
@@ -104,6 +117,38 @@ class SGCutDiffGroup(ClipGroup):
         if self._earliest_clip:
             return self._earliest_clip
         return self._old_earliest_clip
+
+    @property
+    def last_clip(self):
+        """
+        Return the last Clip in this group.
+
+        :returns: A :class:`sg_otio.SGCutClip`.
+        """
+        # We might have a mix of omitted edits (no new value) and non omitted edits
+        # (with new values) in our list. If we have at least one entry which is
+        # not omitted (has new value) we consider entries with new values, so we
+        # will consider omitted edits only if all edits are omitted
+        if self._last_clip:
+            return self._last_clip
+        return self._old_last_clip
+
+    @property
+    def sg_shot_is_omitted(self):
+        """
+        Return ``True`` if the SG Shot for this group does not appear in the
+        Cut anymore.
+
+        :returns: ``False``, this can only be checked when comparing to another
+                  Cut where the Shot was present.
+        """
+        for cut_diff in self:
+            if cut_diff.diff_type == _DIFF_TYPES.OMITTED:
+                return True
+            elif cut_diff.diff_type == _DIFF_TYPES.OMITTED_IN_CUT:
+                return False
+        # If we reached that point it's because all entries are omitted in cut.
+        return True
 
     def get_shot_values(self):
         """
@@ -446,6 +491,25 @@ class SGTrackDiff(object):
             # a warning if it is the case.
             logger.warning("Found %s left over Shots..." % leftover_shots)
 
+    @property
+    def sg_link(self):
+        """
+        Return the SG Entity the previous Cut was linked to.
+
+        :returns: A SG Entity dictionary, or ``None``.
+        """
+        return self._sg_entity
+
+    @property
+    def diffs_by_shots(self):
+        """
+        Return the :class:`SGCutDiffGroup` grouped by Shots.
+
+        :returns: A dictionary where keys are Shot names and values :class:`SGCutDiffGroup`
+                  instances.
+        """
+        return self._diffs_by_shots
+
     def old_clip_for_shot(self, for_clip, prev_clip_list, sg_shot, sg_version=None):
         """
         Return a Clip for the given Clip and Shot from the given list of Clip list.
@@ -621,7 +685,7 @@ class SGTrackDiff(object):
             )
         ]
         no_link_details = [
-            diff.version_name or str(diff.new_cut_order) for diff in sorted(
+            diff.sg_version_name or str(diff.index) for diff in sorted(
                 self.diffs_for_type(_DIFF_TYPES.NO_LINK),
                 key=lambda x: x.index
             )
