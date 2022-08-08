@@ -150,7 +150,6 @@ class SGCutDiffGroup(ClipGroup):
         # If we reached that point it's because all entries are omitted in cut.
         return True
 
-
     def get_shot_values(self):
         """
         Loop over our Cut diff list and return values which should be set on the

@@ -808,7 +808,7 @@ class SGCutTrackWriter(object):
         if sfg.working_duration:
             shot_payload[sfg.working_duration] = clip_group.working_duration.to_frames()
         if sfg.head_duration:
-            shot_payload[sfg.head_duration] = sel.head_duration.to_frames()
+            shot_payload[sfg.head_duration] = self.head_duration.to_frames()
         if sfg.head_out:
             shot_payload[sfg.head_out] = clip_group.head_out.to_frames()
         if sfg.tail_in:
