@@ -289,6 +289,9 @@ class SGCutTrackWriter(object):
 
         # Loop over all clips
         for shot_name, clip_group in clips_by_shots.items():
+            if clip_group.sg_shot_is_omitted:
+                logger.info("Skipping omitted Shot %s" % shot_name)
+                continue
             for clip in clip_group.clips:
                 logger.debug("Getting payload for %s %s %s %s %s" % (
                     clip.name, clip.head_in, clip.cut_in, clip.cut_out, clip.tail_out
@@ -740,18 +743,30 @@ class SGCutTrackWriter(object):
                     sg_linked_entity,
                     sg_user
                 )
-                sg_batch_data.append({
-                    "request_type": "update",
-                    "entity_type": "Shot",
-                    "entity_id": sg_shot["id"],
-                    "data": shot_payload
-                })
+                if shot_payload:
+                    sg_batch_data.append({
+                        "request_type": "update",
+                        "entity_type": "Shot",
+                        "entity_id": sg_shot["id"],
+                        "data": shot_payload
+                    })
+                else:
+                    logger.info(
+                        "No update to perform for Shot %s..." % clip_group.name
+                    )
+
         if sg_batch_data:
             sg_shots = self._sg.batch(sg_batch_data)
             # Update the clips Shots
             for sg_shot in sg_shots:
                 clip_group = clips_by_shots[sg_shot["code"]]
-                clip_group.sg_shot = sg_shot
+                if not clip_group.sg_shot:
+                    clip_group.sg_shot = sg_shot
+                else:
+                    # Only update with values which were updated in case it
+                    # was a partial update.
+                    for k in sg_shot.keys():
+                        clip_group.sg_shot[k] = sg_shot[k]
 
         return sg_shots
 
@@ -767,8 +782,16 @@ class SGCutTrackWriter(object):
         """
         sg_linked_entity = sg_linked_entity or sg_project
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
-#        shot_values = clip_group.get_shot_values()
-#        raise ValueError(shot_values)
+        if clip_group.sg_shot_is_omitted:
+            # Just update the status of the Shot.
+            omit_statuses = SGSettings().shot_omitted_statuses
+            if omit_statuses:
+                return {
+                    "code": clip_group.name,
+                    "sg_status_list": omit_statuses[0]
+                }
+            return None
+
         shot_payload = {
             "project": sg_project,
             "code": clip_group.name,

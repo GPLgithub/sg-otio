@@ -6,6 +6,7 @@ import logging
 from opentimelineio.opentime import RationalTime
 
 from .cut_clip import SGCutClip
+from .sg_settings import SGSettings
 from .utils import compute_clip_shot_name
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class ClipGroup(object):
         self._frame_rate = None
         self._earliest_clip = None
         self._last_clip = None
+        self._reinstated_sg_shot = False
         if clips:
             self.add_clips(clips)
         self.sg_shot = sg_shot
@@ -177,6 +179,13 @@ class ClipGroup(object):
         for clip in self.clips:
             clip.sg_shot = self._sg_shot
         self._compute_group_values()
+        self._reinstated_sg_shot = False
+        omitted_statuses = SGSettings().shot_omitted_statuses
+        if self._sg_shot and omitted_statuses:
+            sg_status_list = self._sg_shot.get("sg_status_list")
+            if sg_status_list and sg_status_list in omitted_statuses:
+            # TODO: check if matching by short code is right? #9320
+                self._reinstated_sg_shot = True
 
     @property
     def earliest_clip(self):
@@ -396,6 +405,27 @@ class ClipGroup(object):
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
         return self.tail_out - self.head_in
+
+    @property
+    def sg_shot_is_omitted(self):
+        """
+        Return ``True`` if the SG Shot for this group does not appear in the
+        Cut anymore.
+
+        :returns: ``False``, this can only be checked when comparing to another
+                  Cut where the Shot was present.
+        """
+        return False
+
+    @property
+    def sg_shot_is_reinstated(self):
+        """
+        Return ``True`` if the SG Shot for this group was previously moved out
+        of the Cut and is back in.
+
+        :returns: A boolean.
+        """
+        return self._reinstated_sg_shot
 
     @staticmethod
     def groups_from_track(video_track):

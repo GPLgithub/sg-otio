@@ -68,6 +68,18 @@ class SGCutDiffGroup(ClipGroup):
         self._old_earliest_clip = None
         self._old_last_clip = None
 
+    @property
+    def clips(self):
+        """
+        Returns the clips that are part of the group and are not omitted entries.
+
+        :yields: :class:`SGCutClip` instances.
+        """
+        # Don't return the original list, because it might be modified.
+        for clip in self._clips:
+            if clip.current_clip:
+                yield clip
+
     def add_clip(self, clip):
         """
         Adds a Cut difference to the group.
@@ -120,6 +132,24 @@ class SGCutDiffGroup(ClipGroup):
         if self._last_clip:
             return self._last_clip
         return self._old_last_clip
+
+    @property
+    def sg_shot_is_omitted(self):
+        """
+        Return ``True`` if the SG Shot for this group does not appear in the
+        Cut anymore.
+
+        :returns: ``False``, this can only be checked when comparing to another
+                  Cut where the Shot was present.
+        """
+        for cut_diff in self:
+            if cut_diff.diff_type == _DIFF_TYPES.OMITTED:
+                return True
+            elif cut_diff.diff_type == _DIFF_TYPES.OMITTED_IN_CUT:
+                return False
+        # If we reached that point it's because all entries are omitted in cut.
+        return True
+
 
     def get_shot_values(self):
         """
@@ -225,70 +255,6 @@ class SGCutDiffGroup(ClipGroup):
             max_tail_out,
             shot_diff_type,
         )
-
-    def get_sg_shot_payload(self, sg_project, sg_linked_entity, sg_user=None):
-        """
-        Get a SG Shot payload for this :class:`sg_otio.SGCutDiffGroup` instance.
-
-        :param sg_project: The SG Project to write the Shot to.
-        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
-        :param sg_user: An optional user to provide when creating/updating Shots in SG.
-        :returns: A dictionary with the Shot payload.
-        """
-        sg_linked_entity = sg_linked_entity or sg_project
-        sfg = SGShotFieldsConfig(None, sg_linked_entity["type"])
-        sg_shot, cut_order, head_in, cut_in, cut_out, tail_out, diff_type = self.get_shot_values()
-        cut_duration = cut_out.to_frames() - cut_in.to_frames() + 1
-
-        shot_payload = {
-            "project": sg_project,
-            "code": self.name,
-            sfg.head_in: head_in.to_frames(),
-            sfg.cut_in: cut_in.to_frames(),
-            sfg.cut_out: cut_out.to_frames(),
-            sfg.tail_out: tail_out.to_frames(),
-            sfg.cut_duration: cut_duration,
-            sfg.cut_order: cut_order
-        }
-        if sg_user:
-            shot_payload["created_by"] = sg_user
-            shot_payload["updated_by"] = sg_user
-
-
-        if sfg.working_duration:
-            working_duration = tail_out.to_frames() - head_in.to_frames() + 1
-            shot_payload[sfg.working_duration] = working_duration
-        if sfg.head_duration:
-            head_duration = head_out.to_frames() - head_in.to_frames() + 1
-            shot_payload[sfg.head_duration] = head_duration
-        if sfg.head_out:
-            head_out = cut_in.to_frames() - 1
-            shot_payload[sfg.head_out] = head_out
-        if sfg.tail_in:
-            tail_in = cut_out.to_frames() + 1
-            shot_payload[sfg.tail_in] = tail_in
-        if sfg.tail_duration:
-            tail_duration = tail_out.to_frames() - tail_in.to_frames() + 1
-            shot_payload[sfg.tail_duration] = tail_duration
-        # TODO: Add setting for flagging retimes and effects?
-        if True:
-            shot_payload[sfg.has_effects] = self.has_effects
-            shot_payload[sfg.has_retime] = self.has_retime
-        if sfg.absolute_cut_order:
-            # TODO: maybe create Shot fields config before so that
-            #       we can get the field without an extra query?
-            sg_entity = self._sg.find_one(
-                sg_linked_entity["type"],
-                [["id", "is", sg_linked_entity["id"]]],
-                [sfg.absolute_cut_order]
-            )
-            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
-            if entity_cut_order:
-                absolute_cut_order = 1000 * entity_cut_order + self.index
-                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
-        if sfg.shot_link_field and sg_linked_entity:
-            shot_payload[sfg.shot_link_field] = sg_linked_entity
-        return shot_payload
 
 
 class SGTrackDiff(object):
