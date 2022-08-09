@@ -877,42 +877,40 @@ class TestCutDiff(SGBaseTest):
         # Bypass validation and check the fields are passed through
         with mock.patch.object(SGShotFieldsConfig, "validate_shot_cut_fields_prefix"):
             track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
-        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
-        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NEW), 28)
+            self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
+            self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NEW), 28)
 
-        # Check the custom fields were queried
-        expected = [x % "myprecious" for x in _ALT_SHOT_FIELDS]
-        for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NO_CHANGE):
-            self.assertTrue(
-                all([x in cut_diff.sg_shot for x in expected])
-            )
-        # Check summary CutDiff iteration and Shot values
-        for i, (shot_name, clip_group) in enumerate(track_diff.items()):
-            self.assertEqual(len(clip_group), 1)
-            cut_diff = clip_group[0]
-            if i < 4:
-                sg_shot = clip_group.sg_shot
-                self.assertEqual(sg_shot["id"], self.sg_shots[i]["id"])
-                self.assertTrue("sg_myprecious_cut_out" in sg_shot)
-                self.assertTrue("sg_myprecious_status_list" in sg_shot)
-                self.assertTrue("sg_myprecious_working_duration" in sg_shot)
-                self.assertTrue("sg_myprecious_head_in" in sg_shot)
-                self.assertTrue("sg_myprecious_cut_duration" in sg_shot)
-                self.assertTrue("sg_myprecious_cut_order" in sg_shot)
-                self.assertTrue("sg_myprecious_tail_out" in sg_shot)
-                self.assertTrue("sg_myprecious_cut_in" in sg_shot)
-                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
-                self.assertEqual(clip_group.index, i + 1)
-                # FIXME: fails with 1001 != 1000 (taken from tk-framework-editorial)
-                # self.assertEqual(clip_group.head_in.to_frames(), self.sg_cut_items[i]["cut_item_in"] - 8)
-                self.assertEqual(clip_group.cut_in.to_frames(), self.sg_cut_items[i]["cut_item_in"])
-                self.assertEqual(clip_group.cut_out.to_frames(), self.sg_cut_items[i]["cut_item_out"])
-                # FIXME: tail out won't work because of our shot cut fields prefix and the fact that CutClip.tail_out
-                #  relies on SGShotFieldsConfig(None, None)...
-                # self.assertEqual(clip_group.tail_out.to_frames(), self.sg_cut_items[i]["cut_item_out"] + 8)
-            else:
-                self.assertIsNone(clip_group.sg_shot)
-                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW)
+            # Check the custom fields were queried
+            expected = [x % "myprecious" for x in _ALT_SHOT_FIELDS]
+            for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NO_CHANGE):
+                self.assertTrue(
+                    all([x in cut_diff.sg_shot for x in expected])
+                )
+            # Check summary CutDiff iteration and Shot values
+            for i, (shot_name, clip_group) in enumerate(track_diff.items()):
+                self.assertEqual(len(clip_group), 1)
+                cut_diff = clip_group[0]
+                if i < 4:
+                    sg_shot = clip_group.sg_shot
+                    self.assertEqual(sg_shot["id"], self.sg_shots[i]["id"])
+                    self.assertTrue("sg_myprecious_cut_out" in sg_shot)
+                    self.assertTrue("sg_myprecious_status_list" in sg_shot)
+                    self.assertTrue("sg_myprecious_working_duration" in sg_shot)
+                    self.assertTrue("sg_myprecious_head_in" in sg_shot)
+                    self.assertTrue("sg_myprecious_cut_duration" in sg_shot)
+                    self.assertTrue("sg_myprecious_cut_order" in sg_shot)
+                    self.assertTrue("sg_myprecious_tail_out" in sg_shot)
+                    self.assertTrue("sg_myprecious_cut_in" in sg_shot)
+                    self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
+                    self.assertEqual(clip_group.index, i + 1)
+                    # FIXME: fails with 1001 != 1000 (taken from tk-framework-editorial)
+                    # self.assertEqual(clip_group.head_in.to_frames(), self.sg_cut_items[i]["cut_item_in"] - 8)
+                    self.assertEqual(clip_group.cut_in.to_frames(), self.sg_cut_items[i]["cut_item_in"])
+                    self.assertEqual(clip_group.cut_out.to_frames(), self.sg_cut_items[i]["cut_item_out"])
+                    self.assertEqual(clip_group.tail_out.to_frames(), self.sg_cut_items[i]["cut_item_out"] + 8)
+                else:
+                    self.assertIsNone(clip_group.sg_shot)
+                    self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW)
 
     def test_timecode_frame_mapping_modes(self):
         """
