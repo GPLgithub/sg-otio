@@ -639,7 +639,7 @@ class TestCutDiff(SGBaseTest):
         sg_settings = SGSettings()
         # It's just the short code in settings? #9320
         sg_shot["sg_status_list"] = {
-            "code": sg_settings.shot_omitted_statuses[0],
+            "code": sg_settings.shot_omit_status,
             "id": -1,
         }
         self.assertIsNotNone(cut_diff.sg_shot_status)

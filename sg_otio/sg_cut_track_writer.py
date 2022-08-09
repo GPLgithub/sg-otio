@@ -12,6 +12,7 @@ from opentimelineio.opentime import RationalTime
 from .clip_group import ClipGroup
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD
 from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
+from .constants import _REINSTATE_FROM_PREVIOUS_STATUS
 from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
 from .utils import get_available_filename, compute_clip_version_name
@@ -60,7 +61,7 @@ class SGCutTrackWriter(object):
             self._cut_item_schema[self._sg.base_url] = self._sg.schema_field_read("CutItem")
         return self._cut_item_schema[self._sg.base_url]
 
-    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description="", previous_track=None):
+    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description="", previous_track=None, update_shots=True):
         """
         Gather information about a Cut, its Cut Items and their linked Shots and create
         or update Entities accordingly in SG.
@@ -76,6 +77,10 @@ class SGCutTrackWriter(object):
         :param str input_media: An optional input media. If provided, a Version will be created for the Cut.
         :param sg_user: An optional SG User which will be registered when creating/updating Entities.
         :param description: An optional description for the Cut.
+        :param previous_track: An optional OTIO Video Track read from SG to compare
+                               the current Track to.
+        :param bool update_shots: Whether or not existing SG Shots should be updated.
+                                  New SG Shots are always created.
         """
         sg_track_data = video_track.metadata.get("sg")
         if sg_track_data and sg_track_data["type"] != "Cut":
@@ -146,7 +151,8 @@ class SGCutTrackWriter(object):
             clips_by_shots,
             sg_project,
             sg_linked_entity,
-            sg_user
+            sg_user,
+            update_shots=update_shots,
         )
         if SGSettings().create_missing_versions:
             self._write_versions(
@@ -704,7 +710,7 @@ class SGCutTrackWriter(object):
             media_uploader.upload_versions()
         return [vdata["version"] for vdata in versions_data.values()]
 
-    def _write_shots(self, clips_by_shots, sg_project, sg_linked_entity, sg_user=None):
+    def _write_shots(self, clips_by_shots, sg_project, sg_linked_entity, sg_user=None, update_shots=True):
         """
         Create or update SG Shots for the given clips.
 
@@ -714,6 +720,8 @@ class SGCutTrackWriter(object):
         :param sg_cut: If provided, the SG Cut to update.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
         :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :param bool update_shots: Whether or not existing SG Shots should be updated.
+                                  New SG Shots are always created.
         :returns: A list of SG Shot Entities.
         """
         sg_batch_data = []
@@ -734,7 +742,7 @@ class SGCutTrackWriter(object):
                     "entity_type": "Shot",
                     "data": shot_payload
                 })
-            else:
+            elif update_shots:
                 logger.info("Updating Shot %s..." % clip_group.name)
                 sg_shot = clip_group.sg_shot
                 shot_payload = self._get_shot_payload(
@@ -784,11 +792,11 @@ class SGCutTrackWriter(object):
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
         if clip_group.sg_shot_is_omitted:
             # Just update the status of the Shot.
-            omit_statuses = SGSettings().shot_omitted_statuses
-            if omit_statuses:
+            omit_status = SGSettings().shot_omit_status
+            if omit_status:
                 return {
                     "code": clip_group.name,
-                    "sg_status_list": omit_statuses[0]
+                    "sg_status_list": omit_status
                 }
             return None
 
@@ -833,6 +841,39 @@ class SGCutTrackWriter(object):
                 shot_payload[sfg.absolute_cut_order] = absolute_cut_order
         if sfg.shot_link_field and sg_linked_entity:
             shot_payload[sfg.shot_link_field] = sg_linked_entity
+
+        if clip_group.sg_shot_is_reinstated:
+            reinstate_status = None
+            reinstate_status_pref = SGSettings().reinstate_shot_if_status_is
+            if reinstate_status_pref == _REINSTATE_FROM_PREVIOUS_STATUS:
+                # Find the most recent status change event log entry where the
+                # project and linked Shot code match the current project/shot
+                filters = [
+                    ["project", "is", {"type": "Project", "id": self._project["id"]}],
+                    ["event_type", "is", "Shotgun_Shot_Change"],
+                    ["attribute_name", "is", sfg.status],
+                    ["entity.Shot.id", "is", clip_group.sg_shot["id"]]
+                ]
+                fields = ["meta"]
+                event_log = self._sg.find_one(
+                    "EventLogEntry",
+                    filters,
+                    fields,
+                    order=[
+                        {"field_name": "created_at", "direction": "desc"}
+                    ]
+                )
+                # Set the reinstate status value to the value previous to the
+                # event log entry
+                if event_log:
+                    reinstate_status = event_log["meta"]["old_value"]
+            elif reinstate_status_pref:
+                # Just use the status as is.
+                reinstate_status = reinstate_status_pref
+            # We set it even if we didn't found a valid status, which will unset
+            # the status
+            shot_payload[sfg.status] = reinstate_status
+
         return shot_payload
 
     def _get_cut_entities(self, entity_type, entity_id):
