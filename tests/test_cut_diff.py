@@ -6,6 +6,7 @@ import logging
 import os
 import shotgun_api3
 
+from sg_otio.cut_clip import SGCutClip
 from .python.sg_test import SGBaseTest
 
 import opentimelineio as otio
@@ -264,6 +265,96 @@ class TestCutDiff(SGBaseTest):
                     self.assertTrue(cut_diff.repeated)
                 else:
                     self.assertFalse(cut_diff.repeated)
+
+    def test_old_clip_for_shot(self):
+        """
+        Test that old_clip_for_shot retrieves the right clip.
+        """
+        self._add_sg_cut_data()
+
+        def get_clip_list():
+            prev_clip_list = []
+            for i in range(2):
+                clip = otio.schema.Clip(
+                    name="test_clip_%d" % i,
+                    source_range=TimeRange(
+                        RationalTime(10, 24),
+                        RationalTime(10, 24),  # duration, 10 frames.
+                    ),
+                    metadata={"sg": self.sg_cut_items[i]}
+                )
+                cut_clip = SGCutClip(clip, self.sg_shots[i], i + 1)
+                prev_clip_list.append(cut_clip)
+            return prev_clip_list
+        clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        # Test that if another_clip is not in prev_clip_list, it returns None
+        another_clip = SGCutClip(clip, self.sg_shots[3], 4)
+        prev_clip_list = get_clip_list()
+        old_clip = SGTrackDiff.old_clip_for_shot(another_clip, prev_clip_list, self.sg_shots[3])
+        self.assertIsNone(old_clip)
+        # Test that if we provide the wrong Shot, it returns None
+        prev_clip_list = get_clip_list()
+        old_clip = SGTrackDiff.old_clip_for_shot(prev_clip_list[0], prev_clip_list, self.sg_shots[3])
+        self.assertIsNone(old_clip)
+        # If we provide the exact same clip and the right Shot, we have a match.
+        prev_clip_list = get_clip_list()
+        first_clip = prev_clip_list[0]
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip, prev_clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip)
+        # Even if we provide a bogus Version it still matches properly.
+        prev_clip_list = get_clip_list()
+        first_clip = prev_clip_list[0]
+        old_clip = SGTrackDiff.old_clip_for_shot(
+            first_clip,
+            prev_clip_list,
+            self.sg_shots[0],
+            {"type": "Version", "id": -1}
+        )
+        self.assertEqual(old_clip, first_clip)
+
+        # If we provide the right Version for two identical clips, it matches the one with the matching Version.
+        fake_version = {"type": "Version", "id": 1}
+        prev_clip_list = get_clip_list()
+        first_clip = prev_clip_list[0]
+        another_clip = copy.deepcopy(first_clip)
+        another_clip.media_reference.metadata["sg"] = {"version": fake_version}
+        prev_clip_list.insert(0, another_clip)
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip, prev_clip_list, self.sg_shots[0], fake_version)
+        self.assertEqual(old_clip, another_clip)
+
+        # If there are two matching clips, it will depend on the matching score (index, tc_in, tc_out)
+        # Different index
+        clip_list = get_clip_list()
+        first_clip = clip_list[0]
+        first_clip_copy = copy.deepcopy(first_clip)
+        clip_list.insert(0, first_clip_copy)
+        first_clip._index = 2
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip_copy, clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip_copy)
+
+        # Different tc_in
+        clip_list = get_clip_list()
+        first_clip = clip_list[0]
+        first_clip_copy = copy.deepcopy(first_clip)
+        first_clip._clip.source_range = TimeRange(RationalTime(5, 24), RationalTime(5, 24))
+        clip_list.append(first_clip_copy)
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip_copy, clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip_copy)
+
+        # Different tc out
+        clip_list = get_clip_list()
+        first_clip = clip_list[0]
+        first_clip_copy = copy.deepcopy(first_clip)
+        first_clip._clip.source_range = TimeRange(RationalTime(10, 24), RationalTime(5, 24))
+        clip_list.append(first_clip_copy)
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip_copy, clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip_copy)
 
     def test_same_cut(self):
         """
