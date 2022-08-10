@@ -37,7 +37,7 @@ SG Otio can only be installed from sources at the moment.
 sg-otio usage
 -------------
 
-You can access the help with `sg-otio read --help` and `sg-otio write --help`. 
+You can access the help with `sg-otio read --help`, `sg-otio write --help`, or `sg-otio compare --help`. 
 
 ### ShotGrid login information
 
@@ -63,6 +63,17 @@ Example:
 sg-otio write -u URL --session-token TOKEN --entity-type Cut --entity-id CUT_ID --file INPUT.edl --movie INPUT.mov --settings SETTINGS.JSON
 ```
 
+### Comparing a Video Track to a SG Cut
+Read a Video Track from an OpenTimelinio source and compare it to an existing SG Cut.
+Any format suppported by OpenTimelineIO's standard adapters is supported for the source.
+The video Track can be written to SG as a new Cut by adding the `--write` argument.
+The new SG Cut will be linked to the SG Entity the previous SG Cut is linked to.
+Examples:
+```
+sg-otio compare --sg-site-url URL  --session-token TOKEN --file INPUT OTIO --cut-id CUT_ID
+sg-otio compare --sg-site-url URL  --session-token TOKEN --file INPUT OTIO --cut-id CUT_ID --write
+``` 
+
 ### Settings file
 
 Some settings for sg-otio read and write can be stored in a JSON file, and passed
@@ -82,7 +93,10 @@ This is what such file would contain with the default settings:
   "timecode_in_to_frame_mapping_mode": 1,
   "timecode_in_to_frame_relative_mapping": ["00:00:00:01", 1001],
   "use_smart_fields": false,
-  "shot_cut_fields_prefix": null
+  "shot_cut_fields_prefix": null,
+  "shot_omit_status": "omt",
+  "shot_reinstate_status": "Previous Status",
+  "reinstate_shot_if_status_is": ["omt", "hld"]
 }
 ```
 
@@ -167,6 +181,15 @@ If set to True, the Smart Cut Fields will be used to fill the Shot fields.
 If set, the Shot Cut Fields will be custom fields that use this prefix,
 e.g. `sg_PREFIX_cut_in`, `sg_PREFIX_cut_out`, etc.
 
+
+#### Omitting and Reinstating Shots
+If some Shots are omitted from one Cut to the other, their Status will be set
+to the `shot_omit_status` setting value.
+Shots which appear again in a Cut will be reinstated if their current status 
+is one of the statuses set with the `reinstate_shot_if_status_is` setting.
+Their status will be set to the value set with the `shot_reinstate_status` setting, 
+unless it is the special "Previous Status" value. In this case the status they
+had before being omitted will be set.
 
 License
 -------

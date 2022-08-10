@@ -274,11 +274,14 @@ def compare_to_sg(args):
         new_track=new_track,
         old_track=sg_track
     )
+    old_cut_url = "%s/detail/Cut/%s" % (sg.base_url, args.cut_id)
+    title, report = diff.get_report(
+        "%s" % os.path.basename(args.file),
+        sg_links=[old_cut_url]
+    )
+    logger.info(title)
     logger.info(
-        diff.get_report(
-            "Changes for %s" % os.path.basename(args.file),
-            sg_links=[url],
-        )
+        report,
     )
     if args.write:
         sg_entity = diff.sg_link
