@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import os
 import unittest
 
 import opentimelineio as otio
@@ -21,6 +22,7 @@ class TestCutClip(unittest.TestCase):
         """
         sg_settings = SGSettings()
         sg_settings.reset_to_defaults()
+        self._edls_dir = os.path.join(os.path.dirname(__file__), "resources", "edls")
 
     def test_clip_name(self):
         """
@@ -247,6 +249,26 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(clip_2.has_effects)
         self.assertEqual(clip_2.effects_str, "Before: SMPTE_Dissolve (0 frames)")
+
+    def test_clip_values_with_transitions_from_file(self):
+        """
+        Test that transitions are properly computed from an example EDL file.
+        """
+        edl_filepath = os.path.join(self._edls_dir, "raphe_temp1_rfe_R01_v01_TRANSITIONS.edl")
+        edl_timeline = otio.adapters.read_from_file(edl_filepath, adapter_name="cmx_3600")
+        video_track = edl_timeline.tracks[0]
+        clip = list(video_track.each_clip())[1]
+        cut_clip = SGCutClip(clip)
+        self.assertEqual(cut_clip.source_in.to_timecode(), "00:59:59:09")
+        self.assertEqual(cut_clip.source_out.to_timecode(), "01:00:05:15")
+        self.assertEqual(cut_clip.record_in.to_timecode(), "01:00:07:23")
+        self.assertEqual(cut_clip.record_out.to_timecode(), "01:00:14:05")
+        # The normal duration is 120 frames
+        self.assertEqual(cut_clip.duration().to_frames(), 120)
+        # The visible duration takes into account the whole duration of the transition
+        self.assertEqual(cut_clip.visible_duration.to_frames(), 150)
+        self.assertTrue(cut_clip.has_effects)
+        self.assertEqual(cut_clip.effects_str, "Before: SMPTE_Dissolve (0 frames)\nAfter: SMPTE_Dissolve (30 frames)")
 
     def test_repeated_shots(self):
         """

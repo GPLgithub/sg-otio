@@ -226,7 +226,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the source_in of the group is the smallest source_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.source_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.source_in`
 
         :returns: A :class:`otio.schema.TimeRange` instance.
         """
@@ -240,7 +240,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the source_out of the group is the largest source_out of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.source_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.source_out`
 
         :returns: A :class:`otio.schema.TimeRange` instance.
         """
@@ -254,7 +254,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the cut_in of the group is the smallest cut_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.cut_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.cut_in`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -268,7 +268,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the cut_out of the group is the largest cut_out of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.cut_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.cut_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -282,7 +282,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         the head_in of the group is the smallest head_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.head_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.head_in`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -311,8 +311,8 @@ class ClipGroup(object):
         The head duration is the difference between the largest head_out of the group's clips
         and the smallest head_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.head_in`
-        ..seealso:: :attr:`sg_otio.ExtendedClip.head_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.head_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.head_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -326,7 +326,7 @@ class ClipGroup(object):
         Since the group values cover the range of all clips,
         The tail in is the largest tail_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.tail_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.tail_in`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -353,8 +353,8 @@ class ClipGroup(object):
         The tail duration is the difference between the largest tail_out of the group's clips
         and the smallest tail_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.tail_in`
-        ..seealso:: :attr:`sg_otio.ExtendedClip.tail_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.tail_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.tail_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
@@ -388,9 +388,9 @@ class ClipGroup(object):
         The visible duration is the difference between the largest cut_out of the group's clips
         and the smallest cut_in of the group's clips.
 
-        ..seealso:: :attr:`sg_otio.ExtendedClip.visible_duration`
-        ..seealso:: :attr:`sg_otio.ExtendedClip.cut_in`
-        ..seealso:: :attr:`sg_otio.ExtendedClip.cut_out`
+        ..seealso:: :attr:`sg_otio.SGCutClip.visible_duration`
+        ..seealso:: :attr:`sg_otio.SGCutClip.cut_in`
+        ..seealso:: :attr:`sg_otio.SGCutClip.cut_out`
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """

@@ -284,7 +284,7 @@ class SGTrackDiff(object):
         self._diffs_by_shots = {}
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
-            None, None
+            self._sg, None
         ).all
 
         # Retrieve SG Entities from the old_track
@@ -510,7 +510,8 @@ class SGTrackDiff(object):
         """
         return self._diffs_by_shots
 
-    def old_clip_for_shot(self, for_clip, prev_clip_list, sg_shot, sg_version=None):
+    @classmethod
+    def old_clip_for_shot(cls, for_clip, prev_clip_list, sg_shot, sg_version=None):
         """
         Return a Clip for the given Clip and Shot from the given list of Clip list.
 
@@ -551,7 +552,7 @@ class SGTrackDiff(object):
                     # give score a bonus as we don't have an explicit mismatch
                     potential_matches.append((
                         clip,
-                        100 + self._get_matching_score(clip, for_clip)
+                        100 + cls._get_matching_score(clip, for_clip)
                     ))
                 elif sg_cut_item["version"]:
                     if sg_version["id"] == sg_cut_item["version"]["id"]:
@@ -559,13 +560,13 @@ class SGTrackDiff(object):
                         # Version
                         potential_matches.append((
                             clip,
-                            1000 + self._get_matching_score(clip, for_clip)
+                            1000 + cls._get_matching_score(clip, for_clip)
                         ))
                     else:
                         # Version mismatch, don't give any bonus
                         potential_matches.append((
                             clip,
-                            self._get_matching_score(clip, for_clip)
+                            cls._get_matching_score(clip, for_clip)
                         ))
                 else:
                     # Will keep looking around but we keep a reference to
@@ -574,7 +575,7 @@ class SGTrackDiff(object):
                     # mismatch
                     potential_matches.append((
                         clip,
-                        100 + self._get_matching_score(clip, for_clip)
+                        100 + cls._get_matching_score(clip, for_clip)
                     ))
             else:
                 logger.debug("Rejecting %s for %s" % (clip.cut_item_name, for_clip.cut_item_name))
@@ -702,21 +703,21 @@ class SGTrackDiff(object):
             # And then counts and lists per type of changes
             self.count_for_type(_DIFF_TYPES.NEW),
             "\n".join([
-                diff.name for diff in sorted(
+                diff.shot_name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
                     key=lambda x: x.index
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.OMITTED),
             "\n".join([
-                diff.name for diff in sorted(
+                diff.shot_name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
                     key=lambda x: x.index or -1
                 )
             ]),
             self.count_for_type(_DIFF_TYPES.REINSTATED),
             "\n".join([
-                diff.name for diff in sorted(
+                diff.shot_name for diff in sorted(
                     self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
                     key=lambda x: x.index
                 )
@@ -775,7 +776,8 @@ class SGTrackDiff(object):
         )
         return diff_groups
 
-    def _get_matching_score(self, clip_a, clip_b):
+    @classmethod
+    def _get_matching_score(cls, clip_a, clip_b):
         """
         Return a matching score for the given two clips, based on:
         - Is the Cut order the same?

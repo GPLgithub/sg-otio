@@ -454,15 +454,23 @@ class SGShotFieldsConfig(object):
         self.validate_shot_cut_fields_prefix(sg_settings.shot_cut_fields_prefix)
         self._shot_cut_fields_prefix = sg_settings.shot_cut_fields_prefix
         self._sg_shot_link_field = None
-        self._shot_schema = None
+        self.cache_shot_schema()
+
+    def cache_shot_schema(self):
+        """
+        Cache the schema for the Shot entity, if possible.
+        """
+        if self._sg and self._shot_schema is None:
+            # For some reason, setting self._shot_schema does not set it at the
+            # class level.
+            SGShotFieldsConfig._shot_schema = self._sg.schema_field_read("Shot")
+        return self._shot_schema
 
     @property
     def shot_schema(self):
         """
-        Return the schema for the Shot entity.
+        Return the schema for the Shot entity or ``None``.
         """
-        if self._shot_schema is None:
-            self._shot_schema = self._sg.schema_field_read("Shot")
         return self._shot_schema
 
     @property

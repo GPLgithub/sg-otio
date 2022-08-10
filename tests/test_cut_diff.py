@@ -6,6 +6,7 @@ import logging
 import os
 import shotgun_api3
 
+from sg_otio.cut_clip import SGCutClip
 from .python.sg_test import SGBaseTest
 
 import opentimelineio as otio
@@ -14,8 +15,9 @@ from opentimelineio.opentime import TimeRange, RationalTime
 from sg_otio.track_diff import SGTrackDiff
 from sg_otio.cut_diff import SGCutDiff
 from sg_otio.utils import get_read_url, get_write_url
-from sg_otio.constants import _DIFF_TYPES
-from sg_otio.sg_settings import SGSettings
+from sg_otio.constants import _DIFF_TYPES, _ALT_SHOT_FIELDS
+from sg_otio.constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+from sg_otio.sg_settings import SGSettings, SGShotFieldsConfig
 
 
 try:
@@ -169,6 +171,30 @@ class TestCutDiff(SGBaseTest):
         self.add_to_sg_mock_db(self.sg_cut_items)
         self._sg_entities_to_delete.extend(self.sg_cut_items)
 
+    @staticmethod
+    def _mock_compute_clip_shot_name(clip):
+        """
+        Override compute clip shot name to get a unique shot name per clip.
+        """
+        return "shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
+
+    def _get_track_diff(self, new_track, old_track=None, mock_compute_clip_shot_name=None):
+        """
+        Create a track diff altering the shot names so that there's
+
+        :param new_track: A :class:`opentimelineio.schema.Track` instance.
+        :param old_track: An optional :class:`opentimelineio.schema.Track` instance
+                          read from SG.
+        :returns: A :class:`SGTrackDiff` instance.
+        """
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            if mock_compute_clip_shot_name:
+                with mock.patch("sg_otio.track_diff.compute_clip_shot_name", wraps=mock_compute_clip_shot_name):
+                    with mock.patch("sg_otio.cut_clip.compute_clip_shot_name", wraps=mock_compute_clip_shot_name):
+                        return SGTrackDiff(self.mock_sg, self.mock_project, new_track, old_track)
+            else:
+                return SGTrackDiff(self.mock_sg, self.mock_project, new_track, old_track)
+
     def tearDown(self):
         """
         Called inconditionally after each test.
@@ -241,6 +267,96 @@ class TestCutDiff(SGBaseTest):
                     self.assertTrue(cut_diff.repeated)
                 else:
                     self.assertFalse(cut_diff.repeated)
+
+    def test_old_clip_for_shot(self):
+        """
+        Test that old_clip_for_shot retrieves the right clip.
+        """
+        self._add_sg_cut_data()
+
+        def get_clip_list():
+            prev_clip_list = []
+            for i in range(2):
+                clip = otio.schema.Clip(
+                    name="test_clip_%d" % i,
+                    source_range=TimeRange(
+                        RationalTime(10, 24),
+                        RationalTime(10, 24),  # duration, 10 frames.
+                    ),
+                    metadata={"sg": self.sg_cut_items[i]}
+                )
+                cut_clip = SGCutClip(clip, self.sg_shots[i], i + 1)
+                prev_clip_list.append(cut_clip)
+            return prev_clip_list
+        clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        # Test that if another_clip is not in prev_clip_list, it returns None
+        another_clip = SGCutClip(clip, self.sg_shots[3], 4)
+        prev_clip_list = get_clip_list()
+        old_clip = SGTrackDiff.old_clip_for_shot(another_clip, prev_clip_list, self.sg_shots[3])
+        self.assertIsNone(old_clip)
+        # Test that if we provide the wrong Shot, it returns None
+        prev_clip_list = get_clip_list()
+        old_clip = SGTrackDiff.old_clip_for_shot(prev_clip_list[0], prev_clip_list, self.sg_shots[3])
+        self.assertIsNone(old_clip)
+        # If we provide the exact same clip and the right Shot, we have a match.
+        prev_clip_list = get_clip_list()
+        first_clip = prev_clip_list[0]
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip, prev_clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip)
+        # Even if we provide a bogus Version it still matches properly.
+        prev_clip_list = get_clip_list()
+        first_clip = prev_clip_list[0]
+        old_clip = SGTrackDiff.old_clip_for_shot(
+            first_clip,
+            prev_clip_list,
+            self.sg_shots[0],
+            {"type": "Version", "id": -1}
+        )
+        self.assertEqual(old_clip, first_clip)
+
+        # If we provide the right Version for two identical clips, it matches the one with the matching Version.
+        fake_version = {"type": "Version", "id": 1}
+        prev_clip_list = get_clip_list()
+        first_clip = prev_clip_list[0]
+        another_clip = copy.deepcopy(first_clip)
+        another_clip.media_reference.metadata["sg"] = {"version": fake_version}
+        prev_clip_list.insert(0, another_clip)
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip, prev_clip_list, self.sg_shots[0], fake_version)
+        self.assertEqual(old_clip, another_clip)
+
+        # If there are two matching clips, it will depend on the matching score (index, tc_in, tc_out)
+        # Different index
+        clip_list = get_clip_list()
+        first_clip = clip_list[0]
+        first_clip_copy = copy.deepcopy(first_clip)
+        clip_list.insert(0, first_clip_copy)
+        first_clip._index = 2
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip_copy, clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip_copy)
+
+        # Different tc_in
+        clip_list = get_clip_list()
+        first_clip = clip_list[0]
+        first_clip_copy = copy.deepcopy(first_clip)
+        first_clip._clip.source_range = TimeRange(RationalTime(5, 24), RationalTime(5, 24))
+        clip_list.append(first_clip_copy)
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip_copy, clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip_copy)
+
+        # Different tc out
+        clip_list = get_clip_list()
+        first_clip = clip_list[0]
+        first_clip_copy = copy.deepcopy(first_clip)
+        first_clip._clip.source_range = TimeRange(RationalTime(10, 24), RationalTime(5, 24))
+        clip_list.append(first_clip_copy)
+        old_clip = SGTrackDiff.old_clip_for_shot(first_clip_copy, clip_list, self.sg_shots[0])
+        self.assertEqual(old_clip, first_clip_copy)
 
     def test_same_cut(self):
         """
@@ -763,6 +879,10 @@ class TestCutDiff(SGBaseTest):
         """
         Test generating a diff report.
         """
+        settings = SGSettings()
+        settings.default_head_in = 1000
+        settings.default_head_in_duration = 8
+        settings.default_tail_out_duration = 8
         self._add_sg_cut_data()
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             mock_cut_url = get_read_url(
@@ -818,16 +938,109 @@ class TestCutDiff(SGBaseTest):
             "edls",
             "R7v26.0_Turnover001_WiP_VFX__1_.edl"
         )
-        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-            timeline_from_edl = otio.adapters.read_from_file(path)
-            new_track = timeline_from_edl.tracks[0]
-            track_diff = SGTrackDiff(
-                self.mock_sg,
-                self.mock_project,
-                new_track=new_track,
-                old_track=sg_track,
+        timeline_from_edl = otio.adapters.read_from_file(path)
+        new_track = timeline_from_edl.tracks[0]
+        track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+
+        # 4 shots exist in the DB, from shot_6666 to shot_6669
+        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NEW), 28)
+        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
+        report = track_diff.get_report("This is a Test", [])
+        self.assertEqual(
+            report,
+            (
+                "Sequence Cut Summary changes on This is a Test",
+                (
+                    "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n"
+                    "28 New Shots\n%s\n\n"
+                    "0 Omitted Shots\n\n\n"
+                    "0 Reinstated Shot\n\n\n"
+                    "0 Cut Changes\n\n\n"
+                    "0 Rescan Needed\n\n\n"
+                ) % "\n".join(["shot_%d" % (6670 + i) for i in range(28)])
             )
-        # FIXME: we don't get the right results here (no changes)
-        # sg_otio.utils.compute_clip_shot_name must be patched.
-        for diff_type, items in track_diff.get_diffs_by_change_type().items():
-            logger.info("%s" % items)
+        )
+        SGSettings().shot_cut_fields_prefix = "myprecious"
+
+        timeline_from_edl = otio.adapters.read_from_file(path)
+        new_track = timeline_from_edl.tracks[0]
+        # Check that using custom Shot cut fields is handled
+        # Validation should fail
+        with self.assertRaisesRegexp(
+            ValueError,
+            "Following SG Shot fields are missing",
+        ):
+            self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+        # Bypass validation and check the fields are passed through
+        with mock.patch.object(SGShotFieldsConfig, "validate_shot_cut_fields_prefix"):
+            track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+            self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
+            self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NEW), 28)
+
+            # Check the custom fields were queried
+            expected = [x % "myprecious" for x in _ALT_SHOT_FIELDS]
+            for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NO_CHANGE):
+                self.assertTrue(
+                    all([x in cut_diff.sg_shot for x in expected])
+                )
+            # Check summary CutDiff iteration and Shot values
+            for i, (shot_name, clip_group) in enumerate(track_diff.items()):
+                self.assertEqual(len(clip_group), 1)
+                cut_diff = clip_group[0]
+                if i < 4:
+                    sg_shot = clip_group.sg_shot
+                    self.assertEqual(sg_shot["id"], self.sg_shots[i]["id"])
+                    self.assertTrue("sg_myprecious_cut_out" in sg_shot)
+                    self.assertTrue("sg_myprecious_status_list" in sg_shot)
+                    self.assertTrue("sg_myprecious_working_duration" in sg_shot)
+                    self.assertTrue("sg_myprecious_head_in" in sg_shot)
+                    self.assertTrue("sg_myprecious_cut_duration" in sg_shot)
+                    self.assertTrue("sg_myprecious_cut_order" in sg_shot)
+                    self.assertTrue("sg_myprecious_tail_out" in sg_shot)
+                    self.assertTrue("sg_myprecious_cut_in" in sg_shot)
+                    self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
+                    self.assertEqual(clip_group.index, i + 1)
+                    self.assertEqual(clip_group.head_in.to_frames(), self.sg_cut_items[i]["cut_item_in"] - 8)
+                    self.assertEqual(clip_group.cut_in.to_frames(), self.sg_cut_items[i]["cut_item_in"])
+                    self.assertEqual(clip_group.cut_out.to_frames(), self.sg_cut_items[i]["cut_item_out"])
+                    self.assertEqual(clip_group.tail_out.to_frames(), self.sg_cut_items[i]["cut_item_out"] + 8)
+                else:
+                    self.assertIsNone(clip_group.sg_shot)
+                    self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW)
+
+    def test_timecode_frame_mapping_modes(self):
+        """
+        Test the different mapping modes.
+        """
+        self._add_sg_cut_data()
+        SGSettings().timecode_in_to_frame_mapping_mode = _TC2FRAME_AUTOMATIC_MODE
+        path = os.path.join(
+            self.resources_dir,
+            "edls",
+            "R7v26.0_Turnover001_WiP_VFX__1_.edl"
+        )
+
+        timeline_from_edl = otio.adapters.read_from_file(path)
+        new_track = timeline_from_edl.tracks[0]
+        track_diff = self._get_track_diff(new_track, mock_compute_clip_shot_name=self._mock_compute_clip_shot_name)
+        for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NEW):
+            self.assertEqual(1009, cut_diff.cut_in.to_frames())
+
+        SGSettings().timecode_in_to_frame_mapping_mode = _TC2FRAME_RELATIVE_MODE
+        SGSettings().timecode_in_to_frame_relative_mapping = (
+            "00:00:00:10",  # 10 frames
+            100,
+        )
+        track_diff = self._get_track_diff(new_track, mock_compute_clip_shot_name=self._mock_compute_clip_shot_name)
+        for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NEW):
+            self.assertEqual(
+                cut_diff.source_in.to_frames() - 10 + 100,
+                cut_diff.cut_in.to_frames()
+            )
+        SGSettings().timecode_in_to_frame_mapping_mode = _TC2FRAME_ABSOLUTE_MODE
+        track_diff = self._get_track_diff(new_track, mock_compute_clip_shot_name=self._mock_compute_clip_shot_name)
+        for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NEW):
+            self.assertEqual(
+                cut_diff.source_in.to_frames(),
+                cut_diff.cut_in.to_frames()
+            )
