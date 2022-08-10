@@ -379,7 +379,12 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         Set the SG Shot status to use when omitting Shots.
 
-        :param value: A SG status short code or ``None``.
+        The value can be set to the special `_REINSTATE_FROM_PREVIOUS_STATUS`
+        constant value which makes the SG Shot status being restored to the
+        status it had before being omitted.
+
+        :param value: A SG status short code or `_REINSTATE_FROM_PREVIOUS_STATUS`
+                      or ``None``.
         """
         self._shot_reinstate_status = value or None
 
