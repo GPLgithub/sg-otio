@@ -181,9 +181,11 @@ class TestCutDiff(SGBaseTest):
     def _get_track_diff(self, new_track, old_track=None, mock_compute_clip_shot_name=None):
         """
         Create a track diff altering the shot names so that there's
-        :param new_track:
-        :param old_track:
-        :return:
+
+        :param new_track: A :class:`opentimelineio.schema.Track` instance.
+        :param old_track: An optional :class:`opentimelineio.schema.Track` instance
+                          read from SG.
+        :returns: A :class:`SGTrackDiff` instance.
         """
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             if mock_compute_clip_shot_name:
@@ -961,8 +963,8 @@ class TestCutDiff(SGBaseTest):
         # Check that using custom Shot cut fields is handled
         # Validation should fail
         with self.assertRaisesRegexp(
-                ValueError,
-                "Following SG Shot fields are missing",
+            ValueError,
+            "Following SG Shot fields are missing",
         ):
             self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
         # Bypass validation and check the fields are passed through

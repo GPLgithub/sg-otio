@@ -510,8 +510,8 @@ class SGTrackDiff(object):
         """
         return self._diffs_by_shots
 
-    @staticmethod
-    def old_clip_for_shot(for_clip, prev_clip_list, sg_shot, sg_version=None):
+    @classmethod
+    def old_clip_for_shot(cls, for_clip, prev_clip_list, sg_shot, sg_version=None):
         """
         Return a Clip for the given Clip and Shot from the given list of Clip list.
 
@@ -552,7 +552,7 @@ class SGTrackDiff(object):
                     # give score a bonus as we don't have an explicit mismatch
                     potential_matches.append((
                         clip,
-                        100 + SGTrackDiff._get_matching_score(clip, for_clip)
+                        100 + cls._get_matching_score(clip, for_clip)
                     ))
                 elif sg_cut_item["version"]:
                     if sg_version["id"] == sg_cut_item["version"]["id"]:
@@ -560,13 +560,13 @@ class SGTrackDiff(object):
                         # Version
                         potential_matches.append((
                             clip,
-                            1000 + SGTrackDiff._get_matching_score(clip, for_clip)
+                            1000 + cls._get_matching_score(clip, for_clip)
                         ))
                     else:
                         # Version mismatch, don't give any bonus
                         potential_matches.append((
                             clip,
-                            SGTrackDiff._get_matching_score(clip, for_clip)
+                            cls._get_matching_score(clip, for_clip)
                         ))
                 else:
                     # Will keep looking around but we keep a reference to
@@ -575,7 +575,7 @@ class SGTrackDiff(object):
                     # mismatch
                     potential_matches.append((
                         clip,
-                        100 + SGTrackDiff._get_matching_score(clip, for_clip)
+                        100 + cls._get_matching_score(clip, for_clip)
                     ))
             else:
                 logger.debug("Rejecting %s for %s" % (clip.cut_item_name, for_clip.cut_item_name))
@@ -776,8 +776,8 @@ class SGTrackDiff(object):
         )
         return diff_groups
 
-    @staticmethod
-    def _get_matching_score(clip_a, clip_b):
+    @classmethod
+    def _get_matching_score(cls, clip_a, clip_b):
         """
         Return a matching score for the given two clips, based on:
         - Is the Cut order the same?
