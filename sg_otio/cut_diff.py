@@ -337,7 +337,6 @@ class SGCutDiff(SGCutClip):
 
         # We have both a Shot and a current clip.
         if self.sg_shot_status and self.sg_shot_status.get("code"):
-            # TODO: check if matching by short code is right? #9320
             if self.sg_shot_status["code"] in SGSettings().reinstate_shot_if_status_is:
                 self._diff_type = _DIFF_TYPES.REINSTATED
                 return

@@ -184,7 +184,6 @@ class ClipGroup(object):
         if self._sg_shot and omitted_statuses:
             sg_status_list = self._sg_shot.get("sg_status_list")
             if sg_status_list and sg_status_list in omitted_statuses:
-                # TODO: check if matching by short code is right? #9320
                 self._reinstated_sg_shot = True
 
     @property
