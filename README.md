@@ -186,8 +186,8 @@ e.g. `sg_PREFIX_cut_in`, `sg_PREFIX_cut_out`, etc.
 If some Shots are omitted from one Cut to the other, their Status will be set
 to the `shot_omit_status` setting value.
 Shots which appear again in a Cut will be reinstated if their current status 
-is one the statuses set with the `reinstate_shot_if_status_is` setting.
-Their status will be set to the value set in `shot_reinstate_status` setting, 
+is one of the statuses set with the `reinstate_shot_if_status_is` setting.
+Their status will be set to the value set with the `shot_reinstate_status` setting, 
 unless it is the special "Previous Status" value. In this case the status they
 had before being omitted will be set.
 
