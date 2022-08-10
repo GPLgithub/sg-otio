@@ -879,6 +879,10 @@ class TestCutDiff(SGBaseTest):
         """
         Test generating a diff report.
         """
+        settings = SGSettings()
+        settings.default_head_in = 1000
+        settings.default_head_in_duration = 8
+        settings.default_tail_out_duration = 8
         self._add_sg_cut_data()
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             mock_cut_url = get_read_url(
@@ -996,8 +1000,7 @@ class TestCutDiff(SGBaseTest):
                     self.assertTrue("sg_myprecious_cut_in" in sg_shot)
                     self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NO_CHANGE)
                     self.assertEqual(clip_group.index, i + 1)
-                    # FIXME: fails with 1001 != 1000 (taken from tk-framework-editorial)
-                    # self.assertEqual(clip_group.head_in.to_frames(), self.sg_cut_items[i]["cut_item_in"] - 8)
+                    self.assertEqual(clip_group.head_in.to_frames(), self.sg_cut_items[i]["cut_item_in"] - 8)
                     self.assertEqual(clip_group.cut_in.to_frames(), self.sg_cut_items[i]["cut_item_in"])
                     self.assertEqual(clip_group.cut_out.to_frames(), self.sg_cut_items[i]["cut_item_out"])
                     self.assertEqual(clip_group.tail_out.to_frames(), self.sg_cut_items[i]["cut_item_out"] + 8)
