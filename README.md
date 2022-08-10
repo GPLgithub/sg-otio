@@ -93,7 +93,10 @@ This is what such file would contain with the default settings:
   "timecode_in_to_frame_mapping_mode": 1,
   "timecode_in_to_frame_relative_mapping": ["00:00:00:01", 1001],
   "use_smart_fields": false,
-  "shot_cut_fields_prefix": null
+  "shot_cut_fields_prefix": null,
+  "shot_omit_status": "omt",
+  "shot_reinstate_status": "Previous Status",
+  "reinstate_shot_if_status_is": ["omt", "hld"]
 }
 ```
 
@@ -178,6 +181,15 @@ If set to True, the Smart Cut Fields will be used to fill the Shot fields.
 If set, the Shot Cut Fields will be custom fields that use this prefix,
 e.g. `sg_PREFIX_cut_in`, `sg_PREFIX_cut_out`, etc.
 
+
+#### Omitting and Reinstating Shots
+If some Shots are omitted from one Cut to the other, their Status will be set
+to the `shot_omit_status` setting value.
+Shots which appear again in a Cut will be reinstated if their current status 
+is one the statuses set with the `reinstate_shot_if_status_is` setting.
+Their status will be set to the value set in `shot_reinstate_status` setting, 
+unless it is the special "Previous Status" value. In this case the status they
+had before being omitted will be set.
 
 License
 -------
