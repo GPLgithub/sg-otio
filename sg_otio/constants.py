@@ -164,3 +164,7 @@ _DIFF_TYPES = diff_types(
     NEW_IN_CUT=7,       # A new Shot entry is added, but the Shot already exists
     OMITTED_IN_CUT=8,   # A repeated Shot entry was removed
 )
+
+# Special value to specify that Shots should be reinstated with the status
+# they had before being omitted.
+_REINSTATE_FROM_PREVIOUS_STATUS = "Previous Status"

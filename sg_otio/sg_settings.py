@@ -14,6 +14,7 @@ from .constants import _ALT_SHOT_HEAD_IN_FIELD_TEMPLATE, _ALT_SHOT_TAIL_OUT_FIEL
 from .constants import _EFFECTS_FIELD, _RETIME_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .constants import _DEFAULT_VERSIONS_PATH_TEMPLATE
 from .constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
+from .constants import _REINSTATE_FROM_PREVIOUS_STATUS
 
 logger = logging.getLogger(__name__)
 
@@ -347,22 +348,63 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._shot_cut_fields_prefix = value
 
     @property
-    def shot_omitted_statuses(self):
+    def shot_omit_status(self):
         """
-        Return the list of omitted statuses used for Shots.
+        Return the SG Shot status to use when omitting Shots.
+
+        :returns: A SG status short code or ``None``.
+        """
+        return self._shot_omit_status
+
+    @shot_omit_status.setter
+    def shot_omit_status(self, value):
+        """
+        Set the SG Shot status to use when omitting Shots.
+
+        :param value: A SG status short code or ``None``.
+        """
+        self._shot_omit_status = value or None
+
+    @property
+    def shot_reinstate_status(self):
+        """
+        Return the SG Shot status to use when reinstating Shots.
+
+        :returns: A SG status short code or ``None``.
+        """
+        return self._shot_reinstate_status
+
+    @shot_reinstate_status.setter
+    def shot_reinstate_status(self, value):
+        """
+        Set the SG Shot status to use when omitting Shots.
+
+        The value can be set to the special `_REINSTATE_FROM_PREVIOUS_STATUS`
+        constant value which makes the SG Shot status being restored to the
+        status it had before being omitted.
+
+        :param value: A SG status short code or `_REINSTATE_FROM_PREVIOUS_STATUS`
+                      or ``None``.
+        """
+        self._shot_reinstate_status = value or None
+
+    @property
+    def reinstate_shot_if_status_is(self):
+        """
+        Return the list of SG Shot statuses for which Shots should be reinstated.
 
         :returns: A list of SG statuses short codes or ``None``.
         """
-        return self._shot_omitted_statuses
+        return self._reinstate_shot_if_status_is
 
-    @shot_omitted_statuses.setter
-    def shot_omitted_statuses(self, value):
+    @reinstate_shot_if_status_is.setter
+    def reinstate_shot_if_status_is(self, value):
         """
-        Set the list of omitted statuses used for Shots.
+        Set the list of SG Shot statuses for which Shots should be reinstated.
 
         :param value: A list of SG statuses short codes or ``None``.
         """
-        self._shot_omitted_statuses = value or None
+        self._reinstate_shot_if_status_is = value or None
 
     def reset_to_defaults(self):
         """
@@ -383,7 +425,9 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         )
         self._use_smart_fields = False
         self._shot_cut_fields_prefix = None
-        self._shot_omitted_statuses = ["omt", "hld"]
+        self._shot_omit_status = "omt"
+        self._shot_reinstate_status = _REINSTATE_FROM_PREVIOUS_STATUS
+        self._reinstate_shot_if_status_is = ["omt", "hld"]
 
 
 class SGShotFieldsConfig(object):

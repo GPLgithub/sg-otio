@@ -180,7 +180,7 @@ class ClipGroup(object):
             clip.sg_shot = self._sg_shot
         self._compute_group_values()
         self._reinstated_sg_shot = False
-        omitted_statuses = SGSettings().shot_omitted_statuses
+        omitted_statuses = SGSettings().reinstate_shot_if_status_is
         if self._sg_shot and omitted_statuses:
             sg_status_list = self._sg_shot.get("sg_status_list")
             if sg_status_list and sg_status_list in omitted_statuses:
