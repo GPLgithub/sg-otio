@@ -99,34 +99,37 @@ def read_from_file(filepath):
         _CUT_ITEM_FIELDS,
         order=[{"field_name": "cut_order", "direction": "asc"}]
     )
+    if not cut_items:
+        logger.warning("Couldn't retrieve any SG CutItem linked to Cut %s (%s)" % (cut["code"], cut["id"]))
     cut_item_version_ids = [cut_item["version"]["id"] for cut_item in cut_items if cut_item["version"]]
-    # Find Published Files of type mov associated to the Version of the Cut Item.
-    published_files = sg.find(
-        "PublishedFile",
-        [
-            ["version.Version.id", "in", cut_item_version_ids],
-            ["published_file_type.PublishedFileType.code", "is", "mov"]
-        ],
-        _PUBLISHED_FILE_FIELDS,
-        order=[{"field_name": "id", "direction": "desc"}]
-    )
-    # If there are multiple Published Files for the same Version, take the first one.
     published_files_by_version_id = {}
-    for published_file in published_files:
-        if published_file["version.Version.id"] not in published_files_by_version_id:
-            published_files_by_version_id[published_file["version.Version.id"]] = published_file
-
-    # If there are Cut Items without a Published File, check for a Version, and if found,
-    # we can use its sg_uploaded_movie as a Media Reference's target_url.
-    versions_with_no_published_files_ids = list(set(cut_item_version_ids) - set(published_files_by_version_id.keys()))
     versions_with_no_published_files_by_id = {}
-    if versions_with_no_published_files_ids:
-        versions_with_no_published_files = sg.find(
-            "Version",
-            [["id", "in", versions_with_no_published_files_ids]],
-            _VERSION_FIELDS
+    if cut_item_version_ids:
+        # Find Published Files of type mov associated to the Version of the Cut Item.
+        published_files = sg.find(
+            "PublishedFile",
+            [
+                ["version.Version.id", "in", cut_item_version_ids],
+                ["published_file_type.PublishedFileType.code", "is", "mov"]
+            ],
+            _PUBLISHED_FILE_FIELDS,
+            order=[{"field_name": "id", "direction": "desc"}]
         )
-        versions_with_no_published_files_by_id = {version["id"]: version for version in versions_with_no_published_files}
+        # If there are multiple Published Files for the same Version, take the first one.
+        for published_file in published_files:
+            if published_file["version.Version.id"] not in published_files_by_version_id:
+                published_files_by_version_id[published_file["version.Version.id"]] = published_file
+
+        # If there are Cut Items without a Published File, check for a Version, and if found,
+        # we can use its sg_uploaded_movie as a Media Reference's target_url.
+        versions_with_no_published_files_ids = list(set(cut_item_version_ids) - set(published_files_by_version_id.keys()))
+        if versions_with_no_published_files_ids:
+            versions_with_no_published_files = sg.find(
+                "Version",
+                [["id", "in", versions_with_no_published_files_ids]],
+                _VERSION_FIELDS
+            )
+            versions_with_no_published_files_by_id = {version["id"]: version for version in versions_with_no_published_files}
 
     platform_name = get_platform_name()
     # Check for gaps and overlaps

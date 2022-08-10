@@ -113,6 +113,11 @@ def run():
 
     args = parser.parse_args()
 
+    # We need to have a command to check args set on subparsers.
+    if not args.command:
+        parser.print_help()
+        exit(0)
+
     # Check that we can log in to SG
     if not (args.login and args.password):
         if not (args.script_name and args.api_key):
@@ -153,9 +158,41 @@ def read_from_sg(args):
         adapter_name="ShotGrid",
     )
     if not args.file:
-        logger.info(otio.adapters.write_to_string(timeline, adapter_name=args.adapter))
+        if args.adapter:
+            # It seems otio write_to_string choke on unset adapter?
+            logger.info(otio.adapters.write_to_string(timeline, adapter_name=args.adapter))
+        else:
+            logger.info(otio.adapters.write_to_string(timeline))
     else:
-        otio.adapters.write_to_file(timeline, args.file, adapter_name=args.adapter)
+        _, ext = os.path.splitext(args.file)
+        if (ext and ext.lower() == ".edl") or args.adapter == "cmx_3600":
+            otio.adapters.write_to_file(
+                timeline,
+                args.file,
+                adapter_name=args.adapter,
+                rate=args.frame_rate,  # param specific to cmx_3600 adapter
+            )
+        else:
+            otio.adapters.write_to_file(timeline, args.file, adapter_name=args.adapter)
+
+
+def read_timeline_from_file(args):
+    """
+    Read and return a timeline from the args.
+
+    :returns: A :class:`otio.schema.Timeline` instance.
+    """
+    _, ext = os.path.splitext(args.file)
+    if (ext and ext.lower() == ".edl") or args.adapter == "cmx_3600":
+        # rate param is specific to cmx_3600 adapter
+        timeline = otio.adapters.read_from_file(
+            args.file, adapter_name=args.adapter, rate=args.frame_rate
+        )
+    else:
+        timeline = otio.adapters.read_from_file(
+            args.file, adapter_name=args.adapter
+        )
+    return timeline
 
 
 def write_to_sg(args):
@@ -174,9 +211,7 @@ def write_to_sg(args):
         entity_id=args.entity_id,
         session_token=session_token
     )
-    timeline = otio.adapters.read_from_file(
-        args.file, adapter_name=args.adapter
-    )
+    timeline = read_timeline_from_file(args)
     if not timeline.video_tracks():
         raise ValueError("The input file does not contain any video tracks.")
     if args.settings:
@@ -214,9 +249,7 @@ def compare_to_sg(args):
 
     :param args: The command line arguments.
     """
-    timeline = otio.adapters.read_from_file(
-        args.file, adapter_name=args.adapter
-    )
+    timeline = read_timeline_from_file(args)
     if not timeline.video_tracks():
         raise ValueError("The input file does not contain any video tracks.")
     new_track = timeline.video_tracks()[0]
@@ -326,6 +359,13 @@ def add_common_args(parser):
         "--settings", "-s",
         required=False,
         help="The settings JSON file to use when reading/writing. If not provided, the default settings are used."
+    )
+    parser.add_argument(
+        "--frame-rate", "-rt",
+        required=False,
+        type=float,
+        default=24,
+        help="The frame rate to use when reading EDLs."
     )
 
 
