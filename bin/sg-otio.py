@@ -204,6 +204,7 @@ def write_to_sg(args):
         url,
         adapter_name="ShotGrid",
         input_media=args.movie,
+        input_file=args.file,
     )
     logger.info("File %s successfully written to %s" % (args.file, url))
 
@@ -267,6 +268,7 @@ def compare_to_sg(args):
             write_url,
             adapter_name="ShotGrid",
             previous_track=sg_track,
+            input_file=args.file,
         )
 
 

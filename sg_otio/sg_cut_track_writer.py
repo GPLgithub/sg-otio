@@ -61,7 +61,18 @@ class SGCutTrackWriter(object):
             self._cut_item_schema[self._sg.base_url] = self._sg.schema_field_read("CutItem")
         return self._cut_item_schema[self._sg.base_url]
 
-    def write_to(self, entity_type, entity_id, video_track, input_media=None, sg_user=None, description="", previous_track=None, update_shots=True):
+    def write_to(
+        self,
+        entity_type,
+        entity_id,
+        video_track,
+        input_media=None,
+        sg_user=None,
+        description="",
+        previous_track=None,
+        update_shots=True,
+        input_file=None,
+    ):
         """
         Gather information about a Cut, its Cut Items and their linked Shots and create
         or update Entities accordingly in SG.
@@ -70,6 +81,9 @@ class SGCutTrackWriter(object):
         - The Cut itself
         - The Project
         - Any Entity to link the Cut against (e.g. Sequence, Reel...)
+
+        If an input file is provided, it is uploaded as a Published File to the
+        SG Cut.
 
         :param str entity_type: A SG Entity type.
         :param int entity_id: A SG Entity ID.
@@ -81,6 +95,7 @@ class SGCutTrackWriter(object):
                                the current Track to.
         :param bool update_shots: Whether or not existing SG Shots should be updated.
                                   New SG Shots are always created.
+        :param str input_file: Optional input source file for the Cut.
         """
         sg_track_data = video_track.metadata.get("sg")
         if sg_track_data and sg_track_data["type"] != "Cut":
@@ -147,6 +162,22 @@ class SGCutTrackWriter(object):
         sg_cut = self._write_cut(
             video_track, sg_project, sg_cut, sg_linked_entity, sg_cut_version, sg_user, description
         )
+        # Upload input file to the Cut record and keep going if it fails.
+        if input_file:
+            try:
+                self._sg.upload(
+                    sg_cut["type"],
+                    sg_cut["id"],
+                    input_file,
+                    "attachments"
+                )
+            except Exception as e:
+                logger.warning(
+                    "Couldn't upload %s into SG: %s" % (
+                        input_file, e
+                    )
+                )
+
         sg_shots = self._write_shots(
             clips_by_shots,
             sg_project,
