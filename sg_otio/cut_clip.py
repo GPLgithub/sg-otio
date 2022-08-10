@@ -148,7 +148,7 @@ class SGCutClip(object):
         """
         Set the SG Shot value associated with this Clip.
 
-        Recompute head_in, head_in_duration and tail_out_duration,
+        Recompute head_in, head_duration and tail_duration,
         which depend on the SG Shot.
 
         :param value: A SG Shot dictionary.
@@ -338,7 +338,7 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self._head_in + self._head_in_duration
+        return self._head_in + self._head_duration
 
     @property
     def cut_out(self):
@@ -462,25 +462,25 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self.head_in + self.head_in_duration - RationalTime(1, self._frame_rate)
+        return self.head_in + self.head_duration - RationalTime(1, self._frame_rate)
 
     @property
-    def head_in_duration(self):
+    def head_duration(self):
         """
         Return the head handle duration.
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self._head_in_duration
+        return self._head_duration
 
-    @head_in_duration.setter
-    def head_in_duration(self, value):
+    @head_duration.setter
+    def head_duration(self, value):
         """
         Sets the head handle duration.
 
         :param value: A :class:`RationalTime` instance.
         """
-        self._head_in_duration = value
+        self._head_duration = value
 
     @property
     def tail_in(self):
@@ -502,25 +502,25 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self.cut_out + self._tail_out_duration
+        return self.cut_out + self._tail_duration
 
     @property
-    def tail_out_duration(self):
+    def tail_duration(self):
         """
         Return the tail handle duration.
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self._tail_out_duration
+        return self._tail_duration
 
-    @tail_out_duration.setter
-    def tail_out_duration(self, value):
+    @tail_duration.setter
+    def tail_duration(self, value):
         """
         Sets the tail handle duration.
 
         :param value: A :class:`RationalTime` instance.
         """
-        self._tail_out_duration = value
+        self._tail_duration = value
 
     @property
     def working_duration(self):
@@ -659,7 +659,7 @@ class SGCutClip(object):
         """
         Compute and set the head and tail values for this clip.
         """
-        self._head_in, self._head_in_duration, self._tail_out_duration = self.get_head_tail_values()
+        self._head_in, self._head_duration, self._tail_duration = self.get_head_tail_values()
 
     def get_head_tail_values(self):
         """
@@ -671,7 +671,7 @@ class SGCutClip(object):
         sg_shot_head_in = self.sg_shot_head_in
         cut_in = self.compute_cut_in()
         if sg_shot_head_in is None:
-            head_duration = RationalTime(sg_settings.default_head_in_duration, self._frame_rate)
+            head_duration = RationalTime(sg_settings.default_head_duration, self._frame_rate)
             if sg_settings.timecode_in_to_frame_mapping_mode == _TC2FRAME_AUTOMATIC_MODE:
                 head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
             else:
@@ -683,7 +683,7 @@ class SGCutClip(object):
         cut_out = cut_in + self.visible_duration - RationalTime(1, self._frame_rate)
         sg_shot_tail_out = self.sg_shot_tail_out
         if sg_shot_tail_out is None:
-            tail_duration = RationalTime(sg_settings.default_tail_out_duration, self._frame_rate)
+            tail_duration = RationalTime(sg_settings.default_tail_duration, self._frame_rate)
         else:
             tail_out = RationalTime(sg_shot_tail_out, self._frame_rate)
             # tail_in would be cut_out + 1, so tail_duration would be
@@ -730,7 +730,7 @@ class SGCutClip(object):
         head_in = self.sg_shot_head_in
         if head_in is None:
             head_in = sg_settings.default_head_in
-        return RationalTime(head_in + sg_settings.default_head_in_duration, self._frame_rate)
+        return RationalTime(head_in + sg_settings.default_head_duration, self._frame_rate)
 
     @property
     def sg_version(self):

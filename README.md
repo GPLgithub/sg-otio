@@ -82,8 +82,8 @@ This is what such file would contain with the default settings:
 ```json
 {
   "default_head_in": 1001,
-  "default_head_in_duration": 8,
-  "default_tail_out_duration": 8,
+  "default_head_duration": 8,
+  "default_tail_duration": 8,
   "use_clip_names_for_shot_names": false,
   "clip_name_shot_regexp": null,
   "local_storage_name": "primary",
@@ -100,7 +100,7 @@ This is what such file would contain with the default settings:
 }
 ```
 
-#### Default Head In, Default Head In Duration, Default Tail Out Duration
+#### Default Head In, Default Head Duration, Default Tail Duration
 When creating new Shots in ShotGrid, the values to use for the start frame and handles.
 
 ##### Use Clip Names for Shot Names

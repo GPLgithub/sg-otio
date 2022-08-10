@@ -133,12 +133,12 @@ class TestCutClip(unittest.TestCase):
             * FROM CLIP NAME: clip_1
             * COMMENT: shot_002
         """
-        # set non_default head_in, head_in_duration, tail_out_duration
+        # set non_default head_in, head_duration, tail_duration
         # to show that the results are still consistent.
         sg_settings = SGSettings()
         sg_settings.default_head_in = 555
-        sg_settings.default_head_in_duration = 10
-        sg_settings.default_tail_out_duration = 20
+        sg_settings.default_head_duration = 10
+        sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
         clips = [SGCutClip(c) for c in video_track.each_clip()]
@@ -149,7 +149,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
         self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
-        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
+        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
         self.assertEqual(clip_1.cut_out.to_frames(), clip_1.cut_in.to_frames() + 48 - 1)
         self.assertEqual(clip_1.record_in.to_timecode(), "02:00:00:00")
         self.assertEqual(clip_1.record_out.to_timecode(), "02:00:01:00")
@@ -165,7 +165,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
         self.assertEqual(clip_2.source_in.to_timecode(), "00:00:00:00")
         self.assertEqual(clip_2.source_out.to_timecode(), "00:00:01:00")
-        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
+        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
         self.assertEqual(clip_2.cut_out.to_frames(), clip_2.cut_in.to_frames() + 24 - 1)
         self.assertEqual(clip_2.record_in.to_timecode(), "02:00:01:00")
         self.assertEqual(clip_2.record_out.to_timecode(), "02:00:02:00")
@@ -201,14 +201,14 @@ class TestCutClip(unittest.TestCase):
             * FROM CLIP NAME: shot_003_v001
             * COMMENT: shot_003
         """
-        # set non_default head_in, head_in_duration, tail_out_duration
+        # set non_default head_in, head_duration, tail_duration
         # to show that the results are still consistent.
         sg_settings = SGSettings()
         sg_settings.timecode_in_to_frame_mapping = _TC2FRAME_AUTOMATIC_MODE
         sg_settings.use_clip_names_for_shot_names = False
         sg_settings.default_head_in = 555
-        sg_settings.default_head_in_duration = 10
-        sg_settings.default_tail_out_duration = 20
+        sg_settings.default_head_duration = 10
+        sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
         clips = [SGCutClip(c) for c in video_track.each_clip()]
@@ -223,7 +223,7 @@ class TestCutClip(unittest.TestCase):
         # All out values take into account the transition time
         self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
-        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
+        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
         self.assertEqual(clip_1.cut_out.to_frames(), clip_1.cut_in.to_frames() + 48 - 1)
         self.assertEqual(clip_1.record_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.record_out.to_timecode(), "01:00:02:00")
@@ -240,7 +240,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
         self.assertEqual(clip_2.source_in.to_timecode(), "01:00:01:00")
         self.assertEqual(clip_2.source_out.to_timecode(), "01:00:02:00")
-        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
+        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
         self.assertEqual(clip_2.cut_out.to_frames(), clip_2.cut_in.to_frames() + 24 - 1)
         self.assertEqual(clip_2.record_in.to_timecode(), "01:00:01:00")
         self.assertEqual(clip_2.record_out.to_timecode(), "01:00:02:00")
@@ -288,7 +288,7 @@ class TestCutClip(unittest.TestCase):
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: shot_001
         """
-        # set multiple head_in, head_in_duration, tail_out_duration
+        # set multiple head_in, head_duration, tail_duration
         # to show that the results are still consistent.
         values = [
             [1001, 8, 8],
@@ -296,10 +296,10 @@ class TestCutClip(unittest.TestCase):
             [666, 25, 50],
         ]
         sg_settings = SGSettings()
-        for head_in, head_in_duration, tail_out_duration in values:
+        for head_in, head_duration, tail_duration in values:
             sg_settings.default_head_in = head_in
-            sg_settings.default_head_in_duration = head_in_duration
-            sg_settings.default_tail_out_duration = tail_out_duration
+            sg_settings.default_head_duration = head_duration
+            sg_settings.default_tail_duration = tail_duration
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
             track = edl_timeline.tracks[0]
             clip_group = ClipGroup("shot_001")
@@ -311,16 +311,16 @@ class TestCutClip(unittest.TestCase):
             # All clips are considered parts of a single big clip, so head in
             # tail out values are identical for all clips, but the cut in and
             # cut out values differ, with different handle durations.
-            tail_out = RationalTime(head_in + head_in_duration + 10 * 30 + tail_out_duration - 1, 30)
+            tail_out = RationalTime(head_in + head_duration + 10 * 30 + tail_duration - 1, 30)
             for clip in clip_group.clips:
                 self.assertEqual(clip.group, clip_group)
                 self.assertEqual(clip.head_in.to_frames(), clip_group.head_in.to_frames())
                 self.assertEqual(clip.tail_out.to_frames(), clip_group.tail_out.to_frames())
                 self.assertEqual(
-                    clip.cut_in - clip.head_in_duration,
+                    clip.cut_in - clip.head_duration,
                     clip.head_in,
                 )
-                self.assertEqual(clip.cut_out + clip.tail_out_duration, tail_out)
+                self.assertEqual(clip.cut_out + clip.tail_duration, tail_out)
 
     def test_in_out_values(self):
         """
@@ -338,10 +338,10 @@ class TestCutClip(unittest.TestCase):
             )
         )
         self.assertEqual(clip.head_in.to_frames(), sg_settings.default_head_in)
-        self.assertEqual(clip.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_in_duration)
+        self.assertEqual(clip.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
         self.assertEqual(clip.cut_out.to_frames(), clip.cut_in.to_frames() + 10 - 1)
         self.assertEqual(clip.tail_in.to_frames(), clip.cut_out.to_frames() + 1)
-        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
         # If a Shot is associated with the Clip, and it has a head_in value, it
         # is always used
         sg_shot = {
@@ -359,22 +359,22 @@ class TestCutClip(unittest.TestCase):
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
         # In absolute mode the source range is used directly
         self.assertEqual(clip.head_in.to_frames(), -8)
-        self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
+        self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
         self.assertEqual(clip.cut_in.to_frames(), 0)
         self.assertEqual(clip.cut_out.to_frames(), 9)
         self.assertEqual(clip.tail_in.to_frames(), 9 + 1)
-        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
         sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_RELATIVE_MODE
         sg_settings.timecode_in_to_frame_relative_mapping = ("00:00:00:00", 20000)
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
         self.assertEqual(clip.compute_cut_in().to_frames(), 20000)
         self.assertEqual(clip.head_in.to_frames(), 20000 - 8)
-        self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
+        self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
         self.assertEqual(clip.cut_in.to_frames(), 20000)
         self.assertEqual(clip.cut_out.to_frames(), 20000 + 9)
         self.assertEqual(clip.tail_in.to_frames(), 20000 + 9 + 1)
-        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
         # Value from a SSG Cut Item should be used as a base for an offset
         clip.metadata["sg"] = {
@@ -387,11 +387,11 @@ class TestCutClip(unittest.TestCase):
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
         self.assertEqual(clip.compute_cut_in().to_frames(), 3000)
         self.assertEqual(clip.head_in.to_frames(), 3000 - 8)
-        self.assertEqual(clip.head_in_duration.to_frames(), sg_settings.default_head_in_duration)
+        self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
         self.assertEqual(clip.cut_in.to_frames(), 3000)
         self.assertEqual(clip.cut_out.to_frames(), 3000 + 9)
         self.assertEqual(clip.tail_in.to_frames(), 3000 + 9 + 1)
-        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_out_duration - 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
 
 if __name__ == '__main__':

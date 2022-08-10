@@ -128,7 +128,7 @@ class ClipGroup(object):
         when clips are added to the group, the group values need to be
         recomputed.
 
-        Also, the head_in_duration and tail_out_duration of all clips in the group
+        Also, the head_duration and tail_duration of all clips in the group
         must be adjusted to make sure that their values are correct, and reflect
         the whole range of the group.
 
@@ -141,11 +141,11 @@ class ClipGroup(object):
 
         _, _, tail_duration = self.last_clip.get_head_tail_values()
 
-        # Adjust the head_in_duration and tail_out_duration of all clips in the group
+        # Adjust the head_duration and tail_duration of all clips in the group
         for clip in self.clips:
             clip.head_in = head_in
-            clip.head_in_duration = clip.source_in - self.source_in + head_duration
-            clip.tail_out_duration = self.source_out - clip.source_out + tail_duration
+            clip.head_duration = clip.source_in - self.source_in + head_duration
+            clip.tail_duration = self.source_out - clip.source_out + tail_duration
             logger.debug(
                 "%s: Updated %s to %s %s %s %s" % (
                     self,

@@ -828,7 +828,7 @@ class TestCutDiff(SGBaseTest):
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.head_in.to_frames(), 1001)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1010)
-        self.assertEqual(cut_diff.head_in_duration.to_frames(), 9)
+        self.assertEqual(cut_diff.head_duration.to_frames(), 9)
         # Within handles
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
 
@@ -841,7 +841,7 @@ class TestCutDiff(SGBaseTest):
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.sg_shot_head_in, 1001)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
-        self.assertEqual(cut_diff.head_in_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.head_duration.to_frames(), -1)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
         # Same cut in, cut out after registered handles.
@@ -855,7 +855,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.tail_out.to_frames(), 1026)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1009)
         self.assertEqual(cut_diff.cut_out.to_frames(), 1009 + 19 - 1)
-        self.assertEqual(cut_diff.tail_out_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
         # Both cut in and cut out out of handle margins.
@@ -867,12 +867,12 @@ class TestCutDiff(SGBaseTest):
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.sg_shot_head_in, 1001)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
-        self.assertEqual(cut_diff.head_in_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.head_duration.to_frames(), -1)
         self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
         self.assertEqual(cut_diff.tail_out.to_frames(), 1026)  # Retrieved from the Shot
         self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
         self.assertEqual(cut_diff.cut_out.to_frames(), 1000 + 28 - 1)
-        self.assertEqual(cut_diff.tail_out_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
     def test_report(self):
@@ -881,8 +881,8 @@ class TestCutDiff(SGBaseTest):
         """
         settings = SGSettings()
         settings.default_head_in = 1000
-        settings.default_head_in_duration = 8
-        settings.default_tail_out_duration = 8
+        settings.default_head_duration = 8
+        settings.default_tail_duration = 8
         self._add_sg_cut_data()
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             mock_cut_url = get_read_url(

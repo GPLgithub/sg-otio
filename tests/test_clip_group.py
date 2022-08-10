@@ -104,7 +104,7 @@ class TestClipGroup(unittest.TestCase):
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: SHOT_001
         """
-        # set multiple head_in, head_in_duration, tail_out_duration
+        # set multiple head_in, head_duration, tail_duration
         # to show that the results are still consistent.
         values = [
             [1001, 8, 8],
@@ -112,10 +112,10 @@ class TestClipGroup(unittest.TestCase):
             [666, 25, 50],
         ]
         sg_settings = SGSettings()
-        for head_in, head_in_duration, tail_out_duration in values:
+        for head_in, head_duration, tail_duration in values:
             sg_settings.default_head_in = head_in
-            sg_settings.default_head_in_duration = head_in_duration
-            sg_settings.default_tail_out_duration = tail_out_duration
+            sg_settings.default_head_duration = head_duration
+            sg_settings.default_tail_duration = tail_duration
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
             track = edl_timeline.tracks[0]
             shot_groups = ClipGroup.groups_from_track(track)
@@ -124,24 +124,24 @@ class TestClipGroup(unittest.TestCase):
             # Matching Shots is case insensitive
             self.assertEqual(shot.name, "shot_001")
             self.assertEqual(shot.index, 3)  # first clip is the last starting at 01:00:00:00
-            self.assertEqual(shot.cut_in.to_frames(), head_in + head_in_duration)
-            self.assertEqual(shot.cut_out.to_frames(), head_in + head_in_duration + 10 * 24 - 1)
+            self.assertEqual(shot.cut_in.to_frames(), head_in + head_duration)
+            self.assertEqual(shot.cut_out.to_frames(), head_in + head_duration + 10 * 24 - 1)
             self.assertEqual(shot.head_in.to_frames(), head_in)
-            self.assertEqual(shot.head_out.to_frames(), head_in + head_in_duration - 1)
-            self.assertEqual(shot.tail_in.to_frames(), head_in + head_in_duration + 10 * 24)
+            self.assertEqual(shot.head_out.to_frames(), head_in + head_duration - 1)
+            self.assertEqual(shot.tail_in.to_frames(), head_in + head_duration + 10 * 24)
             self.assertEqual(
                 shot.tail_out.to_frames(),
-                head_in + head_in_duration + 10 * 24 + tail_out_duration - 1
+                head_in + head_duration + 10 * 24 + tail_duration - 1
             )
-            self.assertEqual(shot.tail_duration.to_frames(), tail_out_duration)
+            self.assertEqual(shot.tail_duration.to_frames(), tail_duration)
             self.assertTrue(not shot.has_effects)
             self.assertTrue(not shot.has_retime)
             self.assertEqual(shot.duration.to_frames(), 10 * 24)
-            self.assertEqual(shot.working_duration.to_frames(), head_in_duration + 10 * 24 + tail_out_duration - 1)
+            self.assertEqual(shot.working_duration.to_frames(), head_duration + 10 * 24 + tail_duration - 1)
             clips = list(shot.clips)
             self.assertEqual(len(clips), 2)
-            self.assertEqual(clips[0].cut_in.to_frames(), head_in + head_in_duration + 24)
-            self.assertEqual(clips[1].cut_in.to_frames(), head_in + head_in_duration)
+            self.assertEqual(clips[0].cut_in.to_frames(), head_in + head_duration + 24)
+            self.assertEqual(clips[1].cut_in.to_frames(), head_in + head_duration)
 
 
 if __name__ == '__main__':
