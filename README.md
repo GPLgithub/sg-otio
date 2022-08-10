@@ -37,7 +37,7 @@ SG Otio can only be installed from sources at the moment.
 sg-otio usage
 -------------
 
-You can access the help with `sg-otio read --help` and `sg-otio write --help`. 
+You can access the help with `sg-otio read --help`, `sg-otio write --help`, or `sg-otio compare --help`. 
 
 ### ShotGrid login information
 
@@ -62,6 +62,17 @@ Example:
 ```
 sg-otio write -u URL --session-token TOKEN --entity-type Cut --entity-id CUT_ID --file INPUT.edl --movie INPUT.mov --settings SETTINGS.JSON
 ```
+
+### Comparing a Video Track to a SG Cut
+Read a Video Track from an OpenTimelinio source and compare it to an existing SG Cut.
+Any format suppported by OpenTimelineIO's standard adapters is supported for the source.
+The video Track can be written to SG as a new Cut by adding the `--write` argument.
+The new SG Cut will be linked to the SG Entity the previous SG Cut is linked to.
+Examples:
+```
+sg-otio compare --sg-site-url URL  --session-token TOKEN --file INPUT OTIO --cut-id CUT_ID
+sg-otio compare --sg-site-url URL  --session-token TOKEN --file INPUT OTIO --cut-id CUT_ID --write
+``` 
 
 ### Settings file
 
