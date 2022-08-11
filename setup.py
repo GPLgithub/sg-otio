@@ -34,7 +34,6 @@ def get_version():
         )
         return version_git
     except Exception:
-        raise
         # Blindly ignore problems, git might be not available, or the user could
         # be installing from zip archive, etc...
         pass
