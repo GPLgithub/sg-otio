@@ -20,6 +20,11 @@ contributions.
 Installation
 ------------
 
+### SG Python API
+
+The SG Python API is not available on PyPi and must be manually installed
+from github, e.g. `pip install git+https://github.com/shotgunsoftware/python-api.git`
+
 ### ffmpeg
 sg-otio requires ffmpeg to be installed, and ffmpeg must be in the `PATH`.
 
