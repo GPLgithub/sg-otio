@@ -4,10 +4,11 @@
 import io
 import setuptools
 import subprocess
+import six
 
 with io.open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
-with io.open("LICENSE.txt") as f:
+with io.open("LICENSE.txt", "r", encoding="utf-8") as f:
     license = f.read().strip()
 
 def get_version():
@@ -26,11 +27,14 @@ def get_version():
     # (e.g. pip install ./sg-otio), the version number
     # will be picked up from the most recently added tag.
     try:
-        version_git = subprocess.check_output(
-            ["git", "describe", "--abbrev=0"]
-        ).rstrip().decode("utf-8")
+        version_git = six.ensure_str(
+            subprocess.check_output(
+                ["git", "describe", "--abbrev=0"]
+            ).rstrip()
+        )
         return version_git
     except Exception:
+        raise
         # Blindly ignore problems, git might be not available, or the user could
         # be installing from zip archive, etc...
         pass
