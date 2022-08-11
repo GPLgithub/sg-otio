@@ -8,7 +8,8 @@ on:
     types: [published]
   push:
     tags:
-      - *
+    - "*"
+
 jobs:
   build-n-publish:
     name: Build and publish Python 🐍 distributions 📦 to PyPI and TestPyPI
