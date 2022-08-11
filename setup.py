@@ -11,6 +11,7 @@ with io.open("README.md", "r", encoding="utf-8") as f:
 with io.open("LICENSE.txt", "r", encoding="utf-8") as f:
     license = f.read().strip()
 
+
 def get_version():
     """
     Helper to extract a version number for this module.
