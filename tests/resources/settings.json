@@ -1,5 +1,5 @@
 {
   "default_head_in": 1,
-  "default_head_in_duration": 10,
-  "default_tail_out_duration": 10
+  "default_head_duration": 10,
+  "default_tail_duration": 10
 }

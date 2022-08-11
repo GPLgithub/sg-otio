@@ -356,7 +356,7 @@ def add_publish_file_media_reference_to_clip(clip, published_file, platform_name
         # The visible range of the clip is taken from
         # timecode_cut_item_in_text and timecode_cut_item_out_text,
         # but cut_item_in, cut_item_out (on CutItem) and first_frame,
-        # last_frame (on Version) have an offset of head_in + head_in_duration.
+        # last_frame (on Version) have an offset of head_in + head_duration.
         # Since we cannot know what the offset is, we check the offset between cut_item_in and first_frame,
         # and that tells us what is the offset between visible range and available range.
         start_time_offset = cut_item["cut_item_in"] - first_frame
@@ -388,7 +388,7 @@ def add_version_media_reference_to_clip(clip, version, cut_item=None):
         # The visible range of the clip is taken from
         # timecode_cut_item_in_text and timecode_cut_item_out_text,
         # but cut_item_in, cut_item_out (on CutItem) and first_frame,
-        # last_frame (on Version) have an offset of head_in + head_in_duration.
+        # last_frame (on Version) have an offset of head_in + head_duration.
         # Since we cannot know what the offset is, we check the offset between cut_item_in and first_frame,
         # and that tells us what is the offset between visible range and available range.
         start_time_offset = cut_item["cut_item_in"] - version["sg_first_frame"]

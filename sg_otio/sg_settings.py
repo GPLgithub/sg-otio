@@ -79,40 +79,40 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._default_head_in = value
 
     @property
-    def default_head_in_duration(self):
+    def default_head_duration(self):
         """
-        Return the default head in duration value to use.
+        Return the default head duration value to use.
 
         :returns: An integer.
         """
-        return self._default_head_in_duration
+        return self._default_head_duration
 
-    @default_head_in_duration.setter
-    def default_head_in_duration(self, value):
+    @default_head_duration.setter
+    def default_head_duration(self, value):
         """
-        Set the default head in duration value.
+        Set the default head duration value.
 
         :param int value: The value to set.
         """
-        self._default_head_in_duration = value
+        self._default_head_duration = value
 
     @property
-    def default_tail_out_duration(self):
+    def default_tail_duration(self):
         """
-        Return the default tail out duration value to use.
+        Return the default tail duration value to use.
 
         :returns: An integer.
         """
-        return self._default_tail_out_duration
+        return self._default_tail_duration
 
-    @default_tail_out_duration.setter
-    def default_tail_out_duration(self, value):
+    @default_tail_duration.setter
+    def default_tail_duration(self, value):
         """
-        Set the default tail out duration value.
+        Set the default tail duration value.
 
         :param int value: The value to set.
         """
-        self._default_tail_out_duration = value
+        self._default_tail_duration = value
 
     @property
     def use_clip_names_for_shot_names(self):
@@ -411,8 +411,8 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         Reset settings to all default values.
         """
         self._default_head_in = _DEFAULT_HEAD_IN
-        self._default_head_in_duration = _DEFAULT_HEAD_IN_DURATION
-        self._default_tail_out_duration = _DEFAULT_TAIL_OUT_DURATION
+        self._default_head_duration = _DEFAULT_HEAD_IN_DURATION
+        self._default_tail_duration = _DEFAULT_TAIL_OUT_DURATION
         self._use_clip_names_for_shot_names = False
         self._clip_name_shot_regexp = None
         self._local_storage_name = "primary"

@@ -79,14 +79,14 @@ class TestUtils(SGBaseTest):
         self.assertFalse(sg_settings.use_clip_names_for_shot_names)
         # Check that set values are global
         sg_settings.default_head_in = 1234
-        sg_settings.default_head_in_duration = 24
-        sg_settings.default_tail_out_duration = 36
+        sg_settings.default_head_duration = 24
+        sg_settings.default_tail_duration = 36
         sg_settings.use_clip_names_for_shot_names = True
         sg_settings.clip_name_shot_regexp = r"\d+"
         sg_settings = SGSettings()
         self.assertEqual(sg_settings.default_head_in, 1234)
-        self.assertEqual(sg_settings.default_head_in_duration, 24)
-        self.assertEqual(sg_settings.default_tail_out_duration, 36)
+        self.assertEqual(sg_settings.default_head_duration, 24)
+        self.assertEqual(sg_settings.default_tail_duration, 36)
         self.assertTrue(sg_settings.use_clip_names_for_shot_names)
         self.assertEqual(sg_settings.clip_name_shot_regexp, r"\d+")
 

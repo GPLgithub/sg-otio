@@ -154,7 +154,7 @@ class SGCutDiff(SGCutClip):
         return super(SGCutDiff, self).cut_in
 
     @property
-    def head_in_duration(self):
+    def head_duration(self):
         """
         Return the head duration.
 
@@ -169,10 +169,10 @@ class SGCutDiff(SGCutClip):
             # head_out would be cut_in -1, so head_duration would be:
             # cut_in -1 - head_in + 1, we use a simplified formula below
             return cut_in - head_in
-        return super(SGCutDiff, self).head_in_duration
+        return super(SGCutDiff, self).head_duration
 
-    @head_in_duration.setter
-    def head_in_duration(self, value):
+    @head_duration.setter
+    def head_duration(self, value):
         """
         Sets the head handle duration.
 
@@ -180,7 +180,7 @@ class SGCutDiff(SGCutClip):
 
         :param value: A :class:`RationalTime` instance.
         """
-        self._head_in_duration = value
+        self._head_duration = value
 
     @property
     def tail_out(self):
@@ -199,7 +199,7 @@ class SGCutDiff(SGCutClip):
         return super(SGCutDiff, self).tail_out
 
     @property
-    def tail_out_duration(self):
+    def tail_duration(self):
         """
         Return the tail handle duration.
 
@@ -213,10 +213,10 @@ class SGCutDiff(SGCutClip):
             tail_out = self.sg_shot_tail_out
             if tail_out is not None:
                 return RationalTime(tail_out, self._frame_rate) - cut_out
-        return super(SGCutDiff, self).tail_out_duration
+        return super(SGCutDiff, self).tail_duration
 
-    @tail_out_duration.setter
-    def tail_out_duration(self, value):
+    @tail_duration.setter
+    def tail_duration(self, value):
         """
         Sets the tail handle duration.
 
@@ -224,7 +224,7 @@ class SGCutDiff(SGCutClip):
 
         :param value: A :class:`RationalTime` instance.
         """
-        self._tail_out_duration = value
+        self._tail_duration = value
 
     @property
     def diff_type(self):
@@ -386,15 +386,15 @@ class SGCutDiff(SGCutClip):
         # cut changes.
         if (
             self.sg_shot_head_in is not None  # Report rescan only if value is set on the Shot
-            and self.head_in_duration is not None
-            and self.head_in_duration.to_frames() < 0
+            and self.head_duration is not None
+            and self.head_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.RESCAN
 
         if (
             self.sg_shot_tail_out is not None  # Report rescan only if value is set on the Shot
-            and self.tail_out_duration is not None
-            and self.tail_out_duration.to_frames() < 0
+            and self.tail_duration is not None
+            and self.tail_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.RESCAN
 
