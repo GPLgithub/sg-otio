@@ -29,7 +29,7 @@ def get_version():
     try:
         version_git = six.ensure_str(
             subprocess.check_output(
-                ["git", "describe", "--abbrev=0"]
+                ["git", "describe", "--abbrev=0", "--tags"]
             ).rstrip()
         )
         return version_git
@@ -69,7 +69,7 @@ setuptools.setup(
     },
     install_requires=[
         "OpenTimelineIO >= 0.12.0",
-#        "shotgun_api3 @ git+https://github.com/shotgunsoftware/python-api.git",
+        "shotgun-api3 >= 3.3.3",
         "six",
         "pathlib2; python_version < '3.4'",
         "futures; python_version < '3.2'",
