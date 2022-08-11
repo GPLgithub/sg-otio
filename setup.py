@@ -28,7 +28,7 @@ setuptools.setup(
     },
     install_requires=[
         "OpenTimelineIO >= 0.12.0",
-        "shotgun_api3 @ git+https://github.com/shotgunsoftware/python-api.git",
+#        "shotgun_api3 @ git+https://github.com/shotgunsoftware/python-api.git",
         "six",
         "pathlib2; python_version < '3.4'",
         "futures; python_version < '3.2'",
