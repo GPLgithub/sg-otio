@@ -31,20 +31,10 @@ jobs:
         python -m pip install --upgrade pip
     - name: Install dependencies
       run: >-
-        pip install six
-    - name: Install pypa/build
+        pip install six wheel
+    - name: Build
       run: >-
-        python -m
-        pip install
-        build
-        --user
-    - name: Build a binary wheel and a source tarball
-      run: >-
-        python -m
-        build
-        --sdist
-        --wheel
-        --outdir dist/
+        python setup.py bdist_wheel
     - name: Publish distribution 📦 to Test PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
