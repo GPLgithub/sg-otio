@@ -10,8 +10,9 @@ import opentimelineio as otio
 
 from sg_otio.constants import _DEFAULT_HEAD_IN
 from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import add_media_references_from_sg, get_platform_name
+from sg_otio.utils import get_platform_name
 from sg_otio.utils import compute_clip_version_name
+from sg_otio.sg_cut_reader import SGCutReader
 
 from .python.sg_test import SGBaseTest
 
@@ -153,7 +154,7 @@ class TestUtils(SGBaseTest):
         track = otio.schema.Track()
         clip = otio.schema.Clip(name="foo")
         track.append(clip)
-        add_media_references_from_sg(track, self.mock_sg, self.mock_project)
+        SGCutReader(self.mock_sg).add_media_references_from_sg(track, self.mock_project)
         self.assertTrue(clip.media_reference.is_missing_reference)
 
     def test_add_media_reference_from_sg_version(self):
@@ -204,7 +205,7 @@ class TestUtils(SGBaseTest):
                 "project": self.mock_project,
             }
             self.add_to_sg_mock_db(cut_item)
-            add_media_references_from_sg(track, self.mock_sg, self.mock_project)
+            SGCutReader(self.mock_sg).add_media_references_from_sg(track, self.mock_project)
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(clip.media_reference.name, version["code"])
             self.assertEqual(clip.media_reference.target_url, attachment["url"])
@@ -282,7 +283,7 @@ class TestUtils(SGBaseTest):
                 "project": self.mock_project,
             }
             self.add_to_sg_mock_db(cut_item)
-            add_media_references_from_sg(track, self.mock_sg, self.mock_project)
+            SGCutReader(self.mock_sg).add_media_references_from_sg(track, self.mock_project)
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(clip.media_reference.name, published_file["code"])
             self.assertEqual(
