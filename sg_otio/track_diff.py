@@ -501,6 +501,16 @@ class SGTrackDiff(object):
         return self._sg_entity
 
     @property
+    def sg_shot_link_field_name(self):
+        """
+        Return the SG field name used to link Shots to the SG Entity the previous
+        Cut was linked to, if any.
+
+        :returns: A SG field name as a string, or ``None``.
+        """
+        return self._sg_shot_link_field_name
+
+    @property
     def diffs_by_shots(self):
         """
         Return the :class:`SGCutDiffGroup` grouped by Shots.
