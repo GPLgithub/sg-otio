@@ -116,7 +116,9 @@ class SGCutReader(object):
                 elif prev_cut_item["timecode_edit_out_text"]:
                     prev_edit_out = otio.opentime.from_timecode(prev_cut_item["timecode_edit_out_text"], cut["fps"])
                 else:
-                    raise ValueError("No edit_out found for cut_item %s" % prev_cut_item)
+                    raise ValueError(
+                        "No edit_out nor timecode_edit_out_text found for cut_item %s" % prev_cut_item
+                    )
                 # We start frame numbering at one
                 # since timecode out is exclusive we just use it to not do 1 + value -1
                 if cut_item["edit_in"]:
@@ -124,7 +126,9 @@ class SGCutReader(object):
                 elif cut_item["timecode_edit_in_text"]:
                     edit_in = otio.opentime.from_timecode(cut_item["timecode_edit_in_text"], cut["fps"])
                 else:
-                    raise ValueError("No edit_in found for cut_item %s" % cut_item)
+                    raise ValueError(
+                        "No edit_in nor timecode_edit_in_text found for cut_item %s" % cut_item
+                    )
                 if prev_edit_out > edit_in:
                     raise ValueError("Overlapping cut items detected: %s ends at %s but %s starts at %s" % (
                         prev_cut_item["code"], prev_edit_out.to_timecode(), cut_item["code"], edit_in.to_timecode()
