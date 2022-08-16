@@ -349,7 +349,7 @@ class SGTrackDiff(object):
             if shot_name not in self._diffs_by_shots:
                 self._diffs_by_shots[shot_name] = SGCutDiffGroup(shot_name)
             self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
+                self.get_cut_diff_for_clip(clip=clip, index=i + 1, sg_shot=None)
             )
         if more_shot_names:
             filters = [
@@ -470,7 +470,7 @@ class SGTrackDiff(object):
                     clip2.repeated = True
 
             self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(
+                self.get_cut_diff_for_clip(
                     clip=clip.clip,
                     index=clip.index,
                     sg_shot=clip.sg_shot,
@@ -519,6 +519,22 @@ class SGTrackDiff(object):
                   instances.
         """
         return self._diffs_by_shots
+
+    @classmethod
+    def get_cut_diff_for_clip(cls, clip, sg_shot=None, index=1, as_omitted=False, repeated=False):
+        """
+        Return a :class:`SGCutDiff` instance for the given clip.
+
+        Deriving classes can override this method to return an instance deriving
+        from a :class:`SGCutDiff` with additionsal features.
+        """
+        return SGCutDiff(
+            clip=clip,
+            index=index,
+            sg_shot=sg_shot,
+            as_omitted=as_omitted,
+            repeated=repeated,
+        )
 
     @classmethod
     def old_clip_for_shot(cls, for_clip, prev_clip_list, sg_shot, sg_version=None):
