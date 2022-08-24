@@ -7,9 +7,7 @@ import subprocess
 import six
 
 with io.open("README.md", "r", encoding="utf-8") as f:
-    long_description = f.read()
-with io.open("LICENSE.txt", "r", encoding="utf-8") as f:
-    license = f.read().strip()
+    readme = f.read()
 
 
 def get_version():
@@ -53,9 +51,10 @@ setuptools.setup(
     author_email="pipelinesupport@gpltech.com",
     version=get_version(),
     description="A library for OpenTimelineIO integration with ShotGrid",
-    long_description=long_description,
     long_description_content_type="text/markdown",
-    license=license,
+    long_description=readme,
+    license="Apache License 2.0",
+    license_files=["LICENSE.txt"],
     url="https://github.com/GPLgithub/sg-otio.git",
     packages=setuptools.find_packages(),
     scripts=["bin/sg-otio"],
