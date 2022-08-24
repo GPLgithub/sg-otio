@@ -35,7 +35,9 @@ which case the PATH should already be updated by the package manager.
 
 ### sg-otio package
 
-SG Otio can only be installed from sources at the moment.
+SG Otio can be installed from PyPi, e.g. `pip install sg-otio`
+
+SG Otio can also be installed from sources.
 - Get a local copy of this repo: `git clone https://github.com/GPLgithub/sg-otio.git`
 - Install it with `pip`: `pip install ./sg-otio`
 
@@ -61,6 +63,7 @@ sg-otio read --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file outp
 sg-otio read --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file output.xml --adapter-name fcp_xml
 sg-otio read --settings SETTINGS.JSON --sg-site-url URL --session-token TOKEN --cut-id CUT_ID --file output.xml --adapter-name fcp_xml
 ```
+
 ### Writing a Cut to SG
 Write a Video Track to SG as a Cut.
 Example:
