@@ -40,6 +40,7 @@ class SGCutClip(object):
         super(SGCutClip, self).__init__(*args, **kwargs)
         self._clip = clip
         self._clip_group = None
+        self._shot_name = None
         self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
@@ -805,15 +806,34 @@ class SGCutClip(object):
 
     def __str__(self):
         """
-        String representation for this :class:`CutClip`
+        String representation for this :class:`CutClip`.
         """
-        return "%03d %s %s %s %s %s %s %s" % (
-            self.index,
-            self.name,
-            "V",
-            "C",
-            self.source_in,
-            self.source_out,
-            self.record_in,
-            self.record_out,
-        )
+        if self._clip.metadata.get("sg"):
+            sg_cut_item = self.metadata.get("sg")
+            fps = sg_cut_item["cut.Cut.fps"]
+            tc_in = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_in_text"], fps).to_frames()
+            tc_out = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_out_text"], fps).to_frames()
+            return (
+                "Cut Order %s, TC in %s, TC out %s, Cut In %s, Cut Out %s, Cut Duration %s" % (
+                    sg_cut_item["cut_order"],
+                    tc_in,
+                    tc_out,
+                    sg_cut_item["cut_item_in"],
+                    sg_cut_item["cut_item_out"],
+                    sg_cut_item["cut_item_duration"]
+                )
+            )
+
+        if self._clip.metadata.get("cmx_3600"):
+            return "%03d %s %s %s %s %s %s %s" % (
+                self.index,
+                self.name,
+                "V",
+                "C",
+                self.source_in.to_timecode(),
+                self.source_out.to_timecode(),
+                self.record_in.to_timecode(),
+                self.record_out.to_timecode(),
+            )
+        # TODO: refine to something readable and useful
+        return "%s" % self._clip

@@ -333,22 +333,9 @@ class SGCutDiff(SGCutClip):
                     self.sg_shot_cut_order,
                 )
             )
-        cut_item_details = ""
+        old_details = ""
         if self._old_clip:
-            sg_cut_item = self._old_clip.metadata.get("sg")
-            fps = sg_cut_item["cut.Cut.fps"]
-            tc_in = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_in_text"], fps).to_frames()
-            tc_out = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_out_text"], fps).to_frames()
-            cut_item_details = (
-                "Cut Order %s, TC in %s, TC out %s, Cut In %s, Cut Out %s, Cut Duration %s" % (
-                    sg_cut_item["cut_order"],
-                    tc_in,
-                    tc_out,
-                    sg_cut_item["cut_item_in"],
-                    sg_cut_item["cut_item_out"],
-                    sg_cut_item["cut_item_duration"]
-                )
-            )
+            old_details = "Old: %s" % self._old_clip
         version_details = ""
         sg_version = self.sg_version
         if sg_version:
@@ -357,10 +344,10 @@ class SGCutDiff(SGCutClip):
                 sg_version["entity"]["type"] if sg_version["entity"] else "None",
                 sg_version["entity.Shot.code"] if sg_version["entity.Shot.code"] else "",
             )
-        new_cut_details = ""
+        new_details = ""
         if not self._as_omitted:
-            new_cut_details = "%s" % self
-        return shot_details, cut_item_details, version_details, new_cut_details
+            new_details = "New: %s" % self
+        return shot_details, old_details, version_details, new_details
 
     def _check_and_set_changes(self):
         """

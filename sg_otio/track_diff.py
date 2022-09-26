@@ -405,7 +405,7 @@ class SGTrackDiff(object):
                     continue
                 clip.repeated = repeated
                 logger.debug("Matching %s for %s (%s)" % (
-                    shot_name, clip.cut_item_name, clip_group.sg_shot,
+                    shot_name, clip.shot_name, clip_group.sg_shot,
                 ))
                 # If we found a SG Shot, we can match with its id.
                 if clip_group.sg_shot:
