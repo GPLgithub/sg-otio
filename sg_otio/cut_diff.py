@@ -3,6 +3,7 @@
 
 import logging
 
+import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
 from .cut_clip import SGCutClip
@@ -310,6 +311,56 @@ class SGCutDiff(SGCutClip):
             self._repeated = value
             # Cut in/out values are affected by repeated changes
             self._check_and_set_changes()
+
+    def summary(self):
+        """
+        Return a summary for this SGCutDiff instance as a tuple with :
+        Shot details, Cut item details, Version details and New cut details
+
+        :returns: A four entries tuple, where each entry is a potentially empty string
+        """
+        shot_details = ""
+        if self.sg_shot:
+            shot_details = (
+                "Name : %s, Status : %s, Head In : %s, Cut In : %s, Cut Out : %s, "
+                "Tail Out : %s, Cut Order : %s" % (
+                    self.sg_shot["code"],
+                    self.sg_shot_status,
+                    self.sg_shot_head_in,
+                    self.sg_shot_cut_in,
+                    self.sg_shot_cut_out,
+                    self.sg_shot_tail_out,
+                    self.sg_shot_cut_order,
+                )
+            )
+        cut_item_details = ""
+        if self._old_clip:
+            sg_cut_item = self._old_clip.metadata.get("sg")
+            fps = sg_cut_item["cut.Cut.fps"]
+            tc_in = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_in_text"], fps).to_frames()
+            tc_out = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_out_text"], fps).to_frames()
+            cut_item_details = (
+                "Cut Order %s, TC in %s, TC out %s, Cut In %s, Cut Out %s, Cut Duration %s" % (
+                    sg_cut_item["cut_order"],
+                    tc_in,
+                    tc_out,
+                    sg_cut_item["cut_item_in"],
+                    sg_cut_item["cut_item_out"],
+                    sg_cut_item["cut_item_duration"]
+                )
+            )
+        version_details = ""
+        sg_version = self.sg_version
+        if sg_version:
+            version_details = "%s, link %s %s" % (
+                sg_version["code"],
+                sg_version["entity"]["type"] if sg_version["entity"] else "None",
+                sg_version["entity.Shot.code"] if sg_version["entity.Shot.code"] else "",
+            )
+        new_cut_details = ""
+        if not self._as_omitted:
+            new_cut_details = "%s" % self
+        return shot_details, cut_item_details, version_details, new_cut_details
 
     def _check_and_set_changes(self):
         """

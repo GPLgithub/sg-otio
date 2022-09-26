@@ -12,7 +12,7 @@ from .cut_diff import SGCutDiff
 from .utils import compute_clip_shot_name, get_entity_type_display_name
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 
 # Some counts are per Shot, some others per edits
 # As a rule of thumb, everything which directly affects the Shot is per
@@ -280,7 +280,10 @@ class SGTrackDiff(object):
         self._sg_shot_link_field_name = None
         self._counts = defaultdict(int)
         self._total_count = 0
-
+        # We need to keep references on the tracks otherwise underlying C++ objects
+        # might be freed.
+        self._old_track = None
+        self._new_track = new_track
         self._diffs_by_shots = {}
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
@@ -291,6 +294,7 @@ class SGTrackDiff(object):
         sg_shot_ids = []
         prev_clip_list = []
         if old_track:
+            self._old_track = old_track
             sg_cut = old_track.metadata.get("sg")
             if not sg_cut or sg_cut["type"] != "Cut":
                 raise ValueError(
@@ -352,6 +356,7 @@ class SGTrackDiff(object):
                 SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
             )
         if more_shot_names:
+            logger.debug("Looking for additional Shots %s" % more_shot_names)
             filters = [
                 ["project", "is", self._sg_project],
                 ["code", "in", list(more_shot_names)]
@@ -368,6 +373,7 @@ class SGTrackDiff(object):
                 filters,
                 sg_shot_fields,
             )
+            logger.debug("Found additional Shots %s" % sg_more_shots)
 
             for sg_shot in sg_more_shots:
                 shot_name = sg_shot["code"].lower()

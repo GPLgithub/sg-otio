@@ -632,12 +632,60 @@ class SGCutClip(object):
         :returns: An integer or ``None``.
         """
         if self.sg_shot:
-            # If we have SG Shot we use its head in value if it is set.
+            # If we have SG Shot we use its tail out value if it is set.
             config = SGShotFieldsConfig(
                 None, None
             )
             tail_out_field = config.tail_out
             return self.sg_shot.get(tail_out_field)
+        return None
+
+    @property
+    def sg_shot_cut_in(self):
+        """
+        Return the cut in from the SG Shot, if any.
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its cut in value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            cut_in_field = config.cut_in
+            return self.sg_shot.get(cut_in_field)
+        return None
+
+    @property
+    def sg_shot_cut_out(self):
+        """
+        Return the cut out from the SG Shot, if any.
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its cut out value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            cut_out_field = config.cut_out
+            return self.sg_shot.get(cut_out_field)
+        return None
+
+    @property
+    def sg_shot_cut_order(self):
+        """
+        Return the cut order from the SG Shot, if any.
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its cut out value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            cut_order_field = config.cut_order
+            return self.sg_shot.get(cut_order_field)
         return None
 
     @property
@@ -754,3 +802,18 @@ class SGCutClip(object):
         if sg_version:
             return sg_version["code"]
         return None
+
+    def __str__(self):
+        """
+        String representation for this :class:`CutClip`
+        """
+        return "%03d %s %s %s %s %s %s %s" % (
+            self.index,
+            self.name,
+            "V",
+            "C",
+            self.source_in,
+            self.source_out,
+            self.record_in,
+            self.record_out,
+        )
