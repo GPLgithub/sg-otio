@@ -804,9 +804,12 @@ class SGCutClip(object):
             return sg_version["code"]
         return None
 
-    def __str__(self):
+    @property
+    def source_info(self):
         """
-        String representation for this :class:`CutClip`.
+        Return a string representation of the source for this :class:`CutClip`.
+        
+        :returns: A string.
         """
         if self._clip.metadata.get("sg"):
             sg_cut_item = self.metadata.get("sg")

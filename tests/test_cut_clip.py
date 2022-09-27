@@ -141,7 +141,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
-        clips = [SGCutClip(c) for c in video_track.each_clip()]
+        clips = [SGCutClip(c,index=i+1) for i, c in enumerate(video_track.each_clip())]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.
@@ -159,6 +159,10 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.retime_str, "LinearTimeWarp (time scalar: 2.0)")
         self.assertTrue(not clip_1.has_effects)
         self.assertEqual(clip_1.effects_str, "")
+        self.assertRegex(
+            clip_1.source_info,
+            r"001\s+reel_1\s+V\s+C\s+01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00"
+        )
 
         clip_2 = clips[1]
         self.assertEqual(clip_2.duration().to_frames(), 24)
@@ -173,6 +177,10 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(not clip_2.has_retime)
         self.assertEqual(clip_2.retime_str, "")
+        self.assertRegex(
+            clip_2.source_info,
+            r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
+        )
 
     def test_clip_values_with_transitions(self):
         """
