@@ -28,13 +28,46 @@ class SGCutDiff(SGCutClip):
         If `as_omitted` is set to ``True``, this instance represents and old
         Clip without any counterpart in the new Cut.
         """
-        super(SGCutDiff, self).__init__(*args, **kwargs)
+        self._as_omitted = as_omitted
         self._old_clip = None
         self._repeated = repeated
         self._diff_type = _DIFF_TYPES.NO_CHANGE
-        self._as_omitted = as_omitted
         self._cut_changes_reasons = []
+        super(SGCutDiff, self).__init__(*args, **kwargs)
         self._check_and_set_changes()
+
+
+    @SGCutClip.group.setter
+    def group(self, value):
+        """
+        Set the :class:`ClipGroup` this Clip is in.
+
+        Override base implementation setter to update the diff type if the group is set.
+
+        :param value: :class:`ClipGroup` instance.
+        """
+        old = self.group
+        # See: https://docs.python.org/2/library/functions.html#property
+        SGCutClip.group.fset(self, value)
+        if old != value:
+            self._check_and_set_changes()
+
+    @SGCutClip.sg_shot.setter
+    def sg_shot(self, value):
+        """
+        Set the SG Shot value associated with this Clip.
+
+        Recompute head_in, head_duration and tail_duration,
+        which depend on the SG Shot.
+
+        :param value: A SG Shot dictionary.
+        :raises ValueError: For invalid values.
+        """
+        old = self.sg_shot
+        # See: https://docs.python.org/2/library/functions.html#property
+        SGCutClip.sg_shot.fset(self, value)
+        if old != value:
+            self._check_and_set_changes()
 
     @property
     def current_clip(self):
@@ -335,7 +368,7 @@ class SGCutDiff(SGCutClip):
             )
         old_details = ""
         if self._old_clip:
-            old_details = "Old: %s" % self._old_clip
+            old_details = self._old_clip.source_info
         version_details = ""
         sg_version = self.sg_version
         if sg_version:
@@ -346,7 +379,7 @@ class SGCutDiff(SGCutClip):
             )
         new_details = ""
         if not self._as_omitted:
-            new_details = "New: %s" % self
+            new_details = self.source_info
         return shot_details, old_details, version_details, new_details
 
     def _check_and_set_changes(self):

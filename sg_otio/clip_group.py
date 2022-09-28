@@ -74,7 +74,6 @@ class ClipGroup(object):
 
         :param clip: A :class:`SGCutClip` instance.
         """
-        clip.sg_shot = self.sg_shot
         clip.group = self
         if not self._frame_rate:
             self._frame_rate = clip.duration().rate
@@ -460,6 +459,8 @@ class ClipGroup(object):
     def __len__(self):
         """
         Return the total number of :class:`SGCutDiff` entries in this :class:`ClipGroup`.
+
+        ..note :: This makes `bool(self)` return ``False`` if the group is empty.
 
         :returns: An integer
         """

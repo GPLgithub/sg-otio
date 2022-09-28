@@ -41,6 +41,7 @@ class SGCutClip(object):
         self._clip = clip
         self._clip_group = None
         self._shot_name = None
+        self._sg_shot = None
         self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
@@ -50,6 +51,8 @@ class SGCutClip(object):
         self._frame_rate = self._clip.duration().rate
         self._index = index
         self.sg_shot = sg_shot
+        if not self.sg_shot or not self.sg_shot["code"]:
+            self._shot_name = compute_clip_shot_name(self._clip)
         self.compute_head_tail_values()
         self._cut_item_name = self.name
 
@@ -130,7 +133,12 @@ class SGCutClip(object):
         :param value: :class:`ClipGroup` instance.
         """
         self._clip_group = value
-        if not self._clip_group:
+        if self._clip_group is not None:  # Can't use just if self._clip_group: empty groups evaluate to False
+            self.shot_name = self._clip_group.name
+            # Note: the Shot name might be modified by setting the SG Shot if
+            # it is set and has a code key.
+            self.sg_shot = self._clip_group.sg_shot
+        else:
             # Recompute values only if we don't have a clip group.
             # Otherwise we assume that values are maintained by the group.
             self.compute_head_tail_values()
@@ -155,7 +163,7 @@ class SGCutClip(object):
         :param value: A SG Shot dictionary.
         :raises ValueError: For invalid values.
         """
-        if self._clip_group:
+        if self._clip_group is not None:  # Can't use just if self._clip_group: empty groups evaluate to False
             if value:
                 if (
                     not self._clip_group.sg_shot
@@ -172,12 +180,10 @@ class SGCutClip(object):
 
         self._sg_shot = value
         if self._sg_shot and self._sg_shot.get("code"):
-            self._shot_name = self._sg_shot["code"]
-        else:
-            self._shot_name = compute_clip_shot_name(self._clip)
+            self.shot_name = self._sg_shot["code"]
         # If the Clip is part of a group, assume that the values are set by
         # the group
-        if not self._clip_group:
+        if not self._clip_group is not None:  # Can't use just if self._clip_group: empty groups evaluate to False
             self.compute_head_tail_values()
 
     @property
@@ -278,11 +284,20 @@ class SGCutClip(object):
     @property
     def shot_name(self):
         """
-        Return the name of the shot.
+        Return the name of the Shot.
 
-        :returns: A str or ``None``.
+        :returns: A string or ``None``.
         """
         return self._shot_name
+
+    @shot_name.setter
+    def shot_name(self, value):
+        """
+        Set the name of the Shot.
+
+        :param value: A string or ``None``.
+        """
+        self._shot_name = value
 
     @property
     def visible_duration(self):

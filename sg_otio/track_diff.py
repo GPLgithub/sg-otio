@@ -63,6 +63,10 @@ class SGCutDiffGroup(ClipGroup):
     def __init__(self, name, clips=None, sg_shot=None):
         """
         Override base implementation to add members we need.
+
+        :param name: A string
+        :param clips: A list of :class:`SGCutDiff` instances.
+        :param sg_shot: A SG Shot as a dictionary.
         """
         super(SGCutDiffGroup, self).__init__(name, clips, sg_shot)
         self._old_earliest_clip = None
@@ -73,7 +77,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         Returns the clips that are part of the group and are not omitted entries.
 
-        :yields: :class:`SGCutClip` instances.
+        :yields: :class:`SGCutDiff` instances.
         """
         # Don't return the original list, because it might be modified.
         for clip in self._clips:
@@ -108,7 +112,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         Return the earliest Clip in this group.
 
-        :returns: A :class:`sg_otio.SGCutClip`.
+        :returns: A :class:`SGCutDiff`.
         """
         # We might have a mix of omitted edits (no new value) and non omitted edits
         # (with new values) in our list. If we have at least one entry which is
@@ -123,7 +127,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         Return the last Clip in this group.
 
-        :returns: A :class:`sg_otio.SGCutClip`.
+        :returns: A :class:`SGCutDiff`.
         """
         # We might have a mix of omitted edits (no new value) and non omitted edits
         # (with new values) in our list. If we have at least one entry which is
@@ -152,7 +156,7 @@ class SGCutDiffGroup(ClipGroup):
 
     def get_shot_values(self):
         """
-        Loop over our Cut diff list and return values which should be set on the
+        Loop over our :class:`SGCutDiff` list and return values which should be set on the
         Shot.
 
         The Shot difference type can be different from individual Cut difference
