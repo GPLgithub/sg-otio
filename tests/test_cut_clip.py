@@ -141,7 +141,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
-        clips = [SGCutClip(c,index=i+1) for i, c in enumerate(video_track.each_clip())]
+        clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.each_clip())]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.

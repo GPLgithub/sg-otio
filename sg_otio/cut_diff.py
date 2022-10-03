@@ -3,7 +3,6 @@
 
 import logging
 
-import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
 
 from .cut_clip import SGCutClip
@@ -35,7 +34,6 @@ class SGCutDiff(SGCutClip):
         self._cut_changes_reasons = []
         super(SGCutDiff, self).__init__(*args, **kwargs)
         self._check_and_set_changes()
-
 
     @SGCutClip.group.setter
     def group(self, value):

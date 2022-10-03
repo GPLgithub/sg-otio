@@ -12,6 +12,7 @@ from sg_otio.track_diff import SGCutDiffGroup
 from sg_otio.cut_diff import SGCutDiff
 from sg_otio.constants import _DIFF_TYPES
 
+
 class TestClipGroup(unittest.TestCase):
 
     def setUp(self):

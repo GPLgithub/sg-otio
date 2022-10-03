@@ -183,7 +183,7 @@ class SGCutClip(object):
             self.shot_name = self._sg_shot["code"]
         # If the Clip is part of a group, assume that the values are set by
         # the group
-        if not self._clip_group is not None:  # Can't use just if self._clip_group: empty groups evaluate to False
+        if self._clip_group is None:  # Can't use just if self._clip_group: empty groups evaluate to False
             self.compute_head_tail_values()
 
     @property
@@ -823,7 +823,7 @@ class SGCutClip(object):
     def source_info(self):
         """
         Return a string representation of the source for this :class:`CutClip`.
-        
+
         :returns: A string.
         """
         if self._clip.metadata.get("sg"):

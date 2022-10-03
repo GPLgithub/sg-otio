@@ -326,7 +326,7 @@ class SGTrackDiff(object):
             old_track_sg_link = sg_cut.get("entity")
             # If the two SG Cuts are linked to a common Entity, use it.
             if new_track_sg_link:
-                if(
+                if (
                     new_track_sg_link["type"] == old_track_sg_link["type"]
                     and new_track_sg_link["id"] == old_track_sg_link["id"]
                 ):
@@ -586,7 +586,7 @@ class SGTrackDiff(object):
         """
         Return a dictionary where keys are diff types and values their number for
         the current comparison.
-        
+
         :returns: A dictionary.
         """
         return self._counts
