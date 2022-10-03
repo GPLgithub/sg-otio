@@ -286,28 +286,78 @@ class SGTrackDiff(object):
         self._total_count = 0
         # We need to keep references on the tracks otherwise underlying C++ objects
         # might be freed.
-        self._old_track = None
+        self._old_track = old_track
         self._new_track = new_track
         self._diffs_by_shots = {}
+
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
             self._sg, None
         ).all
 
-        # Retrieve SG Entities from the old_track
-        sg_shot_ids = []
-        prev_clip_list = []
-        if old_track:
-            self._old_track = old_track
-            sg_cut = old_track.metadata.get("sg")
+        # Retrieve the SG Entity we should use for the comparison
+        # and do some sanity check
+        new_track_sg_link = None
+        # Check the new track if it is coming from a SG Cut
+        new_track_sg_link = None
+        sg_cut = new_track.metadata.get("sg")
+        if sg_cut:
+            if sg_cut["type"] != "Cut":
+                raise ValueError(
+                    "Invalid track %s not linked to a SG Cut" % new_track.name
+                )
+            new_track_sg_link = sg_cut.get("entity")
+            # We don't support comparing Cuts from different SG Projects
+            if sg_cut["project"]["id"] != self._sg_project["id"]:
+                raise ValueError(
+                    "Can't compare Cuts from different SG Projects"
+                )
+        if self._old_track:
+            sg_cut = self._old_track.metadata.get("sg")
             if not sg_cut or sg_cut["type"] != "Cut":
                 raise ValueError(
                     "Invalid track %s not linked to a SG Cut" % old_track.name
                 )
-            self._sg_entity = sg_cut.get("entity") or self._sg_project
-            logger.debug("Previous SG Cut was linked to %s" % self._sg_entity)
-            self._sg_shot_link_field_name = self._get_shot_link_field(self._sg_entity["type"])
-            for i, clip in enumerate(old_track.each_clip()):
+            # We don't support comparing Cuts from different SG Projects
+            if sg_cut["project"]["id"] != self._sg_project["id"]:
+                raise ValueError(
+                    "Can't compare Cuts from different SG Projects"
+                )
+            old_track_sg_link = sg_cut.get("entity")
+            # If the two SG Cuts are linked to a common Entity, use it.
+            if new_track_sg_link:
+                if(
+                    new_track_sg_link["type"] == old_track_sg_link["type"]
+                    and new_track_sg_link["id"] == old_track_sg_link["id"]
+                ):
+                    self._sg_entity = new_track_sg_link
+            else:
+                # Just use the old track link, if any
+                self._sg_entity = old_track_sg_link
+        else:  # Only a new track
+            # Just use the new track link, if any
+            self._sg_entity = new_track_sg_link
+
+        if not self._sg_entity:
+            # Fallback on using the project
+            self._sg_entity = self._sg_project
+            self._sg_shot_link_field_name = "project"
+        else:
+            self._sg_shot_link_field_name = self._get_shot_link_field(
+                self._sg_entity["type"]
+            )
+            if not self._sg_shot_link_field_name:
+                raise ValueError(
+                    "Unable to retrieve a SG field to link Shots to %s" % self._sg_entity["type"]
+                )
+
+        logger.debug("Cut comparison performed against %s" % self._sg_entity)
+
+        # Retrieve SG Entities from the old_track
+        sg_shot_ids = []
+        prev_clip_list = []
+        if self._old_track:
+            for i, clip in enumerate(self._old_track.each_clip()):
                 # Check if we have some SG meta data
                 sg_cut_item = clip.metadata.get("sg")
                 if not sg_cut_item or sg_cut_item.get("type") != "CutItem":
@@ -327,6 +377,7 @@ class SGTrackDiff(object):
                     ["%s (%s)" % (x.name, x.sg_shot) for x in prev_clip_list]
                 )
             )
+
         # Add the linked Entity field to the fields to retrieve for Shots if
         # we have one from the previous Cut.
         if self._sg_shot_link_field_name:
@@ -494,7 +545,7 @@ class SGTrackDiff(object):
                     shot_name,
                 )
             )
-        self._recompute_counts()
+        self.recompute_counts()
         if leftover_shots:
             # This shouldn't happen, as our list of Shots comes from edits
             # and CutItems, and we should have processed all of them. Issue
@@ -529,6 +580,16 @@ class SGTrackDiff(object):
                   instances.
         """
         return self._diffs_by_shots
+
+    @property
+    def counts(self):
+        """
+        Return a dictionary where keys are diff types and values their number for
+        the current comparison.
+        
+        :returns: A dictionary.
+        """
+        return self._counts
 
     @classmethod
     def old_clip_for_shot(cls, for_clip, prev_clip_list, sg_shot, sg_version=None):
@@ -824,7 +885,7 @@ class SGTrackDiff(object):
 
         return score
 
-    def _recompute_counts(self):
+    def recompute_counts(self):
         """
         Recompute internal counts from Cut differences
         """

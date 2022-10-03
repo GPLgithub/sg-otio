@@ -509,7 +509,27 @@ class TestCutDiff(SGBaseTest):
         old_track.metadata["sg"] = {
             "type": "Cut",
             "id": -1,
-            "code": "Faked Cut"
+            "code": "Faked Cut",
+            "project": {"type": "Project", "id": -1}
+        }
+        # It should choke on invalid project
+        with self.assertRaises(ValueError) as cm:
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
+            )
+        self.assertEqual(
+            "%s" % cm.exception,
+            "Can't compare Cuts from different SG Projects"
+        )
+
+        old_track.metadata["sg"] = {
+            "type": "Cut",
+            "id": -1,
+            "code": "Faked Cut",
+            "project": self.mock_project
         }
         # It should choke now on invalid clips
         with self.assertRaises(ValueError) as cm:
@@ -603,7 +623,8 @@ class TestCutDiff(SGBaseTest):
         old_track.metadata["sg"] = {
             "type": "Cut",
             "id": -1,
-            "code": "Faked Cut"
+            "code": "Faked Cut",
+            "project": self.mock_project,
         }
         sg_shots = [
             {"type": "Shot", "code": "marker_shot_000", "project": self.mock_project, "id": 1},
