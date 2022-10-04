@@ -928,9 +928,11 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(track_diff._sg_shot_link_field_name, "sg_sequence")
         self.assertEqual(track_diff._sg_entity["id"], self.sg_sequences[0]["id"])
         self.assertEqual(track_diff._sg_entity["type"], self.sg_sequences[0]["type"])
+        # Since we're comparing to existing tracks, their name should be mentioned
+        # in the title.
         self.assertEqual(
             track_diff.get_summary_title("This is a Test"),
-            "Sequence Cut Summary changes on This is a Test"
+            "This is a Test Cut Summary changes between cut_6666 and cut_6666"
         )
         self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
 
@@ -949,7 +951,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(
             report,
             (
-                "Sequence Cut Summary changes on This is a Test",
+                "This is a Test Cut Summary changes between cut_6666 and cut_6666",
                 "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n0 New Shots\n\n\n0 Omitted Shots\n\n\n0 Reinstated Shot\n\n\n0 Cut Changes\n\n\n0 Rescan Needed\n\n\n"
             )
         )

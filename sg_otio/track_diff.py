@@ -405,11 +405,7 @@ class SGTrackDiff(object):
                 shot_name = shot_name.lower()
                 more_shot_names.add(shot_name)
             # Ensure a SGCutDiffGroup and add SGCutDiff to it.
-            if shot_name not in self._diffs_by_shots:
-                self._diffs_by_shots[shot_name] = SGCutDiffGroup(shot_name)
-            self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
-            )
+            self.add_cut_diff(shot_name, clip=clip, index=i + 1, sg_shot=None)
         if more_shot_names:
             logger.debug("Looking for additional Shots %s" % more_shot_names)
             filters = [
@@ -519,29 +515,16 @@ class SGTrackDiff(object):
                         leftover_shots.remove(sg_shot)
                     break
 
-            repeated = False
-            if shot_name not in self._diffs_by_shots:
-                self._diffs_by_shots[shot_name] = SGCutDiffGroup(
-                    shot_name,
-                    sg_shot=matching_shot
-                )
-            else:
-                repeated = True
-                for clip2 in self._diffs_by_shots[shot_name].clips:
-                    clip2.repeated = True
-
-            self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(
-                    clip=clip.clip,
-                    index=clip.index,
-                    sg_shot=clip.sg_shot,
-                    as_omitted=True,
-                    repeated=repeated,
-                )
+            sg_cut_diff = self.add_cut_diff(
+                shot_name,
+                clip=clip.clip,
+                index=clip.index,
+                sg_shot=clip.sg_shot,
+                as_omitted=True,
             )
             logger.info(
                 "Added %s as ommitted entry for %s" % (
-                    self._diffs_by_shots[shot_name][-1].cut_item_name,
+                    sg_cut_diff.cut_item_name,
                     shot_name,
                 )
             )
@@ -555,7 +538,7 @@ class SGTrackDiff(object):
     @property
     def sg_link(self):
         """
-        Return the SG Entity the previous Cut was linked to.
+        Return the SG Entity used for the Cut comparison.
 
         :returns: A SG Entity dictionary, or ``None``.
         """
@@ -564,8 +547,8 @@ class SGTrackDiff(object):
     @property
     def sg_shot_link_field_name(self):
         """
-        Return the SG field name used to link Shots to the SG Entity the previous
-        Cut was linked to, if any.
+        Return the SG field name used to link Shots to the SG Entity used
+        for the Cut comparison.
 
         :returns: A SG field name as a string, or ``None``.
         """
@@ -673,6 +656,68 @@ class SGTrackDiff(object):
             logger.debug("Best is %s for %s" % (best.cut_item_name, for_clip.cut_item_name))
             return best
         return None
+
+    def get_cut_diff_for_clip(self, clip, index, sg_shot=None, as_omitted=False, repeated=False):
+        """
+        Return a new :class:`SGCutDiff` for the given clip.
+
+        This can be re-implemented in deriving classes to return a custom instance
+        deriving from a :class:`SGCutDiff`.
+        
+        :param clip: A Clip instance.
+        :param int index: The index of the clip in its track.
+        :param sg_shot: A SG Shot dictionary.
+        :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
+        :param bool repeated: Whether this is a difference for a Shot with multiple edits.
+        """
+        return  SGCutDiff(
+            clip=clip,
+            index=index,
+            sg_shot=sg_shot,
+            as_omitted=as_omitted,
+            repeated=repeated,
+        )
+
+    def add_cut_diff(self, shot_name, clip, index, sg_shot=None, as_omitted=False):
+        """
+        Add a new Cut difference to this :class:`TrackDiff`.
+
+        :param shot_name: Shot name, as a string.
+        :param clip: A Clip instance.
+        :param int index: The index of the clip in its track.
+        :param sg_shot: A SG Shot dictionary.
+        :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
+        """
+        # Force a lowercase key to make Shot names case-insensitive. Shot names
+        # we retrieve from editorial files may be uppercase, but actual SG Shots may be
+        # lowercase.
+        # We might not have a valid Shot name if we have an edit without any
+        # Shot name or Version name. To avoid considering all these entries
+        # as repeated Shots we forge a key based on the cut order.
+        shot_key = shot_name.lower() if shot_name  else shot_name  # else "_no_shot_name_%s" % index
+
+        repeated = False
+        if shot_key not in self._diffs_by_shots:
+            self._diffs_by_shots[shot_key] = SGCutDiffGroup(
+                shot_key,
+                sg_shot=sg_shot
+            )
+        else:
+            if shot_key:
+                repeated = True  # Don't flag repeated Shots if there is no Shot
+                for existing_clip in self._diffs_by_shots[shot_key].clips:
+                    existing_clip.repeated = True
+
+        self._diffs_by_shots[shot_key].add_clip(
+            self.get_cut_diff_for_clip(
+                clip=clip,
+                index=index,
+                sg_shot=sg_shot,
+                as_omitted=as_omitted,
+                repeated=repeated,
+            )
+        )
+        return self._diffs_by_shots[shot_key][-1]
 
     def count_for_type(self, diff_type):
         """
@@ -816,11 +861,21 @@ class SGTrackDiff(object):
 
         :param str subject: A string, usually a SG Cut name.
         """
+        # If we're comparing an existing SG Cut to something,
+        # use their names for the title.
+        if self._new_track.metadata.get("sg") and self._old_track:
+            return "%s Cut Summary changes between %s and %s" % (
+                subject,
+                self._new_track.name,
+                self._old_track.name,
+            )
+        # If we have a SG Entity, use it for the title.
         if self._sg_entity:
             return "%s Cut Summary changes on %s" % (
                 self._sg_entity["type"].title(),
                 subject
             )
+        # Fallback to a generic title.
         return "Cut Summary for %s" % subject
 
     def get_diffs_by_change_type(self):
