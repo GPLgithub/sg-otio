@@ -663,14 +663,14 @@ class SGTrackDiff(object):
 
         This can be re-implemented in deriving classes to return a custom instance
         deriving from a :class:`SGCutDiff`.
-        
+
         :param clip: A Clip instance.
         :param int index: The index of the clip in its track.
         :param sg_shot: A SG Shot dictionary.
         :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
         :param bool repeated: Whether this is a difference for a Shot with multiple edits.
         """
-        return  SGCutDiff(
+        return SGCutDiff(
             clip=clip,
             index=index,
             sg_shot=sg_shot,
@@ -694,7 +694,7 @@ class SGTrackDiff(object):
         # We might not have a valid Shot name if we have an edit without any
         # Shot name or Version name. To avoid considering all these entries
         # as repeated Shots we forge a key based on the cut order.
-        shot_key = shot_name.lower() if shot_name  else shot_name  # else "_no_shot_name_%s" % index
+        shot_key = shot_name.lower() if shot_name else shot_name  # else "_no_shot_name_%s" % index
 
         repeated = False
         if shot_key not in self._diffs_by_shots:
