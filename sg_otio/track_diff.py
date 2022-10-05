@@ -12,7 +12,6 @@ from .cut_diff import SGCutDiff
 from .utils import compute_clip_shot_name, get_entity_type_display_name
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 # Some counts are per Shot, some others per edits
 # As a rule of thumb, everything which directly affects the Shot is per
