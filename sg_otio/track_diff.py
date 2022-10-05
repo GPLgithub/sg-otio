@@ -298,8 +298,6 @@ class SGTrackDiff(object):
         # Retrieve the SG Entity we should use for the comparison
         # and do some sanity check
         new_track_sg_link = None
-        # Check the new track if it is coming from a SG Cut
-        new_track_sg_link = None
         sg_cut = new_track.metadata.get("sg")
         if sg_cut:
             if sg_cut["type"] != "Cut":
