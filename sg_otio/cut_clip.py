@@ -45,9 +45,9 @@ class SGCutClip(object):
         self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
-        self.name = self._clip.name
+        self._name = self._clip.name
         if self._clip.metadata.get("cmx_3600", {}).get("reel"):
-            self.name = self._clip.metadata["cmx_3600"]["reel"]
+            self._name = self._clip.metadata["cmx_3600"]["reel"]
         self._frame_rate = self._clip.duration().rate
         self._index = index
         self.sg_shot = sg_shot
@@ -106,6 +106,24 @@ class SGCutClip(object):
         :returns: A :class:`otio.opentime.TimeRange` instance.
         """
         return self._clip.visible_range()
+
+    @property
+    def name(self):
+        """
+        Return this SGCutClip name.
+
+        :returns: A string or ``None``.
+        """
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        """
+        Set this SGCutClip name.
+
+        :param value: A string or ``None``.
+        """
+        self._name = value
 
     @property
     def metadata(self):
