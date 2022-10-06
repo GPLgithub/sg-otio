@@ -613,7 +613,7 @@ class SGTrackDiff(object):
                     # give score a bonus as we don't have an explicit mismatch
                     potential_matches.append((
                         clip,
-                        100 + cls._get_matching_score(clip, for_clip)
+                        100 + cls.get_matching_score(clip, for_clip)
                     ))
                 elif sg_cut_item["version"]:
                     if sg_version["id"] == sg_cut_item["version"]["id"]:
@@ -621,13 +621,13 @@ class SGTrackDiff(object):
                         # Version
                         potential_matches.append((
                             clip,
-                            1000 + cls._get_matching_score(clip, for_clip)
+                            1000 + cls.get_matching_score(clip, for_clip)
                         ))
                     else:
                         # Version mismatch, don't give any bonus
                         potential_matches.append((
                             clip,
-                            cls._get_matching_score(clip, for_clip)
+                            cls.get_matching_score(clip, for_clip)
                         ))
                 else:
                     # Will keep looking around but we keep a reference to
@@ -636,7 +636,7 @@ class SGTrackDiff(object):
                     # mismatch
                     potential_matches.append((
                         clip,
-                        100 + cls._get_matching_score(clip, for_clip)
+                        100 + cls.get_matching_score(clip, for_clip)
                     ))
             else:
                 logger.debug("Rejecting %s for %s" % (clip.cut_item_name, for_clip.cut_item_name))
@@ -910,7 +910,7 @@ class SGTrackDiff(object):
         return diff_groups
 
     @classmethod
-    def _get_matching_score(cls, clip_a, clip_b):
+    def get_matching_score(cls, clip_a, clip_b):
         """
         Return a matching score for the given two clips, based on:
         - Is the Cut order the same?
@@ -924,7 +924,7 @@ class SGTrackDiff(object):
         :returns: A score, as an integer
         """
         score = 0
-        # Compute the Cut order difference (edit.id is the Cut order in an EDL)
+        # Compute the Cut order difference (index is the Cut order)
         diff = clip_a.index - clip_b.index
         if diff == 0:
             score += 1
