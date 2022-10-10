@@ -387,7 +387,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip.tail_in.to_frames(), 20000 + 9 + 1)
         self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
-        # Value from a SSG Cut Item should be used as a base for an offset
+        # Value from a SG Cut Item should be used as a base for an offset
         clip.metadata["sg"] = {
             "type": "CutItem",
             "id": -1,
@@ -396,6 +396,7 @@ class TestCutClip(unittest.TestCase):
             "timecode_cut_item_in_text": "00:00:00:02",
         }
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
+        # The clip timecode in is "00:00:00:00", so the cut in will be 3002 - 2
         self.assertEqual(clip.compute_cut_in().to_frames(), 3000)
         self.assertEqual(clip.head_in.to_frames(), 3000 - 8)
         self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
