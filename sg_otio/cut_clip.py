@@ -756,6 +756,7 @@ class SGCutClip(object):
             head_duration = RationalTime(sg_settings.default_head_duration, self._frame_rate)
             if sg_settings.timecode_in_to_frame_mapping_mode == _TC2FRAME_AUTOMATIC_MODE:
                 head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
+                head_duration = cut_in - head_in
             else:
                 head_in = cut_in - head_duration
         else:
