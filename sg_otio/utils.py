@@ -205,7 +205,6 @@ def compute_clip_version_name(clip, clip_index, shot_name=None, cut_item_name=No
     sg_metadata = clip.metadata.get("sg", {}) or {}
     if cut_item_name is None:
         cut_item_name = sg_metadata.get("code")
-    logger.warning("Using %s vs %s, %s" % (clip_name, clip.name, clip.metadata.get("cmx_3600")))
     data = {
         "CLIP_NAME": clip_name,
         "CUT_ITEM_NAME": cut_item_name or "",
