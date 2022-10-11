@@ -68,6 +68,22 @@ class SGCutDiff(SGCutClip):
             self._check_and_set_changes()
 
     @property
+    def sg_version(self):
+        """
+        Return the SG Version associated with this SGCutDiff, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        # Check the current clip
+        sg_version = super(SGCutDiff, self).sg_version
+        if sg_version:
+            return sg_version
+        # Check the old clip
+        if self._old_clip:
+            return self._old_clip.sg_version
+        return None
+
+    @property
     def current_clip(self):
         """
         Return the current Clip for this SGCutDiff, if any.
