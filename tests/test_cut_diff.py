@@ -1190,4 +1190,3 @@ class TestCutDiff(SGBaseTest):
         del old_clip.media_reference.metadata["sg"]
         self.assertIsNone(cut_diff.sg_version)
         self.assertIsNone(cut_diff.sg_version_name)
-
