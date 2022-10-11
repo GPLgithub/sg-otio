@@ -8,7 +8,7 @@ from opentimelineio.opentime import RationalTime
 
 from .constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 from .sg_settings import SGShotFieldsConfig, SGSettings
-from .utils import compute_clip_shot_name
+from .utils import compute_clip_shot_name, compute_clip_version_name
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,9 @@ class SGCutClip(object):
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
         self._name = self._clip.name
-        if self._clip.metadata.get("cmx_3600", {}).get("reel"):
+        if self._clip.metadata.get("sg", {}).get("code"):
+            self._name = self._clip.metadata["sg"]["code"]
+        elif self._clip.metadata.get("cmx_3600", {}).get("reel"):
             self._name = self._clip.metadata["cmx_3600"]["reel"]
         self._frame_rate = self._clip.duration().rate
         self._index = index
@@ -873,3 +875,16 @@ class SGCutClip(object):
             )
         # TODO: refine to something readable and useful
         return "%s" % self._clip
+
+    def compute_clip_version_name(self):
+        """
+        Compute a Version name for this clip.
+
+        :returns: A string.
+        """
+        return compute_clip_version_name(
+            self,
+            self.index,
+            shot_name=self.shot_name,
+            cut_item_name=self.cut_item_name,
+        )

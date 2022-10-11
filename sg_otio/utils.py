@@ -175,7 +175,7 @@ def get_available_filename(folder, name, extension):
         i += 1
 
 
-def compute_clip_version_name(clip, clip_index):
+def compute_clip_version_name(clip, clip_index, shot_name=None, cut_item_name=None):
     """
     Compute the version name for a clip.
 
@@ -188,6 +188,8 @@ def compute_clip_version_name(clip, clip_index):
 
     :param clip: A :class:`otio.schema.Clip` or :class:`SGCutClip`.
     :param int clip_index: The index of the clip in the Track.
+    :param str shot_name: Optional Shot name to use when resolving the name template.
+    :param str cut_item_name: Optional Cut Item name to use when resolving the name template.
     :returns: A string containing the version name.
     """
     settings = SGSettings()
@@ -201,11 +203,13 @@ def compute_clip_version_name(clip, clip_index):
     if not settings.version_names_template:
         return clip_name
     sg_metadata = clip.metadata.get("sg", {}) or {}
-    cut_item_name = sg_metadata.get("code")
+    if cut_item_name is None:
+        cut_item_name = sg_metadata.get("code")
+    logger.warning("Using %s vs %s, %s" % (clip_name, clip.name, clip.metadata.get("cmx_3600")))
     data = {
         "CLIP_NAME": clip_name,
         "CUT_ITEM_NAME": cut_item_name or "",
-        "SHOT": compute_clip_shot_name(clip) or "",
+        "SHOT": shot_name or compute_clip_shot_name(clip) or "",
         # Ensure an int, even if not set.
         "CLIP_INDEX": clip_index,
         "UUID": get_uuid(6)
