@@ -390,13 +390,15 @@ class TestCutClip(unittest.TestCase):
         # Switch to AUTOMATIC mode, and make sure the values are recomputed
         # correctly. Do not set a cut item for now.
         sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_AUTOMATIC_MODE
+        sg_settings.default_head_duration = 54
+        sg_settings.default_head_in = 123
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
-        self.assertEqual(clip.compute_cut_in().to_frames(), 1009)
-        self.assertEqual(clip.head_in.to_frames(), 1001)
+        self.assertEqual(clip.head_in.to_frames(), clip.head_in.to_frames())
+        self.assertEqual(clip.compute_cut_in().to_frames(), clip.head_in.to_frames() + sg_settings.default_head_duration)
         self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
-        self.assertEqual(clip.cut_in.to_frames(), 1009)
-        self.assertEqual(clip.cut_out.to_frames(), 1018)
-        self.assertEqual(clip.tail_in.to_frames(), 1018 + 1)
+        self.assertEqual(clip.cut_in.to_frames(), clip.head_in.to_frames() + sg_settings.default_head_duration)
+        self.assertEqual(clip.cut_out.to_frames(), clip.cut_in.to_frames() + clip.duration().to_frames() - 1)
+        self.assertEqual(clip.tail_in.to_frames(), clip.cut_out.to_frames() + 1)
         self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
         # Again in AUTOMATIC mode, but this time with an SG cut item
