@@ -190,6 +190,28 @@ class SGCutDiff(SGCutClip):
         return None
 
     @property
+    def old_head_duration(self):
+        """
+        Return the head duration for the old Clip, or None.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
+        if self._as_omitted:
+            return self.head_duration
+        return self.old_clip.head_duration
+
+    @property
+    def old_tail_duration(self):
+        """
+        Return the tail duration for the old Clip, or None.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
+        if self._as_omitted:
+            return self.tail_duration
+        return self.old_clip.tail_duration
+
+    @property
     def cut_in(self):
         """
         Return the cut in time of the clip.
