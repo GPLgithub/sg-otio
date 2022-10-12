@@ -33,6 +33,9 @@ class SGCutDiff(SGCutClip):
         self._diff_type = _DIFF_TYPES.NO_CHANGE
         self._cut_changes_reasons = []
         super(SGCutDiff, self).__init__(*args, **kwargs)
+        # Omitted clips should be linked to SG Cut Items.
+        if self._as_omitted and not self.sg_cut_item:
+            raise ValueError("Omitted Clips need to be linked to a SG CutItem")
         self._check_and_set_changes()
 
     @SGCutClip.group.setter

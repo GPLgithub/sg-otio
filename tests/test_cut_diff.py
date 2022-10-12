@@ -222,6 +222,19 @@ class TestCutDiff(SGBaseTest):
                 RationalTime(10, 24),  # duration, 10 frames.
             ),
         )
+        # Omitted Clips need to be linked to a SG CutItem
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Omitted Clips need to be linked to a SG CutItem"
+        ):
+            cut_diff = SGCutDiff(
+                clip=clip,
+                index=1,
+                sg_shot=None,
+                as_omitted=True,
+            )
+
         cut_diff = SGCutDiff(
             clip=clip,
             index=1,
