@@ -117,13 +117,18 @@ class SGCutDiff(SGCutClip):
             raise ValueError(
                 "Setting the old clip for an omitted SGCutDiff is not allowed."
             )
-        if self.sg_shot:
-            if value and value.sg_shot and value.sg_shot["id"] != self.sg_shot["id"]:
+        if value:
+            if not value.sg_cut_item:
                 raise ValueError(
-                    "Shot mismatch between current clip and old one %s vs %s" % (
-                        self.sg_shot["id"], value.sg_shot["id"]
-                    )
+                    "Old clips for SGCutDiff must be coming from a SG Cut Item"
                 )
+            if self.sg_shot:
+                if value.sg_shot and value.sg_shot["id"] != self.sg_shot["id"]:
+                    raise ValueError(
+                        "Shot mismatch between current clip and old one %s vs %s" % (
+                            self.sg_shot["id"], value.sg_shot["id"]
+                        )
+                    )
         self._old_clip = value
         self._check_and_set_changes()
 

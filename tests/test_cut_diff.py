@@ -4,6 +4,8 @@
 import copy
 import logging
 import os
+import six
+
 import shotgun_api3
 
 from sg_otio.cut_clip import SGCutClip
@@ -208,6 +210,85 @@ class TestCutDiff(SGBaseTest):
             logger.debug("Deleting %s %s" % (sg_entity["type"], sg_entity["id"]))
             self.mock_sg.delete(sg_entity["type"], sg_entity["id"])
         self._sg_entities_to_delete = []
+
+    def test_cut_diff(self):
+        """
+        Test various SGCutDiff behaviors
+        """
+        clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        cut_diff = SGCutDiff(
+            clip=clip,
+            index=1,
+            sg_shot=None,
+        )
+        # We can only compare to Clips linked to a SG CutItem
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Old clips for SGCutDiff must be coming from a SG Cut Item"
+        ):
+            cut_diff.old_clip = cut_diff
+
+        old_clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+
+        sg_shots = [{
+            "type": "Shot",
+            "code": "Fake shot 1",
+            "sg_status_list": None,
+            "project": self.mock_project,
+            "id": 1
+        }, {
+            "type": "Shot",
+            "code": "Fake shot 2",
+            "sg_status_list": None,
+            "project": self.mock_project,
+            "id": 2
+        }]
+
+        old_clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": -1,
+            "cut_item_in": 1009,
+            "cut_item_out": 1018,
+            "cut_order": 1,
+            "timecode_cut_item_in_text": "%s" % RationalTime(110, 24).to_timecode(),
+            "shot": sg_shots[0],
+            "code": "test_clip",
+        }
+        cut_diff.old_clip = SGCutClip(
+            clip=old_clip,
+            index=1,
+            sg_shot=None,
+        )
+        cut_diff.sg_shot = sg_shots[1]
+        cut_diff.old_clip = SGCutClip(
+            clip=old_clip,
+            index=1,
+            sg_shot=sg_shots[1],
+        )
+        # Shot mismatches should raise an error
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Shot mismatch between current clip and old one 2 vs 1"
+        ):
+            cut_diff.old_clip = SGCutClip(
+                clip=old_clip,
+                index=1,
+                sg_shot=sg_shots[0],
+            )
 
     def test_loading_edl(self):
         """
