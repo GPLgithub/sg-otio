@@ -207,6 +207,15 @@ class SGCutClip(object):
             self.compute_head_tail_values()
 
     @property
+    def sg_cut_item(self):
+        """
+        Return the SG CutItem associated with this Clip, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        return self.metadata.get("sg")
+
+    @property
     def cut_item_name(self):
         """
         Return the cut item name.
@@ -788,7 +797,7 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime`.
         """
-        sg_cut_item = self.metadata.get("sg")
+        sg_cut_item = self.sg_cut_item
         if sg_cut_item:
             cut_item_in = sg_cut_item.get("cut_item_in")
             cut_item_source_in = sg_cut_item.get("timecode_cut_item_in_text")
@@ -846,8 +855,8 @@ class SGCutClip(object):
 
         :returns: A string.
         """
-        if self._clip.metadata.get("sg"):
-            sg_cut_item = self.metadata.get("sg")
+        sg_cut_item = self.sg_cut_item
+        if sg_cut_item:
             fps = sg_cut_item["cut.Cut.fps"]
             tc_in = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_in_text"], fps).to_frames()
             tc_out = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_out_text"], fps).to_frames()

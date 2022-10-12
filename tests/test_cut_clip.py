@@ -406,6 +406,47 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip.tail_in.to_frames(), 3000 + 9 + 1)
         self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
+    def test_sg_values(self):
+        """
+        Test retrieving various SG properties
+        """
+        clip = SGCutClip(
+            otio.schema.Clip(
+                name="test_clip",
+                source_range=TimeRange(
+                    RationalTime(0, 24),
+                    RationalTime(10, 24),  # exclusive, 10 frames.
+                )
+            )
+        )
+        self.assertIsNone(clip.sg_shot)
+        self.assertIsNone(clip.sg_cut_item)
+        clip.sg_shot = {
+            "type": "Shot",
+            "id": -1,
+            "code": "Totally Faked",
+            "sg_head_in": 123456,
+            "sg_tail_out": 123466
+        }
+        self.assertIsNotNone(clip.sg_shot)
+        self.assertEqual(clip.sg_shot["id"], -1)
+        self.assertEqual(clip.sg_shot["code"], "Totally Faked")
+        self.assertIsNone(clip.sg_cut_item)
+        clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": -1,
+            "code": "Totally Faked Cut Item",
+            "cut_item_in": 3002,
+            "timecode_cut_item_in_text": "00:00:00:02",
+        }
+        self.assertEqual(clip.sg_shot["code"], "Totally Faked")
+        self.assertIsNotNone(clip.sg_cut_item)
+        self.assertEqual(clip.sg_cut_item["code"], "Totally Faked Cut Item")
+        clip.sg_shot = None
+        self.assertIsNone(clip.sg_shot)
+        self.assertIsNotNone(clip.sg_cut_item)
+        self.assertEqual(clip.sg_cut_item["code"], "Totally Faked Cut Item")
+
 
 if __name__ == '__main__':
     unittest.main()
