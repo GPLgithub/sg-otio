@@ -113,7 +113,6 @@ class SGCutDiffGroup(ClipGroup):
                 if self._old_last_clip is None or clip.source_out > self._old_last_clip.source_out:
                     self._old_last_clip = clip
 
-
     def add_clip(self, clip):
         """
         Adds a Cut difference to the group.
