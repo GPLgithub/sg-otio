@@ -170,10 +170,9 @@ class SGCutDiff(SGCutClip):
 
         :returns: An integer or ``None``.
         """
-        if self._as_omitted:
-            return self.index
-        if self._old_clip:
-            return self._old_clip.index
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.index
         return None
 
     @property
@@ -183,10 +182,9 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        if self._as_omitted:
-            return self.visible_duration
-        if self._old_clip:
-            return self._old_clip.visible_duration
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.visible_duration
         return None
 
     @property
@@ -196,9 +194,10 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        if self._as_omitted:
-            return self.head_duration
-        return self.old_clip.head_duration
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.head_duration
+        return None
 
     @property
     def old_tail_duration(self):
@@ -207,9 +206,10 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        if self._as_omitted:
-            return self.tail_duration
-        return self.old_clip.tail_duration
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.tail_duration
+        return None
 
     @property
     def cut_in(self):
