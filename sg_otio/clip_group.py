@@ -68,6 +68,35 @@ class ClipGroup(object):
         for clip in self._clips:
             yield clip
 
+    def remove_clip(self, clip):
+        """
+        Remove the given Clip from our list, recompute group values.
+
+        :param clip: A :class:`SGCutClip` instance.
+        """
+        clip.group = None
+        self._clips.remove(clip)
+
+        # Reset our internal values
+        self._earliest_clip = None
+        self._last_clip = None
+        self._has_effects = False
+        self._has_retime = False
+
+        # And recompute them from what is left
+        for clip in self.clips:
+            # Get the values from remaining clips
+            if self._earliest_clip is None or clip.source_in < self._earliest_clip.source_in:
+                self._earliest_clip = clip
+            if self._last_clip is None or clip.source_out > self._last_clip.source_out:
+                self._last_clip = clip
+            if not self._has_effects and clip.has_effects:
+                self._has_effects = True
+            if not self._has_retime and clip.has_retime:
+                self._has_retime = True
+
+        self._compute_group_values()
+
     def _append_clip(self, clip):
         """
         Add the clip to this group.

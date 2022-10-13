@@ -83,6 +83,37 @@ class SGCutDiffGroup(ClipGroup):
             if clip.current_clip:
                 yield clip
 
+    @property
+    def omitted_clips(self):
+        """
+        Returns the clips that are part of the group and are omitted entries.
+
+        :yields: :class:`SGCutDiff` instances.
+        """
+        # Don't return the original list, because it might be modified.
+        for clip in self._clips:
+            if clip.current_clip is None:
+                yield clip
+
+    def remove_clip(self, clip):
+        """
+        Remove the given Cut Difference from our list, recompute group values.
+
+        Override base implementation to deal with ommitted entries.
+
+        :param clip: A :class:`SGCutDiff` instance.
+        """
+        super(SGCutDiffGroup, self).remove_clip(clip)
+        if not clip.current_clip:
+            self._old_earliest_clip = None
+            self._old_last_clip = None
+            for clip in self.omitted_clips:
+                if self._old_earliest_clip is None or clip.source_in < self._old_earliest_clip.source_in:
+                    self._old_earliest_clip = clip
+                if self._old_last_clip is None or clip.source_out > self._old_last_clip.source_out:
+                    self._old_last_clip = clip
+
+
     def add_clip(self, clip):
         """
         Adds a Cut difference to the group.
@@ -140,10 +171,9 @@ class SGCutDiffGroup(ClipGroup):
     def sg_shot_is_omitted(self):
         """
         Return ``True`` if the SG Shot for this group does not appear in the
-        Cut anymore.
+        SG Cut anymore.
 
-        :returns: ``False``, this can only be checked when comparing to another
-                  Cut where the Shot was present.
+        :returns: A boolean.
         """
         for cut_diff in self:
             if cut_diff.diff_type == _DIFF_TYPES.OMITTED:
@@ -155,6 +185,8 @@ class SGCutDiffGroup(ClipGroup):
 
     def get_shot_values(self):
         """
+        Returns values which should be set on the Shot this group is linked to.
+
         Loop over our :class:`SGCutDiff` list and return values which should be set on the
         Shot.
 
@@ -587,8 +619,8 @@ class SGTrackDiff(object):
         - Is the tc in the same?
         - Is the tc out the same?
 
-        :param for_clip: A Clip instance.
-        :param prev_clip_list: A list of Clip instances to consider.
+        :param for_clip: A SGCutClip instance.
+        :param prev_clip_list: A list of SGCutClip instances to consider.
         :param sg_shot: A SG Shot dictionary.
         :param sg_version: A SG Version dictionary.
         :returns: A Clip, or ``None``.
@@ -661,7 +693,7 @@ class SGTrackDiff(object):
         This can be re-implemented in deriving classes to return a custom instance
         deriving from a :class:`SGCutDiff`.
 
-        :param clip: A Clip instance.
+        :param clip: A :class:`otio.schema.Clip` instance.
         :param int index: The index of the clip in its track.
         :param sg_shot: A SG Shot dictionary.
         :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
@@ -680,7 +712,7 @@ class SGTrackDiff(object):
         Add a new Cut difference to this :class:`TrackDiff`.
 
         :param shot_name: Shot name, as a string.
-        :param clip: A Clip instance.
+        :param clip: A :class:`otio.schema.Clip` instance.
         :param int index: The index of the clip in its track.
         :param sg_shot: A SG Shot dictionary.
         :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
@@ -716,11 +748,139 @@ class SGTrackDiff(object):
         )
         return self._diffs_by_shots[shot_key][-1]
 
-    def set_clip_shot_name(self, clip, new_name);
+    def set_cut_diff_shot_name(self, cut_diff, new_name):
         """
-        Rename the given Clip
+        Change the Shot name for the given SGCutDiff.
+
+        :param cut_diff: A SGCutDiff instance.
+        :param str new_name: The new Shot name.
         """
-        pass
+        if not cut_diff.current_clip:
+            raise ValueError("Can't change a Shot name for omitted Clip %s" % cut_diff.name)
+
+        old_name = cut_diff.shot_name
+
+        if new_name == old_name:
+            # Nothing to do
+            return
+        old_shot_key = old_name.lower() if old_name else old_name  # else "_no_shot_name_%s" % index
+        new_shot_key = new_name.lower() if new_name else new_name  # else "_no_shot_name_%s" % index
+        if old_shot_key == new_shot_key:
+            # Nothing to do
+            return
+        # Retrieve the old group
+        if old_shot_key not in self._diffs_by_shots:
+            raise RuntimeError("Can't retrieve Shot %s in internal groups list" % old_shot_key)
+
+        # If the Cut diff was repeated, default back to non repeated. This needs to
+        # be done before removing from the Shots dictionary just below.
+        if cut_diff.repeated:
+            cut_diff.repeated = False
+        self._diffs_by_shots[old_shot_key].remove_clip(cut_diff)
+        # If we were comparing to an existing Cut Item it is now omitted.
+        if cut_diff.old_clip and cut_diff.sg_shot:
+            logger.debug("Adding omitted entry for old shot key %s" % old_shot_key)
+            clip = cut_diff.old_clip.clip
+            self.add_cut_diff(
+                shot_name=cut_diff.sg_shot["code"],
+                clip=clip,
+                index=cut_diff.index,
+                sg_shot=cut_diff.sg_shot,
+                as_omitted=True
+            )
+        count = len(self._diffs_by_shots[old_shot_key])
+        if count == 0:
+            logger.debug("Discarding list for old shot key %s" % old_shot_key)
+            # We can discard the list for this shot
+            del self._diffs_by_shots[old_shot_key]
+        # Add it back with the new name
+        if new_shot_key in self._diffs_by_shots:
+            new_group = self._diffs_by_shots[new_shot_key]
+            count = len(new_group)
+            logger.debug("%d Entrie(s) for new shot key %s" % (count, new_shot_key))
+            # Check if there is some omitted entries (no current clip) which we should
+            # replace, and choose the best one to replace
+            omitted_clips = [
+                x for x in new_group.omitted_clips
+            ]
+            logger.debug("Potential matches: %s" % omitted_clips)
+            if omitted_clips:
+                old_diff = self.old_clip_for_shot(
+                    cut_diff,
+                    omitted_clips,
+                    new_group.sg_shot,
+                    new_group.sg_version,
+                )
+                # We should always get back an old_clip since what is in the group
+                # must have matched the conditions we use to retrieve the old_clip
+                # But better to know if this happens...
+                assert(old_diff)
+                logger.debug(
+                    "Found omitted entry for new shot key %s: %s" % (
+                        new_shot_key, old_diff
+                    )
+                )
+                # Remove the chosen old clip
+                new_group[new_shot_key].remove_clip(old_diff)
+                old_clip = old_diff.clip
+                # And add the edited CutDiff, reusing some data of the CutDiff
+                # we are replacing
+                cut_diff.sg_shot = old_diff.sg_shot
+                cut_diff.old_clip = SGCutClip(
+                    old_clip,
+                    index=old_diff.index,
+                    sg_shot=old_diff.sg_shot,
+                )
+#                if not cut_diff.edit or not cut_diff.edit.get_version_name():
+#                    # If we don't have an edit or if it didn't specify a Version
+#                    # name, use whatever was on the CutDiff we're replacing
+#                    cut_diff.set_sg_version(best_cdiff.sg_version)
+#                    cut_diff.set_version_name(best_cdiff.version_name)
+                new_group.add_clip(cut_diff)
+            else:
+                logger.debug("Adding new entry for new Shot key %s" % new_shot_key)
+                new_group.add_clip(cut_diff)
+#                cdiff = self._cut_diff_items_by_shots[new_shot_key][0].cut_diff
+#                cut_diff.set_sg_version(cdiff.sg_version)
+#                cut_diff.set_version_name(cdiff.version_name)
+        else:
+            # Check if the Shot exists in SG
+            # Retrieve the Shot fields we need to query from SG.
+            sg_shot_fields = SGShotFieldsConfig(
+                self._sg, None
+            ).all
+            filters = [
+                ["project", "is", self._sg_project],
+                ["code", "is", new_name],
+            ]
+            if self._sg_shot_link_field_name:
+                filters.append(
+                    [self._sg_shot_link_field_name, "is", self._sg_entity]
+                )
+                sg_shot_fields.append(self._sg_shot_link_field_name)
+
+            # Link to the first Shot found in the linked Entity whose name matches new_name
+            existing_shot = self._sg.find_one(
+                "Shot",
+                filters,
+                sg_shot_fields
+            )
+            # Run the query again but without the link restriction
+            # if there was one.
+            if not existing_shot and self._sg_shot_link_field_name:
+                existing_shot = self._sg.find_one(
+                    "Shot", [
+                        ["project", "is", self._sg_project],
+                        ["code", "is", new_name]
+                    ],
+                    sg_shot_fields
+                )
+            self._diffs_by_shots[new_shot_key] = SGCutDiffGroup(
+                new_shot_key,
+                sg_shot=existing_shot
+            )
+            logger.debug("Creating single entry for new Shot key %s" % new_shot_key)
+            self._diffs_by_shots[new_shot_key].add_clip(cut_diff)
 
     def count_for_type(self, diff_type):
         """
