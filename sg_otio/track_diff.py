@@ -716,6 +716,12 @@ class SGTrackDiff(object):
         )
         return self._diffs_by_shots[shot_key][-1]
 
+    def set_clip_shot_name(self, clip, new_name);
+        """
+        Rename the given Clip
+        """
+        pass
+
     def count_for_type(self, diff_type):
         """
         Return the number of entries for the given CutDiffType.
