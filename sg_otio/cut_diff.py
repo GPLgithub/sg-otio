@@ -411,8 +411,8 @@ class SGCutDiff(SGCutClip):
                 )
             )
         old_details = ""
-        if self._old_clip:
-            old_details = self._old_clip.source_info
+        if self.old_clip:
+            old_details = self.old_clip.source_info
         version_details = ""
         sg_version = self.sg_version
         if sg_version:

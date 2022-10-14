@@ -736,16 +736,18 @@ class SGTrackDiff(object):
                 for existing_clip in self._diffs_by_shots[shot_key].clips:
                     existing_clip.repeated = True
 
-        self._diffs_by_shots[shot_key].add_clip(
-            self.get_cut_diff_for_clip(
-                clip=clip,
-                index=index,
-                sg_shot=sg_shot,
-                as_omitted=as_omitted,
-                repeated=repeated,
-            )
+        new_diff = self.get_cut_diff_for_clip(
+            clip=clip,
+            index=index,
+            sg_shot=sg_shot,
+            as_omitted=as_omitted,
+            repeated=repeated,
         )
-        return self._diffs_by_shots[shot_key][-1]
+        self._diffs_by_shots[shot_key].add_clip(new_diff)
+        # Enforce the shot name if one was given
+        if shot_name:
+            new_diff.shot_name = shot_name
+        return new_diff
 
     def count_for_type(self, diff_type):
         """
