@@ -731,8 +731,8 @@ class SGTrackDiff(object):
                 sg_shot=sg_shot
             )
         else:
-            if shot_key:
-                repeated = True  # Don't flag repeated Shots if there is no Shot
+            if shot_key:  # Don't flag repeated Shots if there is no Shot
+                repeated = bool(len(self._diffs_by_shots[shot_key]))
                 for existing_clip in self._diffs_by_shots[shot_key].clips:
                     existing_clip.repeated = True
 
