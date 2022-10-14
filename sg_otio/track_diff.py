@@ -430,8 +430,8 @@ class SGTrackDiff(object):
             shot_name = compute_clip_shot_name(clip)
             if shot_name:
                 # Matching Shots must be case insensitive
-                shot_name = shot_name.lower()
-                more_shot_names.add(shot_name)
+                # but we keep the original name for the Cut diff.
+                more_shot_names.add(shot_name.lower())
             # Ensure a SGCutDiffGroup and add SGCutDiff to it.
             self.add_cut_diff(shot_name, clip=clip, index=i + 1, sg_shot=None)
         if more_shot_names:
