@@ -394,7 +394,7 @@ class SGCutDiff(SGCutClip):
         Return a summary for this SGCutDiff instance as a tuple with :
         Shot details, Cut item details, Version details and New cut details
 
-        :returns: A four entries tuple, where each entry is a potentially empty string
+        :returns: A tuple with four entries, where each entry is a potentially empty string.
         """
         shot_details = ""
         if self.sg_shot:

@@ -63,7 +63,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         Override base implementation to add members we need.
 
-        :param name: A string
+        :param str name: A name.
         :param clips: A list of :class:`SGCutDiff` instances.
         :param sg_shot: A SG Shot as a dictionary.
         """
