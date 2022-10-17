@@ -313,7 +313,7 @@ class SGTrackDiff(object):
         self._sg_entity = None
         self._sg_shot_link_field_name = None
         self._counts = defaultdict(int)
-        self._total_count = 0
+        self._active_count = 0
         # We need to keep references on the tracks otherwise underlying C++ objects
         # might be freed.
         self._old_track = old_track
@@ -537,6 +537,17 @@ class SGTrackDiff(object):
                   instances.
         """
         return self._diffs_by_shots
+
+    @property
+    def active_count(self):
+        """
+        Return the number of clips from the current track.
+
+        :returns: A dictionary.
+        """
+        # Note: we could simply return len(self._new_track) here
+        # instead of keeping this count internally.
+        return self._active_count
 
     @property
     def counts(self):
@@ -924,7 +935,7 @@ class SGTrackDiff(object):
         """
         # Use a defaultdict so we don't have to worry about key existence
         self._counts = defaultdict(int)
-        self._total_count = 0
+        self._active_count = 0
         for shot_name, clip_group in self._diffs_by_shots.items():
             _, _, _, _, _, _, shot_diff_type = clip_group.get_shot_values()
             if shot_diff_type in _PER_SHOT_TYPE_COUNTS:
@@ -932,7 +943,7 @@ class SGTrackDiff(object):
                 self._counts[shot_diff_type] += 1
                 # We don't want to include omitted entries in our total
                 if shot_diff_type != _DIFF_TYPES.OMITTED:
-                    self._total_count += 1
+                    self._active_count += 1
             else:
                 # We count others per entries
                 for cut_diff in clip_group:
@@ -946,7 +957,7 @@ class SGTrackDiff(object):
                         _DIFF_TYPES.OMITTED_IN_CUT,
                         _DIFF_TYPES.OMITTED
                     ]:
-                        self._total_count += 1
+                        self._active_count += 1
         logger.debug("%s" % self._counts)
 
     def _retrieve_sg_link_from_sg_cuts(self):

@@ -1062,7 +1062,7 @@ class TestCutDiff(SGBaseTest):
         timeline_from_edl = otio.adapters.read_from_file(path)
         new_track = timeline_from_edl.tracks[0]
         track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
-
+        self.assertEqual(len(new_track), track_diff.active_count)
         # 4 shots exist in the DB, from shot_6666 to shot_6669
         self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NEW), 28)
         self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
@@ -1105,6 +1105,7 @@ class TestCutDiff(SGBaseTest):
             track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
             self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
             self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NEW), 28)
+            self.assertEqual(len(new_track), track_diff.active_count)
 
             # Check the custom fields were queried
             expected = [x % "myprecious" for x in _ALT_SHOT_FIELDS]
@@ -1152,6 +1153,7 @@ class TestCutDiff(SGBaseTest):
         timeline_from_edl = otio.adapters.read_from_file(path)
         new_track = timeline_from_edl.tracks[0]
         track_diff = self._get_track_diff(new_track, mock_compute_clip_shot_name=self._mock_compute_clip_shot_name)
+        self.assertEqual(len(new_track), track_diff.active_count)
         for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NEW):
             self.assertEqual(1009, cut_diff.cut_in.to_frames())
 
@@ -1161,6 +1163,7 @@ class TestCutDiff(SGBaseTest):
             100,
         )
         track_diff = self._get_track_diff(new_track, mock_compute_clip_shot_name=self._mock_compute_clip_shot_name)
+        self.assertEqual(len(new_track), track_diff.active_count)
         for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NEW):
             self.assertEqual(
                 cut_diff.source_in.to_frames() - 10 + 100,
@@ -1168,6 +1171,7 @@ class TestCutDiff(SGBaseTest):
             )
         SGSettings().timecode_in_to_frame_mapping_mode = _TC2FRAME_ABSOLUTE_MODE
         track_diff = self._get_track_diff(new_track, mock_compute_clip_shot_name=self._mock_compute_clip_shot_name)
+        self.assertEqual(len(new_track), track_diff.active_count)
         for cut_diff in track_diff.diffs_for_type(_DIFF_TYPES.NEW):
             self.assertEqual(
                 cut_diff.source_in.to_frames(),
