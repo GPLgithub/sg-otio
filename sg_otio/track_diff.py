@@ -13,7 +13,6 @@ from .utils import compute_clip_shot_name, get_entity_type_display_name
 
 logger = logging.getLogger(__name__)
 
-
 # Some counts are per Shot, some others per edits
 # As a rule of thumb, everything which directly affects the Shot is per
 # Shot:
@@ -63,6 +62,10 @@ class SGCutDiffGroup(ClipGroup):
     def __init__(self, name, clips=None, sg_shot=None):
         """
         Override base implementation to add members we need.
+
+        :param str name: A name.
+        :param clips: A list of :class:`SGCutDiff` instances.
+        :param sg_shot: A SG Shot as a dictionary.
         """
         super(SGCutDiffGroup, self).__init__(name, clips, sg_shot)
         self._old_earliest_clip = None
@@ -73,12 +76,42 @@ class SGCutDiffGroup(ClipGroup):
         """
         Returns the clips that are part of the group and are not omitted entries.
 
-        :yields: :class:`SGCutClip` instances.
+        :yields: :class:`SGCutDiff` instances.
         """
         # Don't return the original list, because it might be modified.
         for clip in self._clips:
             if clip.current_clip:
                 yield clip
+
+    @property
+    def omitted_clips(self):
+        """
+        Returns the clips that are part of the group and are omitted entries.
+
+        :yields: :class:`SGCutDiff` instances.
+        """
+        # Don't return the original list, because it might be modified.
+        for clip in self._clips:
+            if clip.current_clip is None:
+                yield clip
+
+    def remove_clip(self, clip):
+        """
+        Remove the given Cut Difference from our list, recompute group values.
+
+        Override base implementation to deal with ommitted entries.
+
+        :param clip: A :class:`SGCutDiff` instance.
+        """
+        super(SGCutDiffGroup, self).remove_clip(clip)
+        if not clip.current_clip:
+            self._old_earliest_clip = None
+            self._old_last_clip = None
+            for clip in self.omitted_clips:
+                if self._old_earliest_clip is None or clip.source_in < self._old_earliest_clip.source_in:
+                    self._old_earliest_clip = clip
+                if self._old_last_clip is None or clip.source_out > self._old_last_clip.source_out:
+                    self._old_last_clip = clip
 
     def add_clip(self, clip):
         """
@@ -108,7 +141,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         Return the earliest Clip in this group.
 
-        :returns: A :class:`sg_otio.SGCutClip`.
+        :returns: A :class:`SGCutDiff`.
         """
         # We might have a mix of omitted edits (no new value) and non omitted edits
         # (with new values) in our list. If we have at least one entry which is
@@ -123,7 +156,7 @@ class SGCutDiffGroup(ClipGroup):
         """
         Return the last Clip in this group.
 
-        :returns: A :class:`sg_otio.SGCutClip`.
+        :returns: A :class:`SGCutDiff`.
         """
         # We might have a mix of omitted edits (no new value) and non omitted edits
         # (with new values) in our list. If we have at least one entry which is
@@ -137,10 +170,9 @@ class SGCutDiffGroup(ClipGroup):
     def sg_shot_is_omitted(self):
         """
         Return ``True`` if the SG Shot for this group does not appear in the
-        Cut anymore.
+        SG Cut anymore.
 
-        :returns: ``False``, this can only be checked when comparing to another
-                  Cut where the Shot was present.
+        :returns: A boolean.
         """
         for cut_diff in self:
             if cut_diff.diff_type == _DIFF_TYPES.OMITTED:
@@ -152,7 +184,9 @@ class SGCutDiffGroup(ClipGroup):
 
     def get_shot_values(self):
         """
-        Loop over our Cut diff list and return values which should be set on the
+        Returns values which should be set on the Shot this group is linked to.
+
+        Loop over our :class:`SGCutDiff` list and return values which should be set on the
         Shot.
 
         The Shot difference type can be different from individual Cut difference
@@ -280,26 +314,26 @@ class SGTrackDiff(object):
         self._sg_shot_link_field_name = None
         self._counts = defaultdict(int)
         self._total_count = 0
-
+        # We need to keep references on the tracks otherwise underlying C++ objects
+        # might be freed.
+        self._old_track = old_track
+        self._new_track = new_track
         self._diffs_by_shots = {}
+
         # Retrieve the Shot fields we need to query from SG.
         sg_shot_fields = SGShotFieldsConfig(
             self._sg, None
         ).all
 
+        # Retrieve the SG Entity we should use for the comparison
+        # and do some sanity check
+        self._retrieve_sg_link_from_sg_cuts()
+
         # Retrieve SG Entities from the old_track
         sg_shot_ids = []
         prev_clip_list = []
-        if old_track:
-            sg_cut = old_track.metadata.get("sg")
-            if not sg_cut or sg_cut["type"] != "Cut":
-                raise ValueError(
-                    "Invalid track %s not linked to a SG Cut" % old_track.name
-                )
-            self._sg_entity = sg_cut.get("entity") or self._sg_project
-            logger.debug("Previous SG Cut was linked to %s" % self._sg_entity)
-            self._sg_shot_link_field_name = self._get_shot_link_field(self._sg_entity["type"])
-            for i, clip in enumerate(old_track.each_clip()):
+        if self._old_track:
+            for i, clip in enumerate(self._old_track.each_clip()):
                 # Check if we have some SG meta data
                 sg_cut_item = clip.metadata.get("sg")
                 if not sg_cut_item or sg_cut_item.get("type") != "CutItem":
@@ -319,6 +353,7 @@ class SGTrackDiff(object):
                     ["%s (%s)" % (x.name, x.sg_shot) for x in prev_clip_list]
                 )
             )
+
         # Add the linked Entity field to the fields to retrieve for Shots if
         # we have one from the previous Cut.
         if self._sg_shot_link_field_name:
@@ -342,16 +377,11 @@ class SGTrackDiff(object):
         for i, clip in enumerate(new_track.each_clip()):
             shot_name = compute_clip_shot_name(clip)
             if shot_name:
-                # Matching Shots must be case insensitive
-                shot_name = shot_name.lower()
                 more_shot_names.add(shot_name)
             # Ensure a SGCutDiffGroup and add SGCutDiff to it.
-            if shot_name not in self._diffs_by_shots:
-                self._diffs_by_shots[shot_name] = SGCutDiffGroup(shot_name)
-            self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(clip=clip, index=i + 1, sg_shot=None)
-            )
+            self.add_cut_diff(shot_name, clip=clip, index=i + 1, sg_shot=None)
         if more_shot_names:
+            logger.debug("Looking for additional Shots %s" % more_shot_names)
             filters = [
                 ["project", "is", self._sg_project],
                 ["code", "in", list(more_shot_names)]
@@ -368,6 +398,7 @@ class SGTrackDiff(object):
                 filters,
                 sg_shot_fields,
             )
+            logger.debug("Found additional Shots %s" % sg_more_shots)
 
             for sg_shot in sg_more_shots:
                 shot_name = sg_shot["code"].lower()
@@ -399,7 +430,7 @@ class SGTrackDiff(object):
                     continue
                 clip.repeated = repeated
                 logger.debug("Matching %s for %s (%s)" % (
-                    shot_name, clip.cut_item_name, clip_group.sg_shot,
+                    shot_name, clip.shot_name, clip_group.sg_shot,
                 ))
                 # If we found a SG Shot, we can match with its id.
                 if clip_group.sg_shot:
@@ -458,33 +489,20 @@ class SGTrackDiff(object):
                         leftover_shots.remove(sg_shot)
                     break
 
-            repeated = False
-            if shot_name not in self._diffs_by_shots:
-                self._diffs_by_shots[shot_name] = SGCutDiffGroup(
-                    shot_name,
-                    sg_shot=matching_shot
-                )
-            else:
-                repeated = True
-                for clip2 in self._diffs_by_shots[shot_name].clips:
-                    clip2.repeated = True
-
-            self._diffs_by_shots[shot_name].add_clip(
-                SGCutDiff(
-                    clip=clip.clip,
-                    index=clip.index,
-                    sg_shot=clip.sg_shot,
-                    as_omitted=True,
-                    repeated=repeated,
-                )
+            sg_cut_diff = self.add_cut_diff(
+                shot_name,
+                clip=clip.clip,
+                index=clip.index,
+                sg_shot=clip.sg_shot,
+                as_omitted=True,
             )
             logger.info(
                 "Added %s as ommitted entry for %s" % (
-                    self._diffs_by_shots[shot_name][-1].cut_item_name,
+                    sg_cut_diff.cut_item_name,
                     shot_name,
                 )
             )
-        self._recompute_counts()
+        self.recompute_counts()
         if leftover_shots:
             # This shouldn't happen, as our list of Shots comes from edits
             # and CutItems, and we should have processed all of them. Issue
@@ -494,7 +512,7 @@ class SGTrackDiff(object):
     @property
     def sg_link(self):
         """
-        Return the SG Entity the previous Cut was linked to.
+        Return the SG Entity used for the Cut comparison.
 
         :returns: A SG Entity dictionary, or ``None``.
         """
@@ -503,8 +521,8 @@ class SGTrackDiff(object):
     @property
     def sg_shot_link_field_name(self):
         """
-        Return the SG field name used to link Shots to the SG Entity the previous
-        Cut was linked to, if any.
+        Return the SG field name used to link Shots to the SG Entity used
+        for the Cut comparison.
 
         :returns: A SG field name as a string, or ``None``.
         """
@@ -519,6 +537,16 @@ class SGTrackDiff(object):
                   instances.
         """
         return self._diffs_by_shots
+
+    @property
+    def counts(self):
+        """
+        Return a dictionary where keys are diff types and values their number for
+        the current comparison.
+
+        :returns: A dictionary.
+        """
+        return self._counts
 
     @classmethod
     def old_clip_for_shot(cls, for_clip, prev_clip_list, sg_shot, sg_version=None):
@@ -536,8 +564,8 @@ class SGTrackDiff(object):
         - Is the tc in the same?
         - Is the tc out the same?
 
-        :param for_clip: A Clip instance.
-        :param prev_clip_list: A list of Clip instances to consider.
+        :param for_clip: A SGCutClip instance.
+        :param prev_clip_list: A list of SGCutClip instances to consider.
         :param sg_shot: A SG Shot dictionary.
         :param sg_version: A SG Version dictionary.
         :returns: A Clip, or ``None``.
@@ -562,7 +590,7 @@ class SGTrackDiff(object):
                     # give score a bonus as we don't have an explicit mismatch
                     potential_matches.append((
                         clip,
-                        100 + cls._get_matching_score(clip, for_clip)
+                        100 + cls.get_matching_score(clip, for_clip)
                     ))
                 elif sg_cut_item["version"]:
                     if sg_version["id"] == sg_cut_item["version"]["id"]:
@@ -570,13 +598,13 @@ class SGTrackDiff(object):
                         # Version
                         potential_matches.append((
                             clip,
-                            1000 + cls._get_matching_score(clip, for_clip)
+                            1000 + cls.get_matching_score(clip, for_clip)
                         ))
                     else:
                         # Version mismatch, don't give any bonus
                         potential_matches.append((
                             clip,
-                            cls._get_matching_score(clip, for_clip)
+                            cls.get_matching_score(clip, for_clip)
                         ))
                 else:
                     # Will keep looking around but we keep a reference to
@@ -585,7 +613,7 @@ class SGTrackDiff(object):
                     # mismatch
                     potential_matches.append((
                         clip,
-                        100 + cls._get_matching_score(clip, for_clip)
+                        100 + cls.get_matching_score(clip, for_clip)
                     ))
             else:
                 logger.debug("Rejecting %s for %s" % (clip.cut_item_name, for_clip.cut_item_name))
@@ -602,6 +630,72 @@ class SGTrackDiff(object):
             logger.debug("Best is %s for %s" % (best.cut_item_name, for_clip.cut_item_name))
             return best
         return None
+
+    def get_cut_diff_for_clip(self, clip, index, sg_shot=None, as_omitted=False, repeated=False):
+        """
+        Return a new :class:`SGCutDiff` for the given clip.
+
+        This can be re-implemented in deriving classes to return a custom instance
+        deriving from a :class:`SGCutDiff`.
+
+        :param clip: A :class:`otio.schema.Clip` instance.
+        :param int index: The index of the clip in its track.
+        :param sg_shot: A SG Shot dictionary.
+        :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
+        :param bool repeated: Whether this is a difference for a Shot with multiple edits.
+        """
+        return SGCutDiff(
+            clip=clip,
+            index=index,
+            sg_shot=sg_shot,
+            as_omitted=as_omitted,
+            repeated=repeated,
+        )
+
+    def add_cut_diff(self, shot_name, clip, index, sg_shot=None, as_omitted=False):
+        """
+        Add a new Cut difference to this :class:`TrackDiff`.
+
+        :param shot_name: Shot name, as a string.
+        :param clip: A :class:`otio.schema.Clip` instance.
+        :param int index: The index of the clip in its track.
+        :param sg_shot: A SG Shot dictionary.
+        :param bool as_omitted: Whether this is a difference for an omitted Shot or not.
+        """
+        # Force a lowercase key to make Shot names case-insensitive. Shot names
+        # we retrieve from editorial files may be uppercase, but actual SG Shots may be
+        # lowercase.
+
+        # Note: previous implementation used special `"_no_shot_name_%s" % index` Shot keys
+        # if the Shot name was not set to avoid considering repeated all entries not linked
+        # to a Shot. This is now covered by not setting the repeated flag on groups with an
+        # empty name.
+        shot_key = shot_name.lower() if shot_name else shot_name  # else "_no_shot_name_%s" % index
+
+        repeated = False
+        if shot_key not in self._diffs_by_shots:
+            self._diffs_by_shots[shot_key] = SGCutDiffGroup(
+                shot_key,
+                sg_shot=sg_shot
+            )
+        else:
+            if shot_key:  # Don't flag repeated Shots if there is no Shot
+                repeated = bool(len(self._diffs_by_shots[shot_key]))
+                for existing_clip in self._diffs_by_shots[shot_key].clips:
+                    existing_clip.repeated = True
+
+        new_diff = self.get_cut_diff_for_clip(
+            clip=clip,
+            index=index,
+            sg_shot=sg_shot,
+            as_omitted=as_omitted,
+            repeated=repeated,
+        )
+        self._diffs_by_shots[shot_key].add_clip(new_diff)
+        # Enforce the shot name if one was given
+        if shot_name:
+            new_diff.shot_name = shot_name
+        return new_diff
 
     def count_for_type(self, diff_type):
         """
@@ -745,11 +839,21 @@ class SGTrackDiff(object):
 
         :param str subject: A string, usually a SG Cut name.
         """
+        # If we're comparing an existing SG Cut to something,
+        # use their names for the title.
+        if self._new_track.metadata.get("sg") and self._old_track:
+            return "%s Cut Summary changes between %s and %s" % (
+                subject,
+                self._new_track.name,
+                self._old_track.name,
+            )
+        # If we have a SG Entity, use it for the title.
         if self._sg_entity:
             return "%s Cut Summary changes on %s" % (
                 self._sg_entity["type"].title(),
                 subject
             )
+        # Fallback to a generic title.
         return "Cut Summary for %s" % subject
 
     def get_diffs_by_change_type(self):
@@ -787,7 +891,7 @@ class SGTrackDiff(object):
         return diff_groups
 
     @classmethod
-    def _get_matching_score(cls, clip_a, clip_b):
+    def get_matching_score(cls, clip_a, clip_b):
         """
         Return a matching score for the given two clips, based on:
         - Is the Cut order the same?
@@ -801,7 +905,7 @@ class SGTrackDiff(object):
         :returns: A score, as an integer
         """
         score = 0
-        # Compute the Cut order difference (edit.id is the Cut order in an EDL)
+        # Compute the Cut order difference (index is the Cut order)
         diff = clip_a.index - clip_b.index
         if diff == 0:
             score += 1
@@ -814,7 +918,7 @@ class SGTrackDiff(object):
 
         return score
 
-    def _recompute_counts(self):
+    def recompute_counts(self):
         """
         Recompute internal counts from Cut differences
         """
@@ -844,6 +948,71 @@ class SGTrackDiff(object):
                     ]:
                         self._total_count += 1
         logger.debug("%s" % self._counts)
+
+    def _retrieve_sg_link_from_sg_cuts(self):
+        """
+        Retrieve the SG Entity we should use for the comparison and do some sanity check.
+
+        The SG Entity is retrieved from the tracks being compared, if they are linked to SG Cuts.
+        The current SG Project is used if none can be retrieved.
+
+        :raises ValueError: For invalid retrieved SG Entities.
+        """
+
+        new_track_sg_link = None
+        new_track = self._new_track
+        sg_cut = new_track.metadata.get("sg")
+        if sg_cut:
+            if sg_cut["type"] != "Cut":
+                raise ValueError(
+                    "Invalid track %s not linked to a SG Cut" % new_track.name
+                )
+            new_track_sg_link = sg_cut.get("entity")
+            # We don't support comparing Cuts from different SG Projects
+            if sg_cut["project"]["id"] != self._sg_project["id"]:
+                raise ValueError(
+                    "Can't compare Cuts from different SG Projects"
+                )
+        if self._old_track:
+            sg_cut = self._old_track.metadata.get("sg")
+            if not sg_cut or sg_cut["type"] != "Cut":
+                raise ValueError(
+                    "Invalid track %s not linked to a SG Cut" % self._old_track.name
+                )
+            # We don't support comparing Cuts from different SG Projects
+            if sg_cut["project"]["id"] != self._sg_project["id"]:
+                raise ValueError(
+                    "Can't compare Cuts from different SG Projects"
+                )
+            old_track_sg_link = sg_cut.get("entity")
+            # If the two SG Cuts are linked to a common Entity, use it.
+            if new_track_sg_link:
+                if (
+                    new_track_sg_link["type"] == old_track_sg_link["type"]
+                    and new_track_sg_link["id"] == old_track_sg_link["id"]
+                ):
+                    self._sg_entity = new_track_sg_link
+            else:
+                # Just use the old track link, if any
+                self._sg_entity = old_track_sg_link
+        else:  # Only a new track
+            # Just use the new track link, if any
+            self._sg_entity = new_track_sg_link
+
+        if not self._sg_entity:
+            # Fallback on using the project
+            self._sg_entity = self._sg_project
+            self._sg_shot_link_field_name = "project"
+        else:
+            self._sg_shot_link_field_name = self._get_shot_link_field(
+                self._sg_entity["type"]
+            )
+            if not self._sg_shot_link_field_name:
+                raise ValueError(
+                    "Unable to retrieve a SG field to link Shots to %s" % self._sg_entity["type"]
+                )
+
+        logger.debug("Cut comparison performed against %s" % self._sg_entity)
 
     def _get_shot_link_field(self, sg_entity_type):
         """

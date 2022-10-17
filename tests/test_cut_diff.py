@@ -4,6 +4,8 @@
 import copy
 import logging
 import os
+import six
+
 import shotgun_api3
 
 from sg_otio.cut_clip import SGCutClip
@@ -76,24 +78,28 @@ class TestCutDiff(SGBaseTest):
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
             "id": 6666,
+            "sg_status_list": None,
         }, {
             "code": "shot_6667",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
             "id": 6667,
+            "sg_status_list": None,
         }, {
             "code": "shot_6668",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
             "id": 6668,
+            "sg_status_list": None,
         }, {
             "code": "shot_6669",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
             "id": 6669,
+            "sg_status_list": None,
         }]
         self.add_to_sg_mock_db(self.sg_shots)
         self._sg_entities_to_delete.extend(self.sg_shots)
@@ -204,6 +210,98 @@ class TestCutDiff(SGBaseTest):
             logger.debug("Deleting %s %s" % (sg_entity["type"], sg_entity["id"]))
             self.mock_sg.delete(sg_entity["type"], sg_entity["id"])
         self._sg_entities_to_delete = []
+
+    def test_cut_diff(self):
+        """
+        Test various SGCutDiff behaviors
+        """
+        clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        # Omitted Clips need to be linked to a SG CutItem
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Omitted Clips need to be linked to a SG CutItem"
+        ):
+            cut_diff = SGCutDiff(
+                clip=clip,
+                index=1,
+                sg_shot=None,
+                as_omitted=True,
+            )
+
+        cut_diff = SGCutDiff(
+            clip=clip,
+            index=1,
+            sg_shot=None,
+        )
+        # We can only compare to Clips linked to a SG CutItem
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Old clips for SGCutDiff must be coming from a SG Cut Item"
+        ):
+            cut_diff.old_clip = cut_diff
+
+        old_clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+
+        sg_shots = [{
+            "type": "Shot",
+            "code": "Fake shot 1",
+            "sg_status_list": None,
+            "project": self.mock_project,
+            "id": 1
+        }, {
+            "type": "Shot",
+            "code": "Fake shot 2",
+            "sg_status_list": None,
+            "project": self.mock_project,
+            "id": 2
+        }]
+
+        old_clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": -1,
+            "cut_item_in": 1009,
+            "cut_item_out": 1018,
+            "cut_order": 1,
+            "timecode_cut_item_in_text": "%s" % RationalTime(110, 24).to_timecode(),
+            "shot": sg_shots[0],
+            "code": "test_clip",
+        }
+        cut_diff.old_clip = SGCutClip(
+            clip=old_clip,
+            index=1,
+            sg_shot=None,
+        )
+        cut_diff.sg_shot = sg_shots[1]
+        cut_diff.old_clip = SGCutClip(
+            clip=old_clip,
+            index=1,
+            sg_shot=sg_shots[1],
+        )
+        # Shot mismatches should raise an error
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Shot mismatch between current clip and old one 2 vs 1"
+        ):
+            cut_diff.old_clip = SGCutClip(
+                clip=old_clip,
+                index=1,
+                sg_shot=sg_shots[0],
+            )
 
     def test_loading_edl(self):
         """
@@ -509,7 +607,27 @@ class TestCutDiff(SGBaseTest):
         old_track.metadata["sg"] = {
             "type": "Cut",
             "id": -1,
-            "code": "Faked Cut"
+            "code": "Faked Cut",
+            "project": {"type": "Project", "id": -1}
+        }
+        # It should choke on invalid project
+        with self.assertRaises(ValueError) as cm:
+            track_diff = SGTrackDiff(
+                self.mock_sg,
+                self.mock_project,
+                new_track=track,
+                old_track=old_track,
+            )
+        self.assertEqual(
+            "%s" % cm.exception,
+            "Can't compare Cuts from different SG Projects"
+        )
+
+        old_track.metadata["sg"] = {
+            "type": "Cut",
+            "id": -1,
+            "code": "Faked Cut",
+            "project": self.mock_project
         }
         # It should choke now on invalid clips
         with self.assertRaises(ValueError) as cm:
@@ -603,7 +721,8 @@ class TestCutDiff(SGBaseTest):
         old_track.metadata["sg"] = {
             "type": "Cut",
             "id": -1,
-            "code": "Faked Cut"
+            "code": "Faked Cut",
+            "project": self.mock_project,
         }
         sg_shots = [
             {"type": "Shot", "code": "marker_shot_000", "project": self.mock_project, "id": 1},
@@ -907,9 +1026,11 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(track_diff._sg_shot_link_field_name, "sg_sequence")
         self.assertEqual(track_diff._sg_entity["id"], self.sg_sequences[0]["id"])
         self.assertEqual(track_diff._sg_entity["type"], self.sg_sequences[0]["type"])
+        # Since we're comparing to existing tracks, their name should be mentioned
+        # in the title.
         self.assertEqual(
             track_diff.get_summary_title("This is a Test"),
-            "Sequence Cut Summary changes on This is a Test"
+            "This is a Test Cut Summary changes between cut_6666 and cut_6666"
         )
         self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 4)
 
@@ -928,7 +1049,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(
             report,
             (
-                "Sequence Cut Summary changes on This is a Test",
+                "This is a Test Cut Summary changes between cut_6666 and cut_6666",
                 "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n0 New Shots\n\n\n0 Omitted Shots\n\n\n0 Reinstated Shot\n\n\n0 Cut Changes\n\n\n0 Rescan Needed\n\n\n"
             )
         )
@@ -966,11 +1087,19 @@ class TestCutDiff(SGBaseTest):
         new_track = timeline_from_edl.tracks[0]
         # Check that using custom Shot cut fields is handled
         # Validation should fail
-        with self.assertRaisesRegexp(
-            ValueError,
-            "Following SG Shot fields are missing",
-        ):
-            self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+        # Handle different names between Py 2.7 and 3
+        if hasattr(self, "assertRaisesRegex"):
+            with self.assertRaisesRegex(
+                ValueError,
+                "Following SG Shot fields are missing",
+            ):
+                self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+        else:
+            with self.assertRaisesRegexp(
+                ValueError,
+                "Following SG Shot fields are missing",
+            ):
+                self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
         # Bypass validation and check the fields are passed through
         with mock.patch.object(SGShotFieldsConfig, "validate_shot_cut_fields_prefix"):
             track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
@@ -1044,3 +1173,114 @@ class TestCutDiff(SGBaseTest):
                 cut_diff.source_in.to_frames(),
                 cut_diff.cut_in.to_frames()
             )
+
+    def test_sg_version(self):
+        """
+        Test SG Version retrieval
+        """
+        self._add_sg_cut_data()
+        cut_item = self.sg_cut_items[0]
+        old_clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=otio.opentime.range_from_start_end_time(
+                otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], 24),
+                otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], 24)
+            )
+        )
+        old_clip.metadata["sg"] = cut_item
+        old_cut_clip = SGCutClip(
+            old_clip,
+            index=1,
+            sg_shot=self.sg_shots[0],
+        )
+        self.assertIsNone(old_cut_clip.sg_version)
+        self.assertIsNone(old_cut_clip.sg_version_name)
+        clip = otio.schema.Clip(
+            name="test_clip",
+            source_range=otio.opentime.range_from_start_end_time(
+                otio.opentime.from_timecode(cut_item["timecode_cut_item_in_text"], 24),
+                otio.opentime.from_timecode(cut_item["timecode_cut_item_out_text"], 24)
+            )
+        )
+        # If no old clip, the SG Version is retrieved from the current clip
+        cut_diff = SGCutDiff(
+            clip=clip,
+            index=1,
+            sg_shot=self.sg_shots[0],
+        )
+        # Add some dummy media reference
+        clip.media_reference = otio.schema.ExternalReference()
+        clip.media_reference.name = "Dummy"
+        self.assertIsNone(cut_diff.sg_version)
+        self.assertIsNone(cut_diff.sg_version_name)
+        # Add some SG meta data to the media reference
+        clip.media_reference.metadata["sg"] = {
+            "type": "PublishedFile",
+            "id": -1,
+            # Version matching the clip name
+            "version": {
+                "type": "Version",
+                "id": -1,
+                # Set a different name for test purpose: in practice the Version name
+                # will always match the clip name.
+                "code": "FAKE %s" % clip.name
+            }
+        }
+        self.assertEqual(cut_diff.sg_version["id"], -1)
+        self.assertEqual(cut_diff.sg_version_name, cut_diff.sg_version["code"])
+        # Add an old clip to the diff, that shouldn't change anything
+        cut_diff.old_clip = old_cut_clip
+        self.assertEqual(cut_diff.sg_version["id"], -1)
+        self.assertEqual(cut_diff.sg_version_name, cut_diff.sg_version["code"])
+        # If we remove the SG Version meta data on the current clip, nothing
+        # should be found
+        del clip.media_reference.metadata["sg"]
+        self.assertIsNone(cut_diff.sg_version)
+        self.assertIsNone(cut_diff.sg_version_name)
+        # If we add SG Version meta data to the old clip, it should be used
+        old_clip.media_reference = otio.schema.ExternalReference()
+        old_clip.media_reference.name = "Old Dummy"
+        old_clip.media_reference.metadata["sg"] = {
+            "type": "PublishedFile",
+            "id": -1,
+            # Version matching the clip name
+            "version": {
+                "type": "Version",
+                "id": -2,
+                # Set a different name for test purpose: in practice the Version name
+                # will always match the clip name.
+                "code": "OLD FAKE %s" % clip.name
+            }
+        }
+        self.assertEqual(cut_diff.sg_version["id"], -2)
+        self.assertTrue(cut_diff.sg_version_name.startswith("OLD"))
+        self.assertEqual(cut_diff.sg_version_name, cut_diff.sg_version["code"])
+        # Put back the current SG Version meta data, it should be used.
+        clip.media_reference.metadata["sg"] = {
+            "type": "PublishedFile",
+            "id": -1,
+            # Version matching the clip name
+            "version": {
+                "type": "Version",
+                "id": -1,
+                # Set a different name for test purpose: in practice the Version name
+                # will always match the clip name.
+                "code": "FAKE %s" % clip.name
+            }
+        }
+        self.assertEqual(cut_diff.sg_version["id"], -1)
+        self.assertTrue(cut_diff.sg_version_name.startswith("FAKE"))
+        self.assertEqual(cut_diff.sg_version_name, cut_diff.sg_version["code"])
+        # Check Cut Diff whith just an old clip value
+        cut_diff = SGCutDiff(
+            clip=old_clip,
+            index=1,
+            sg_shot=self.sg_shots[0],
+            as_omitted=True,
+        )
+        self.assertEqual(cut_diff.sg_version["id"], -2)
+        self.assertTrue(cut_diff.sg_version_name.startswith("OLD"))
+        self.assertEqual(cut_diff.sg_version_name, cut_diff.sg_version["code"])
+        del old_clip.media_reference.metadata["sg"]
+        self.assertIsNone(cut_diff.sg_version)
+        self.assertIsNone(cut_diff.sg_version_name)

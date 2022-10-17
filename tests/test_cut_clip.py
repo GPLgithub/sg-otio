@@ -3,6 +3,7 @@
 
 import os
 import unittest
+import six
 
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
@@ -141,7 +142,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
-        clips = [SGCutClip(c) for c in video_track.each_clip()]
+        clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.each_clip())]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.
@@ -159,6 +160,11 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.retime_str, "LinearTimeWarp (time scalar: 2.0)")
         self.assertTrue(not clip_1.has_effects)
         self.assertEqual(clip_1.effects_str, "")
+        six.assertRegex(
+            self,
+            clip_1.source_info,
+            r"001\s+reel_1\s+V\s+C\s+01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00"
+        )
 
         clip_2 = clips[1]
         self.assertEqual(clip_2.duration().to_frames(), 24)
@@ -173,6 +179,11 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(not clip_2.has_retime)
         self.assertEqual(clip_2.retime_str, "")
+        six.assertRegex(
+            self,
+            clip_2.source_info,
+            r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
+        )
 
     def test_clip_values_with_transitions(self):
         """
@@ -376,7 +387,22 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip.tail_in.to_frames(), 20000 + 9 + 1)
         self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
 
-        # Value from a SSG Cut Item should be used as a base for an offset
+        # Switch to AUTOMATIC mode, and make sure the values are recomputed
+        # correctly. Do not set a cut item for now.
+        sg_settings.timecode_in_to_frame_mapping_mode = _TC2FRAME_AUTOMATIC_MODE
+        sg_settings.default_head_duration = 54
+        sg_settings.default_head_in = 123
+        clip.sg_shot = None  # Unsetting the Shot forces a recompute
+        self.assertEqual(clip.head_in.to_frames(), clip.head_in.to_frames())
+        self.assertEqual(clip.compute_cut_in().to_frames(), clip.head_in.to_frames() + sg_settings.default_head_duration)
+        self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
+        self.assertEqual(clip.cut_in.to_frames(), clip.head_in.to_frames() + sg_settings.default_head_duration)
+        self.assertEqual(clip.cut_out.to_frames(), clip.cut_in.to_frames() + clip.duration().to_frames() - 1)
+        self.assertEqual(clip.tail_in.to_frames(), clip.cut_out.to_frames() + 1)
+        self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
+
+        # Again in AUTOMATIC mode, but this time with an SG cut item
+        # The value from it should be used as a base for an offset
         clip.metadata["sg"] = {
             "type": "CutItem",
             "id": -1,
@@ -385,13 +411,56 @@ class TestCutClip(unittest.TestCase):
             "timecode_cut_item_in_text": "00:00:00:02",
         }
         clip.sg_shot = None  # Unsetting the Shot forces a recompute
+        # The clip timecode in is "00:00:00:00", so the cut in will be 3002 - 2
         self.assertEqual(clip.compute_cut_in().to_frames(), 3000)
-        self.assertEqual(clip.head_in.to_frames(), 3000 - 8)
-        self.assertEqual(clip.head_duration.to_frames(), sg_settings.default_head_duration)
+        # The head in should be the default head in
+        self.assertEqual(clip.head_in.to_frames(), sg_settings.default_head_in)
+        self.assertEqual(clip.head_duration, clip.cut_in - clip.head_in)
         self.assertEqual(clip.cut_in.to_frames(), 3000)
         self.assertEqual(clip.cut_out.to_frames(), 3000 + 9)
         self.assertEqual(clip.tail_in.to_frames(), 3000 + 9 + 1)
         self.assertEqual(clip.tail_out.to_frames(), clip.tail_in.to_frames() + sg_settings.default_tail_duration - 1)
+
+    def test_sg_values(self):
+        """
+        Test retrieving various SG properties
+        """
+        clip = SGCutClip(
+            otio.schema.Clip(
+                name="test_clip",
+                source_range=TimeRange(
+                    RationalTime(0, 24),
+                    RationalTime(10, 24),  # exclusive, 10 frames.
+                )
+            )
+        )
+        self.assertIsNone(clip.sg_shot)
+        self.assertIsNone(clip.sg_cut_item)
+        clip.sg_shot = {
+            "type": "Shot",
+            "id": -1,
+            "code": "Totally Faked",
+            "sg_head_in": 123456,
+            "sg_tail_out": 123466
+        }
+        self.assertIsNotNone(clip.sg_shot)
+        self.assertEqual(clip.sg_shot["id"], -1)
+        self.assertEqual(clip.sg_shot["code"], "Totally Faked")
+        self.assertIsNone(clip.sg_cut_item)
+        clip.metadata["sg"] = {
+            "type": "CutItem",
+            "id": -1,
+            "code": "Totally Faked Cut Item",
+            "cut_item_in": 3002,
+            "timecode_cut_item_in_text": "00:00:00:02",
+        }
+        self.assertEqual(clip.sg_shot["code"], "Totally Faked")
+        self.assertIsNotNone(clip.sg_cut_item)
+        self.assertEqual(clip.sg_cut_item["code"], "Totally Faked Cut Item")
+        clip.sg_shot = None
+        self.assertIsNone(clip.sg_shot)
+        self.assertIsNotNone(clip.sg_cut_item)
+        self.assertEqual(clip.sg_cut_item["code"], "Totally Faked Cut Item")
 
 
 if __name__ == '__main__':

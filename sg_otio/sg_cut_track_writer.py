@@ -15,7 +15,7 @@ from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .constants import _REINSTATE_FROM_PREVIOUS_STATUS
 from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
-from .utils import get_available_filename, compute_clip_version_name
+from .utils import get_available_filename
 from .utils import get_platform_name, get_path_from_target_url
 from .track_diff import SGTrackDiff
 
@@ -534,7 +534,7 @@ class SGCutTrackWriter(object):
                     ))
                 continue
             # Make sure that the clip's media reference has a proper computed name.
-            version_name = compute_clip_version_name(clip, clip.index)
+            version_name = clip.compute_clip_version_name()
             clips_version_names.append(version_name)
             clip.media_reference.name = version_name
             clips_with_media_refs.append(clip)

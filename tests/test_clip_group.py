@@ -4,8 +4,13 @@
 import unittest
 
 import opentimelineio as otio
+from opentimelineio.opentime import TimeRange, RationalTime
+
 from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
+from sg_otio.track_diff import SGCutDiffGroup
+from sg_otio.cut_diff import SGCutDiff
+from sg_otio.constants import _DIFF_TYPES
 
 
 class TestClipGroup(unittest.TestCase):
@@ -142,6 +147,44 @@ class TestClipGroup(unittest.TestCase):
             self.assertEqual(len(clips), 2)
             self.assertEqual(clips[0].cut_in.to_frames(), head_in + head_duration + 24)
             self.assertEqual(clips[1].cut_in.to_frames(), head_in + head_duration)
+
+    def test_diff_values(self):
+        """
+        Test SGCutDiff values when in a group.
+        """
+        cut_clips = []
+        track = otio.schema.Track()
+        for i in range(2):
+            clip = otio.schema.Clip(
+                name="test_clip_%d" % i,
+                source_range=TimeRange(
+                    RationalTime(10, 24),
+                    RationalTime(10, 24),  # duration, 10 frames.
+                ),
+            )
+            track.append(clip)
+            cut_clips.append(SGCutDiff(clip=clip, index=i + 1))
+        group = SGCutDiffGroup("totally_faked")
+        group.add_clip(cut_clips[0])
+        self.assertEqual(group.name, cut_clips[0].shot_name)
+        self.assertEqual(cut_clips[0].diff_type, _DIFF_TYPES.NEW)
+        sg_shot = {
+            "type": "Shot",
+            "id": 666,
+            "code": "Evil Shot",
+            "sg_status_list": {"code": "ip", "id": -1}
+        }
+        group.sg_shot = sg_shot
+        self.assertEqual(cut_clips[0].sg_shot, sg_shot)
+        self.assertEqual(cut_clips[0].shot_name, "Evil Shot")
+        self.assertEqual(cut_clips[0].diff_type, _DIFF_TYPES.NEW_IN_CUT)
+
+        self.assertEqual(cut_clips[1].diff_type, _DIFF_TYPES.NO_LINK)
+        self.assertIsNone(cut_clips[1].shot_name)
+        group.add_clip(cut_clips[1])
+        self.assertEqual(cut_clips[1].sg_shot, sg_shot)
+        self.assertEqual(cut_clips[1].shot_name, "Evil Shot")
+        self.assertEqual(cut_clips[1].diff_type, _DIFF_TYPES.NEW_IN_CUT)
 
 
 if __name__ == '__main__':

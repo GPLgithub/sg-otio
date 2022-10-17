@@ -8,7 +8,7 @@ from opentimelineio.opentime import RationalTime
 
 from .constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 from .sg_settings import SGShotFieldsConfig, SGSettings
-from .utils import compute_clip_shot_name
+from .utils import compute_clip_shot_name, compute_clip_version_name
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +40,22 @@ class SGCutClip(object):
         super(SGCutClip, self).__init__(*args, **kwargs)
         self._clip = clip
         self._clip_group = None
+        self._shot_name = None
+        self._sg_shot = None
         self.effect = self._relevant_timing_effect(clip.effects or [])
         # TODO: check what we should grab from the SG metadata, if any.
         # If the clip has a reel name, override its name.
-        self.name = self._clip.name
-        if self._clip.metadata.get("cmx_3600", {}).get("reel"):
-            self.name = self._clip.metadata["cmx_3600"]["reel"]
+        self._name = self._clip.name
+        if self._clip.metadata.get("sg", {}).get("code"):
+            self._name = self._clip.metadata["sg"]["code"]
+        elif self._clip.metadata.get("cmx_3600", {}).get("reel"):
+            self._name = self._clip.metadata["cmx_3600"]["reel"]
         self._frame_rate = self._clip.duration().rate
         self._index = index
+        # Set the Shot, this will set the Shot name as well, if available.
         self.sg_shot = sg_shot
+        if not self._shot_name:
+            self._shot_name = compute_clip_shot_name(self._clip)
         self.compute_head_tail_values()
         self._cut_item_name = self.name
 
@@ -104,6 +111,24 @@ class SGCutClip(object):
         return self._clip.visible_range()
 
     @property
+    def name(self):
+        """
+        Return this SGCutClip name.
+
+        :returns: A string or ``None``.
+        """
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        """
+        Set this SGCutClip name.
+
+        :param value: A string or ``None``.
+        """
+        self._name = value
+
+    @property
     def metadata(self):
         """
         Return the metadata of the linked Clip.
@@ -129,7 +154,12 @@ class SGCutClip(object):
         :param value: :class:`ClipGroup` instance.
         """
         self._clip_group = value
-        if not self._clip_group:
+        if self._clip_group is not None:  # Can't use just if self._clip_group: empty groups evaluate to False
+            self.shot_name = self._clip_group.name
+            # Note: the Shot name might be modified by setting the SG Shot if
+            # it is set and has a code key.
+            self.sg_shot = self._clip_group.sg_shot
+        else:
             # Recompute values only if we don't have a clip group.
             # Otherwise we assume that values are maintained by the group.
             self.compute_head_tail_values()
@@ -154,7 +184,7 @@ class SGCutClip(object):
         :param value: A SG Shot dictionary.
         :raises ValueError: For invalid values.
         """
-        if self._clip_group:
+        if self._clip_group is not None:  # Can't use just if self._clip_group: empty groups evaluate to False
             if value:
                 if (
                     not self._clip_group.sg_shot
@@ -171,13 +201,20 @@ class SGCutClip(object):
 
         self._sg_shot = value
         if self._sg_shot and self._sg_shot.get("code"):
-            self._shot_name = self._sg_shot["code"]
-        else:
-            self._shot_name = compute_clip_shot_name(self._clip)
+            self.shot_name = self._sg_shot["code"]
         # If the Clip is part of a group, assume that the values are set by
         # the group
-        if not self._clip_group:
+        if self._clip_group is None:  # Can't use just if self._clip_group: empty groups evaluate to False
             self.compute_head_tail_values()
+
+    @property
+    def sg_cut_item(self):
+        """
+        Return the SG CutItem associated with this Clip, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        return self.metadata.get("sg")
 
     @property
     def cut_item_name(self):
@@ -277,11 +314,20 @@ class SGCutClip(object):
     @property
     def shot_name(self):
         """
-        Return the name of the shot.
+        Return the name of the Shot.
 
-        :returns: A str or ``None``.
+        :returns: A string or ``None``.
         """
         return self._shot_name
+
+    @shot_name.setter
+    def shot_name(self, value):
+        """
+        Set the name of the Shot.
+
+        :param value: A string or ``None``.
+        """
+        self._shot_name = value
 
     @property
     def visible_duration(self):
@@ -632,12 +678,60 @@ class SGCutClip(object):
         :returns: An integer or ``None``.
         """
         if self.sg_shot:
-            # If we have SG Shot we use its head in value if it is set.
+            # If we have SG Shot we use its tail out value if it is set.
             config = SGShotFieldsConfig(
                 None, None
             )
             tail_out_field = config.tail_out
             return self.sg_shot.get(tail_out_field)
+        return None
+
+    @property
+    def sg_shot_cut_in(self):
+        """
+        Return the cut in from the SG Shot, if any.
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its cut in value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            cut_in_field = config.cut_in
+            return self.sg_shot.get(cut_in_field)
+        return None
+
+    @property
+    def sg_shot_cut_out(self):
+        """
+        Return the cut out from the SG Shot, if any.
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its cut out value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            cut_out_field = config.cut_out
+            return self.sg_shot.get(cut_out_field)
+        return None
+
+    @property
+    def sg_shot_cut_order(self):
+        """
+        Return the cut order from the SG Shot, if any.
+
+        :returns: An integer or None
+        """
+        if self.sg_shot:
+            # If we have SG Shot we use its cut out value if it is set.
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            cut_order_field = config.cut_order
+            return self.sg_shot.get(cut_order_field)
         return None
 
     @property
@@ -674,6 +768,7 @@ class SGCutClip(object):
             head_duration = RationalTime(sg_settings.default_head_duration, self._frame_rate)
             if sg_settings.timecode_in_to_frame_mapping_mode == _TC2FRAME_AUTOMATIC_MODE:
                 head_in = RationalTime(sg_settings.default_head_in, self._frame_rate)
+                head_duration = cut_in - head_in
             else:
                 head_in = cut_in - head_duration
         else:
@@ -704,7 +799,7 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime`.
         """
-        sg_cut_item = self.metadata.get("sg")
+        sg_cut_item = self.sg_cut_item
         if sg_cut_item:
             cut_item_in = sg_cut_item.get("cut_item_in")
             cut_item_source_in = sg_cut_item.get("timecode_cut_item_in_text")
@@ -723,7 +818,6 @@ class SGCutClip(object):
         if timecode_in_to_frame_mapping_mode == _TC2FRAME_RELATIVE_MODE:
             tc_base, frame = sg_settings.timecode_in_to_frame_relative_mapping
             tc_base = otio.opentime.from_timecode(tc_base, self._frame_rate)
-            logger.debug("Using mapping %s %s" % (tc_base, frame))
             return self.source_in - tc_base + RationalTime(frame, self._frame_rate)
 
         # Automatic mode
@@ -754,3 +848,53 @@ class SGCutClip(object):
         if sg_version:
             return sg_version["code"]
         return None
+
+    @property
+    def source_info(self):
+        """
+        Return a string representation of the source for this :class:`CutClip`.
+
+        :returns: A string.
+        """
+        sg_cut_item = self.sg_cut_item
+        if sg_cut_item:
+            fps = sg_cut_item["cut.Cut.fps"]
+            tc_in = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_in_text"], fps).to_frames()
+            tc_out = otio.opentime.from_timecode(sg_cut_item["timecode_cut_item_out_text"], fps).to_frames()
+            return (
+                "Cut Order %s, TC in %s, TC out %s, Cut In %s, Cut Out %s, Cut Duration %s" % (
+                    sg_cut_item["cut_order"],
+                    tc_in,
+                    tc_out,
+                    sg_cut_item["cut_item_in"],
+                    sg_cut_item["cut_item_out"],
+                    sg_cut_item["cut_item_duration"]
+                )
+            )
+
+        if self._clip.metadata.get("cmx_3600"):
+            return "%03d %s %s %s %s %s %s %s" % (
+                self.index,
+                self.name,
+                "V",
+                "C",
+                self.source_in.to_timecode(),
+                self.source_out.to_timecode(),
+                self.record_in.to_timecode(),
+                self.record_out.to_timecode(),
+            )
+        # TODO: refine to something readable and useful
+        return "%s" % self._clip
+
+    def compute_clip_version_name(self):
+        """
+        Compute a Version name for this clip.
+
+        :returns: A string.
+        """
+        return compute_clip_version_name(
+            self,
+            self.index,
+            shot_name=self.shot_name,
+            cut_item_name=self.cut_item_name,
+        )

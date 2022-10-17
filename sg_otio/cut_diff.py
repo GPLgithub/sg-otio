@@ -27,13 +27,64 @@ class SGCutDiff(SGCutClip):
         If `as_omitted` is set to ``True``, this instance represents and old
         Clip without any counterpart in the new Cut.
         """
-        super(SGCutDiff, self).__init__(*args, **kwargs)
+        self._as_omitted = as_omitted
         self._old_clip = None
         self._repeated = repeated
         self._diff_type = _DIFF_TYPES.NO_CHANGE
-        self._as_omitted = as_omitted
         self._cut_changes_reasons = []
+        super(SGCutDiff, self).__init__(*args, **kwargs)
+        # Omitted clips should be linked to SG Cut Items.
+        if self._as_omitted and not self.sg_cut_item:
+            raise ValueError("Omitted Clips need to be linked to a SG CutItem")
         self._check_and_set_changes()
+
+    @SGCutClip.group.setter
+    def group(self, value):
+        """
+        Set the :class:`ClipGroup` this Clip is in.
+
+        Override base implementation setter to update the diff type if the group is set.
+
+        :param value: :class:`ClipGroup` instance.
+        """
+        old = self.group
+        # See: https://docs.python.org/2/library/functions.html#property
+        SGCutClip.group.fset(self, value)
+        if old != value:
+            self._check_and_set_changes()
+
+    @SGCutClip.sg_shot.setter
+    def sg_shot(self, value):
+        """
+        Set the SG Shot value associated with this Clip.
+
+        Recompute head_in, head_duration and tail_duration,
+        which depend on the SG Shot.
+
+        :param value: A SG Shot dictionary.
+        :raises ValueError: For invalid values.
+        """
+        old = self.sg_shot
+        # See: https://docs.python.org/2/library/functions.html#property
+        SGCutClip.sg_shot.fset(self, value)
+        if old != value:
+            self._check_and_set_changes()
+
+    @property
+    def sg_version(self):
+        """
+        Return the SG Version associated with this SGCutDiff, if any.
+
+        :returns: A dictionary or ``None``.
+        """
+        # Check the current clip
+        sg_version = super(SGCutDiff, self).sg_version
+        if sg_version:
+            return sg_version
+        # Check the old clip
+        if self._old_clip:
+            return self._old_clip.sg_version
+        return None
 
     @property
     def current_clip(self):
@@ -69,13 +120,18 @@ class SGCutDiff(SGCutClip):
             raise ValueError(
                 "Setting the old clip for an omitted SGCutDiff is not allowed."
             )
-        if self.sg_shot:
-            if value and value.sg_shot and value.sg_shot["id"] != self.sg_shot["id"]:
+        if value:
+            if not value.sg_cut_item:
                 raise ValueError(
-                    "Shot mismatch between current clip and old one %s vs %s" % (
-                        self.sg_shot["id"], value.sg_shot["id"]
-                    )
+                    "Old clips for SGCutDiff must be coming from a SG Cut Item"
                 )
+            if self.sg_shot:
+                if value.sg_shot and value.sg_shot["id"] != self.sg_shot["id"]:
+                    raise ValueError(
+                        "Shot mismatch between current clip and old one %s vs %s" % (
+                            self.sg_shot["id"], value.sg_shot["id"]
+                        )
+                    )
         self._old_clip = value
         self._check_and_set_changes()
 
@@ -114,10 +170,9 @@ class SGCutDiff(SGCutClip):
 
         :returns: An integer or ``None``.
         """
-        if self._as_omitted:
-            return self.index
-        if self._old_clip:
-            return self._old_clip.index
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.index
         return None
 
     @property
@@ -127,10 +182,33 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        if self._as_omitted:
-            return self.visible_duration
-        if self._old_clip:
-            return self._old_clip.visible_duration
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.visible_duration
+        return None
+
+    @property
+    def old_head_duration(self):
+        """
+        Return the head duration for the old Clip, or None.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.head_duration
+        return None
+
+    @property
+    def old_tail_duration(self):
+        """
+        Return the tail duration for the old Clip, or None.
+
+        :returns: A :class:`RationalTime` instance or ``None``.
+        """
+        old_clip = self.old_clip
+        if old_clip:
+            return old_clip.tail_duration
         return None
 
     @property
@@ -310,6 +388,43 @@ class SGCutDiff(SGCutClip):
             self._repeated = value
             # Cut in/out values are affected by repeated changes
             self._check_and_set_changes()
+
+    def summary(self):
+        """
+        Return a summary for this SGCutDiff instance as a tuple with :
+        Shot details, Cut item details, Version details and New cut details
+
+        :returns: A tuple with four entries, where each entry is a potentially empty string.
+        """
+        shot_details = ""
+        if self.sg_shot:
+            shot_details = (
+                "Name : %s, Status : %s, Head In : %s, Cut In : %s, Cut Out : %s, "
+                "Tail Out : %s, Cut Order : %s" % (
+                    self.sg_shot["code"],
+                    self.sg_shot_status,
+                    self.sg_shot_head_in,
+                    self.sg_shot_cut_in,
+                    self.sg_shot_cut_out,
+                    self.sg_shot_tail_out,
+                    self.sg_shot_cut_order,
+                )
+            )
+        old_details = ""
+        if self.old_clip:
+            old_details = self.old_clip.source_info
+        version_details = ""
+        sg_version = self.sg_version
+        if sg_version:
+            version_details = "%s, link %s %s" % (
+                sg_version["code"],
+                sg_version["entity"]["type"] if sg_version["entity"] else "None",
+                sg_version["entity.Shot.code"] if sg_version["entity.Shot.code"] else "",
+            )
+        new_details = ""
+        if not self._as_omitted:
+            new_details = self.source_info
+        return shot_details, old_details, version_details, new_details
 
     def _check_and_set_changes(self):
         """
