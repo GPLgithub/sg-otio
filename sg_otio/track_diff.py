@@ -665,9 +665,11 @@ class SGTrackDiff(object):
         # Force a lowercase key to make Shot names case-insensitive. Shot names
         # we retrieve from editorial files may be uppercase, but actual SG Shots may be
         # lowercase.
-        # We might not have a valid Shot name if we have an edit without any
-        # Shot name or Version name. To avoid considering all these entries
-        # as repeated Shots we forge a key based on the cut order.
+
+        # Note: previous implementation used special `"_no_shot_name_%s" % index` Shot keys
+        # if the Shot name was not set to avoid considering repeated all entries not linked
+        # to a Shot. This is now covered by not setting the repeated flag on groups with an
+        # empty name.
         shot_key = shot_name.lower() if shot_name else shot_name  # else "_no_shot_name_%s" % index
 
         repeated = False
