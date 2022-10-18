@@ -9,6 +9,7 @@ from .constants import _PUBLISHED_FILE_FIELDS, _VERSION_FIELDS
 from .constants import _CUT_ITEM_FIELDS, _CUT_FIELDS
 
 from .utils import get_platform_name, compute_clip_version_name
+from .sg_settings import SGShotFieldsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +59,24 @@ class SGCutReader(object):
                 -start_time,
                 duration,
             )
-
         timeline.tracks.append(track)
+
+        # Retrieve all the Shot fields we need to retrieve from CutItems
+        linked_entity_type = None
+        if cut["entity"]:
+            linked_entity_type = cut["entity"]["type"]
+        sg_shot_fields = SGShotFieldsConfig(
+            self._sg, linked_entity_type
+        ).all
+        # Shot fields as reachable from the CutItems
+        shot_cut_item_fields = ["shot.Shot.%s" % field for field in sg_shot_fields]
+
         cut_items = self._sg.find(
             "CutItem",
             [["cut", "is", cut]],
             # TODO: respeed and effects are just checkboxes on SG, and some information added to the description,
             #       so we can't really retrieve them and include them in the clips.
-            _CUT_ITEM_FIELDS,
+            _CUT_ITEM_FIELDS + shot_cut_item_fields,
             order=[{"field_name": "cut_order", "direction": "asc"}]
         )
         if not cut_items:
@@ -129,6 +140,7 @@ class SGCutReader(object):
                     raise ValueError(
                         "No edit_in nor timecode_edit_in_text found for cut_item %s" % cut_item
                     )
+                # Check if there's an overlap of clips and flag it.
                 if prev_edit_out > edit_in:
                     raise ValueError("Overlapping cut items detected: %s ends at %s but %s starts at %s" % (
                         prev_cut_item["code"], prev_edit_out.to_timecode(), cut_item["code"], edit_in.to_timecode()
@@ -144,9 +156,10 @@ class SGCutReader(object):
                         duration=edit_in - prev_edit_out
                     )
                     track.append(gap)
-            # Check if there's an overlap of clips and flag it.
+            # Populate Shot values directly on the "shot" key
             if cut_item["shot"]:
-                cut_item["shot"]["code"] = cut_item["shot.Shot.code"]
+                for field in sg_shot_fields:
+                    cut_item["shot"][field] = cut_item["shot.Shot.%s" % field]
             clip = otio.schema.Clip()
             # Not sure if there is a better way to allow writing to EDL and getting the right
             # Reel name without having this dependency to the CMX adapter.
