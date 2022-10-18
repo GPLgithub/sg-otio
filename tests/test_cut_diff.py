@@ -1087,19 +1087,12 @@ class TestCutDiff(SGBaseTest):
         new_track = timeline_from_edl.tracks[0]
         # Check that using custom Shot cut fields is handled
         # Validation should fail
-        # Handle different names between Py 2.7 and 3
-        if hasattr(self, "assertRaisesRegex"):
-            with self.assertRaisesRegex(
-                ValueError,
-                "Following SG Shot fields are missing",
-            ):
-                self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
-        else:
-            with self.assertRaisesRegexp(
-                ValueError,
-                "Following SG Shot fields are missing",
-            ):
-                self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Following SG Shot fields are missing",
+        ):
+            self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
         # Bypass validation and check the fields are passed through
         with mock.patch.object(SGShotFieldsConfig, "validate_shot_cut_fields_prefix"):
             track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
