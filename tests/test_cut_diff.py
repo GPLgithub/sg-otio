@@ -939,7 +939,12 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.reasons, ["Head extended 1 frs", "Tail extended 1 frs"])
 
         # Check rescan are correctly detected.
+        # So far values coming from the Shot should be None
         self.assertIsNone(cut_diff.sg_shot_head_in)
+        self.assertIsNone(cut_diff.old_head_duration)
+        self.assertIsNone(cut_diff.sg_shot_tail_out)
+        self.assertIsNone(cut_diff.old_tail_duration)
+
         sg_shot["sg_head_in"] = 1001
         sg_shot["sg_tail_out"] = 1026
         self.assertEqual(cut_diff.sg_shot_head_in, 1001)
@@ -948,6 +953,9 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.head_in.to_frames(), 1001)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1010)
         self.assertEqual(cut_diff.head_duration.to_frames(), 9)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         # Within handles
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
 
@@ -961,6 +969,9 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.sg_shot_head_in, 1001)
         self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
         self.assertEqual(cut_diff.head_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
         # Same cut in, cut out after registered handles.
@@ -975,6 +986,9 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.cut_in.to_frames(), 1009)
         self.assertEqual(cut_diff.cut_out.to_frames(), 1009 + 19 - 1)
         self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
         # Both cut in and cut out out of handle margins.
@@ -992,6 +1006,9 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
         self.assertEqual(cut_diff.cut_out.to_frames(), 1000 + 28 - 1)
         self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
 
     def test_report(self):
@@ -1087,19 +1104,12 @@ class TestCutDiff(SGBaseTest):
         new_track = timeline_from_edl.tracks[0]
         # Check that using custom Shot cut fields is handled
         # Validation should fail
-        # Handle different names between Py 2.7 and 3
-        if hasattr(self, "assertRaisesRegex"):
-            with self.assertRaisesRegex(
-                ValueError,
-                "Following SG Shot fields are missing",
-            ):
-                self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
-        else:
-            with self.assertRaisesRegexp(
-                ValueError,
-                "Following SG Shot fields are missing",
-            ):
-                self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            "Following SG Shot fields are missing",
+        ):
+            self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)
         # Bypass validation and check the fields are passed through
         with mock.patch.object(SGShotFieldsConfig, "validate_shot_cut_fields_prefix"):
             track_diff = self._get_track_diff(new_track, sg_track, self._mock_compute_clip_shot_name)

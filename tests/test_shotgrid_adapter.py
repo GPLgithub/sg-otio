@@ -13,7 +13,7 @@ import shotgun_api3
 from .python.sg_test import SGBaseTest
 from sg_otio.constants import _CUT_FIELDS, _CUT_ITEM_FIELDS
 from sg_otio.media_cutter import MediaCutter
-from sg_otio.sg_settings import SGSettings
+from sg_otio.sg_settings import SGSettings, SGShotFieldsConfig
 from sg_otio.utils import compute_clip_version_name, get_platform_name
 from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.cut_clip import SGCutClip
@@ -738,6 +738,56 @@ class ShotgridAdapterTest(SGBaseTest):
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
             clip = sg_track[2]
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+
+    def test_read_shot_fields(self):
+        """
+        Test that we get all the Shot fields we need when reading Cuts from SG.
+        """
+        # Test with default settings
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            timeline = otio.adapters.read_from_file(
+                self._SG_CUT_URL,
+                "ShotGrid",
+            )
+        track = timeline.tracks[0]
+        link = track.metadata["sg"]["entity"]
+        fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
+        for clip in track:
+            sg_meta = clip.metadata["sg"]
+            sg_shot = sg_meta["shot"]
+            for field in fields_conf.all:
+                self.assertTrue(field in sg_shot)
+        # Test with smart fields
+        SGSettings().use_smart_fields = True
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            timeline = otio.adapters.read_from_file(
+                self._SG_CUT_URL,
+                "ShotGrid",
+            )
+        track = timeline.tracks[0]
+        link = track.metadata["sg"]["entity"]
+        fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
+        for clip in track:
+            sg_meta = clip.metadata["sg"]
+            sg_shot = sg_meta["shot"]
+            for field in fields_conf.all:
+                self.assertTrue(field in sg_shot)
+        # Test with alternate fields
+        SGSettings().shot_cut_fields_prefix = "myprecious"
+        with mock.patch.object(SGShotFieldsConfig, "validate_shot_cut_fields_prefix"):
+            with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+                timeline = otio.adapters.read_from_file(
+                    self._SG_CUT_URL,
+                    "ShotGrid",
+                )
+            track = timeline.tracks[0]
+            link = track.metadata["sg"]["entity"]
+            fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
+        for clip in track:
+            sg_meta = clip.metadata["sg"]
+            sg_shot = sg_meta["shot"]
+            for field in fields_conf.all:
+                self.assertTrue(field in sg_shot)
 
 
 if __name__ == "__main__":

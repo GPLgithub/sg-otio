@@ -194,10 +194,13 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        old_clip = self.old_clip
-        if old_clip:
-            return old_clip.head_duration
-        return None
+        sg_shot_head_in = self.sg_shot_head_in
+        if sg_shot_head_in is None:
+            return None
+        old_cut_in = self.old_cut_in
+        if old_cut_in is None:
+            return None
+        return old_cut_in - RationalTime(sg_shot_head_in, self._frame_rate)
 
     @property
     def old_tail_duration(self):
@@ -206,10 +209,13 @@ class SGCutDiff(SGCutClip):
 
         :returns: A :class:`RationalTime` instance or ``None``.
         """
-        old_clip = self.old_clip
-        if old_clip:
-            return old_clip.tail_duration
-        return None
+        sg_shot_tail_out = self.sg_shot_tail_out
+        if sg_shot_tail_out is None:
+            return None
+        old_cut_out = self.old_cut_out
+        if old_cut_out is None:
+            return None
+        return RationalTime(sg_shot_tail_out, self._frame_rate) - old_cut_out
 
     @property
     def cut_in(self):
