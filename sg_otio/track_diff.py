@@ -294,23 +294,29 @@ class SGTrackDiff(object):
     """
     A class to compare a track to one read from SG.
     """
-    def __init__(self, sg, sg_project, new_track, old_track=None):
+    def __init__(self, sg, sg_project, new_track, old_track=None, sg_entity=None):
         """
-        Instantiate a new SGTrackDiff for the given SG Project.
+        Instantiate a new SGTrackDiff for the given SG Project and SG Entity.
 
         If an old track is provided it must have been read from SG with `sg`
         metadata populated for each of its Clips.
+
+        If an SG Entity is explicitly defined, only SG Shots linked to this Entity
+        will be considered. If it is not explicitly defined, one will be retrieved
+        from the SG Cut linked the to the tracks, if any.
 
         :param sg: A connected SG handle.
         :param sg_project: A SG Project as a dictionary.
         :param new_track: A :class:`opentimelineio.schema.Track` instance.
         :param old_track: An optional :class:`opentimelineio.schema.Track` instance
                           read from SG.
+        :param sg_entity: An optional SG Entity dictionary to explicitly define
+                          the SG Entity for which the difference is made.
         :raises ValueError: For invalid old tracks.
         """
         self._sg = sg
         self._sg_project = sg_project
-        self._sg_entity = None
+        self._sg_entity = sg_entity
         self._sg_shot_link_field_name = None
         self._counts = defaultdict(int)
         self._active_count = 0
@@ -327,7 +333,46 @@ class SGTrackDiff(object):
 
         # Retrieve the SG Entity we should use for the comparison
         # and do some sanity check
-        self._retrieve_sg_link_from_sg_cuts()
+        if self._sg_entity:
+            if self._sg_entity["project"]["id"] != self._sg_project["id"]:
+                raise ValueError(
+                    "Invalid explicit SG Entity %s not linked to SG Project %s" % (
+                        self._sg_entity,
+                        self._sg_project
+                    )
+                )
+
+        existing_sg_link = self._retrieve_sg_link_from_sg_cuts()
+        logger.warning("Existing link %s" % existing_sg_link)
+        if not self._sg_entity:
+            self._sg_entity = existing_sg_link
+        elif existing_sg_link and existing_sg_link["type"] != "Project":
+            # We only allow refining existing link from a Project to something
+            # more specific.
+            if (
+                self._sg_entity["type"] != existing_sg_link["type"]
+                or self._sg_entity["id"] != existing_sg_link["id"]
+            ):
+                raise ValueError(
+                    "Invalid explicit SG Entity %s not matching existing link %s" % (
+                        self._sg_entity,
+                        existing_sg_link,
+                    )
+                )
+        # Now check what we got
+        if not self._sg_entity:
+            # Fallback on using the project
+            self._sg_entity = self._sg_project
+            self._sg_shot_link_field_name = "project"
+        else:
+            self._sg_shot_link_field_name = self._get_shot_link_field(
+                self._sg_entity["type"]
+            )
+            if not self._sg_shot_link_field_name:
+                raise ValueError(
+                    "Unable to retrieve a SG field to link Shots to %s" % self._sg_entity["type"]
+                )
+        logger.debug("Cut comparison performed against %s" % self._sg_entity)
 
         # Retrieve SG Entities from the old_track
         sg_shot_ids = []
@@ -967,6 +1012,7 @@ class SGTrackDiff(object):
         The SG Entity is retrieved from the tracks being compared, if they are linked to SG Cuts.
         The current SG Project is used if none can be retrieved.
 
+        :returns: A SG Entity dictionary or ``None``.
         :raises ValueError: For invalid retrieved SG Entities.
         """
 
@@ -1002,28 +1048,14 @@ class SGTrackDiff(object):
                     new_track_sg_link["type"] == old_track_sg_link["type"]
                     and new_track_sg_link["id"] == old_track_sg_link["id"]
                 ):
-                    self._sg_entity = new_track_sg_link
+                    return new_track_sg_link
             else:
                 # Just use the old track link, if any
-                self._sg_entity = old_track_sg_link
+                return old_track_sg_link
         else:  # Only a new track
             # Just use the new track link, if any
-            self._sg_entity = new_track_sg_link
-
-        if not self._sg_entity:
-            # Fallback on using the project
-            self._sg_entity = self._sg_project
-            self._sg_shot_link_field_name = "project"
-        else:
-            self._sg_shot_link_field_name = self._get_shot_link_field(
-                self._sg_entity["type"]
-            )
-            if not self._sg_shot_link_field_name:
-                raise ValueError(
-                    "Unable to retrieve a SG field to link Shots to %s" % self._sg_entity["type"]
-                )
-
-        logger.debug("Cut comparison performed against %s" % self._sg_entity)
+            return new_track_sg_link
+        return None
 
     def _get_shot_link_field(self, sg_entity_type):
         """
