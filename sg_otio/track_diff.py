@@ -351,12 +351,13 @@ class SGTrackDiff(object):
                 )
 
         existing_sg_link = self._retrieve_sg_link_from_sg_cuts()
-        logger.warning("Existing link %s" % existing_sg_link)
         if not self._sg_entity:
             self._sg_entity = existing_sg_link
         elif existing_sg_link and existing_sg_link["type"] != "Project":
             # We only allow refining existing link from a Project to something
             # more specific.
+            # Arguably we could allow as well to generalise a Cut comparison
+            # to the Project.
             if (
                 self._sg_entity["type"] != existing_sg_link["type"]
                 or self._sg_entity["id"] != existing_sg_link["id"]
