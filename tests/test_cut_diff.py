@@ -1317,11 +1317,21 @@ class TestCutDiff(SGBaseTest):
         )
         timeline_from_edl = otio.adapters.read_from_file(path)
         edl_track = timeline_from_edl.tracks[0]
+        # No previous Cut information, no explicit SG Entity
+        # the Project should be used.
         track_diff = self._get_track_diff(
             edl_track,
             None,
             self._mock_compute_clip_shot_name,
             sg_entity=None
+        )
+        self.assertEqual(track_diff.sg_link, self.mock_project)
+        # We can explicitly set the Project if we want
+        track_diff = self._get_track_diff(
+            edl_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=self.mock_project
         )
         self.assertEqual(track_diff.sg_link, self.mock_project)
         track_diff = self._get_track_diff(
@@ -1369,6 +1379,18 @@ class TestCutDiff(SGBaseTest):
                 None,
                 self._mock_compute_clip_shot_name,
                 sg_entity=self.sg_sequences[1],
+            )
+        # Using an unexpected SG Project should raise an Exception
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            r"Invalid explicit SG Entity .* different from SG Project"
+        ):
+            track_diff = self._get_track_diff(
+                sg_track,
+                None,
+                self._mock_compute_clip_shot_name,
+                sg_entity={"type": "Project", "id": 1234456},
             )
         # The SG link should be retrieved from the SG Cut track
         track_diff = self._get_track_diff(

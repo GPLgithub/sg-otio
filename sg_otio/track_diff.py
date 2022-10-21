@@ -334,7 +334,15 @@ class SGTrackDiff(object):
         # Retrieve the SG Entity we should use for the comparison
         # and do some sanity check
         if self._sg_entity:
-            if self._sg_entity["project"]["id"] != self._sg_project["id"]:
+            if self._sg_entity["type"] == "Project":
+                if self._sg_entity["id"] != self._sg_project["id"]:
+                    raise ValueError(
+                        "Invalid explicit SG Entity %s different from SG Project %s" % (
+                            self._sg_entity,
+                            self._sg_project
+                        )
+                    )
+            elif self._sg_entity["project"]["id"] != self._sg_project["id"]:
                 raise ValueError(
                     "Invalid explicit SG Entity %s not linked to SG Project %s" % (
                         self._sg_entity,
