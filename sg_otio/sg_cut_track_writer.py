@@ -153,14 +153,14 @@ class SGCutTrackWriter(object):
                     shot_name = sg_shot["code"]
                     clips_by_shots[shot_name].sg_shot = sg_shot
 
-        sg_cut_version = None
-        sg_cut_pf = None
-        if input_media:
-            sg_cut_version, sg_cut_pf = self._create_input_media_version(
-                input_media, video_track.name, sg_project, sg_linked_entity, sg_user
-            )
-        sg_cut = self._write_cut(
-            video_track, sg_project, sg_cut, sg_linked_entity, sg_cut_version, sg_user, description
+        sg_cut, sg_cut_version, sg_cut_pf = self.write_cut(
+            video_track,
+            sg_project,
+            sg_cut=sg_cut,
+            sg_linked_entity=sg_linked_entity,
+            cut_media=input_media,
+            sg_user=sg_user,
+            description=description
         )
         # Upload input file to the Cut record and keep going if it fails.
         if input_file:
@@ -178,7 +178,7 @@ class SGCutTrackWriter(object):
                     )
                 )
 
-        sg_shots = self._write_shots(
+        sg_shots = self.write_shots(
             clips_by_shots,
             sg_project,
             sg_linked_entity,
@@ -194,7 +194,7 @@ class SGCutTrackWriter(object):
                 sg_cut_pf,
                 sg_user
             )
-        self._write_cut_items(
+        self.write_cut_items(
             clips_by_shots,
             sg_project,
             sg_cut,
@@ -203,12 +203,51 @@ class SGCutTrackWriter(object):
             sg_user
         )
 
+    def write_cut(
+        self,
+        video_track,
+        sg_project,
+        sg_cut=None,
+        sg_linked_entity=None,
+        sg_user=None,
+        cut_media=None,
+        description="",
+    ):
+        """
+        Gather information about a SG Cut given a video track, and create or update
+        the corresponding Cut in SG.
+
+        Add metadata to the OTIO video Track about the SG Cut.
+
+        :param video_track: An OTIO Video Track.
+        :param sg_project: The SG Project to write the Cut to.
+        :param sg_cut: If provided, the SG Cut to update.
+        :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
+        :param sg_version: If provided, the SG Version to link to the Cut.
+        :param sg_user: An optional user to provide when creating/updating Entities in SG.
+        :param input_media: The path to the input media.
+        :param str description: An optional description for the Cut.
+        :returns: A tuple with the SG Cut entity created, a SG Version and a PublishedFile
+                  set to ``None`` if no cut media was provided.
+        """
+
+        sg_cut_version = None
+        sg_cut_pf = None
+        if cut_media:
+            sg_cut_version, sg_cut_pf = self._create_input_media_version(
+                cut_media, video_track.name, sg_project, sg_linked_entity, sg_user
+            )
+        sg_cut = self._write_cut(
+            video_track, sg_project, sg_cut, sg_linked_entity, sg_cut_version, sg_user, description
+        )
+        return sg_cut, sg_cut_version, sg_cut_pf
+
     def _write_cut(
         self,
         video_track,
         sg_project,
-        sg_cut,
-        sg_linked_entity,
+        sg_cut=None,
+        sg_linked_entity=None,
         sg_version=None,
         sg_user=None,
         description=""
@@ -305,7 +344,7 @@ class SGCutTrackWriter(object):
             cut_payload["description"] = description
         return cut_payload
 
-    def _write_cut_items(self, clips_by_shots, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user):
+    def write_cut_items(self, clips_by_shots, sg_project, sg_cut, sg_linked_entity, sg_shots, sg_user):
         """
         Create or update Cut Items in SG for the given clips.
 
@@ -741,7 +780,7 @@ class SGCutTrackWriter(object):
             media_uploader.upload_versions()
         return [vdata["version"] for vdata in versions_data.values()]
 
-    def _write_shots(self, clips_by_shots, sg_project, sg_linked_entity, sg_user=None, update_shots=True):
+    def write_shots(self, clips_by_shots, sg_project, sg_linked_entity, sg_user=None, update_shots=True):
         """
         Create or update SG Shots for the given clips.
 
