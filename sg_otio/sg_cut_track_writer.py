@@ -805,7 +805,7 @@ class SGCutTrackWriter(object):
                     clip_group,
                     sg_project,
                     sg_linked_entity,
-                    sg_user
+                    sg_user,
                 )
                 sg_batch_data.append({
                     "request_type": "create",
@@ -866,9 +866,16 @@ class SGCutTrackWriter(object):
             if omit_status:
                 return {
                     "code": clip_group.name,
-                    "sg_status_list": omit_status
+                    sfg.status: omit_status
                 }
             return None
+
+        # Set the status even if we don't change it to get it
+        # back in SG batch result.
+        if clip_group.sg_shot:
+            shot_status = clip_group.sg_shot.get(sfg.status)
+        else:
+            shot_status = None
 
         shot_payload = {
             "project": sg_project,
@@ -878,9 +885,10 @@ class SGCutTrackWriter(object):
             sfg.cut_out: clip_group.cut_out.to_frames(),
             sfg.tail_out: clip_group.tail_out.to_frames(),
             sfg.cut_duration: clip_group.duration.to_frames(),
-            sfg.cut_order: clip_group.index
+            sfg.cut_order: clip_group.index,
+            sfg.status: shot_status,
         }
-        if sg_user:
+        if sg_user and not clip_group.sg_shot:  # Only settable on create
             shot_payload["created_by"] = sg_user
             shot_payload["updated_by"] = sg_user
         if sfg.working_duration:

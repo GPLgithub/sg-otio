@@ -746,7 +746,7 @@ class SGCutClip(object):
                 None, None
             )
             status_field = config.status
-            return self.sg_shot[status_field]
+            return self.sg_shot.get(status_field)
         return None
 
     def compute_head_tail_values(self):
