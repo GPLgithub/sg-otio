@@ -177,7 +177,7 @@ class SGCutDiffGroup(ClipGroup):
         for cut_diff in self:
             if cut_diff.diff_type == _DIFF_TYPES.OMITTED:
                 return True
-            elif cut_diff.diff_type == _DIFF_TYPES.OMITTED_IN_CUT:
+            elif cut_diff.diff_type != _DIFF_TYPES.OMITTED_IN_CUT:
                 return False
         # If we reached that point it's because all entries are omitted in cut.
         return True
