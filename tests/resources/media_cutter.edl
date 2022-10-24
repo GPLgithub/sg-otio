@@ -1,0 +1,14 @@
+TITLE: Media cutter example
+000001 green_tape     V     C        00:00:00:00 00:00:00:16 01:00:00:00 01:00:00:16
+* FROM CLIP NAME: green_v01.mov
+000002 pink_tape      V     C        00:00:00:05 00:00:00:11 01:00:00:16 01:00:00:22
+* FROM CLIP NAME: purple_v01.mov
+000003 green_tape     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
+* FROM CLIP NAME: green_v01.mov
+000004 red_tape       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
+* FROM CLIP NAME: red_v01.mov
+000005 blue_tape      V     C        00:00:00:00 00:00:02:00 01:00:01:21 01:00:03:21
+* FROM CLIP NAME: blue_v01.mov
+000006 AAR0530        V     C        00:00:00:00 00:00:00:13 01:00:03:21 01:00:04:10
+* FROM CLIP NAME: red_v01.mov
+
