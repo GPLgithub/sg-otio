@@ -142,6 +142,13 @@ class ShotgridAdapterTest(SGBaseTest):
             self._SESSION_TOKEN
         )
 
+    @staticmethod
+    def _mock_compute_clip_shot_name(clip):
+        """
+        Override compute clip shot name to get a unique shot name per clip.
+        """
+        return "shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
+
     def test_read(self):
         """
         Test reading an SG Cut.
@@ -524,7 +531,7 @@ class ShotgridAdapterTest(SGBaseTest):
         # The default settings create Versions for each CutItem, e.g. settings.create_missing_versions = True
         settings.reset_to_defaults()
         # The default template uses UUID, let's test with a more simple template
-        settings.version_names_template = "{CLIP_NAME}_{CLIP_INDEX:04d}"
+        settings.version_names_template = "from_edl_{SHOT}_{CLIP_NAME}_{CLIP_INDEX:04d}"
         # Create a cut with no Cut Items
         mock_cut = {
             "type": "Cut",
@@ -565,7 +572,26 @@ class ShotgridAdapterTest(SGBaseTest):
             media_cutter = MediaCutter(timeline, edl_movie)
             media_cutter.cut_media_for_clips()
             with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-                otio.adapters.write_to_file(timeline, mock_cut_url, "ShotGrid", input_media=edl_movie)
+                with mock.patch("sg_otio.clip_group.compute_clip_shot_name", wraps=self._mock_compute_clip_shot_name):
+                    otio.adapters.write_to_file(timeline, mock_cut_url, "ShotGrid", input_media=edl_movie)
+                # We should now have 6 new Shots
+                sg_shots = self.mock_sg.find(
+                    "Shot",
+                    [["code", "starts_with", "shot_"]],
+                    ["code"],
+                )
+                self.assertEqual(len(sg_shots), 6)
+                # We should have Versions created linked to Shots
+                sg_versions = self.mock_sg.find(
+                    "Version",
+                    [
+                        ["code", "starts_with", "from_edl_"],
+                        ["entity", "type_is", "Shot"]
+                    ],
+                    ["code", "entity"]
+                )
+                self.assertEqual(len(sg_versions), 6)
+
                 # Let's read it from SG.
                 timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
 
@@ -604,7 +630,7 @@ class ShotgridAdapterTest(SGBaseTest):
         # The default settings create Versions for each CutItem, e.g. settings.create_missing_versions = True
         settings.reset_to_defaults()
         # The default template uses UUID, let's test with a more simple template
-        settings.version_names_template = "{CLIP_NAME}_{CLIP_INDEX:04d}"
+        settings.version_names_template = "from_premiere_{SHOT}_{CLIP_NAME}_{CLIP_INDEX:04d}"
         # The clip used in the Premiere xml is from frame 0 to frame 48,
         # but only frames 5 to 25 are in the track.
         # Note that we don't use media cutter, the media ref comes straight from Premiere.
@@ -631,7 +657,25 @@ class ShotgridAdapterTest(SGBaseTest):
         self.add_to_sg_mock_db(mock_cut)
         try:
             with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
-                otio.adapters.write_to_file(timeline, mock_cut_url, "ShotGrid")
+                with mock.patch("sg_otio.clip_group.compute_clip_shot_name", wraps=self._mock_compute_clip_shot_name):
+                    otio.adapters.write_to_file(timeline, mock_cut_url, "ShotGrid")
+                # We should now have 1 new Shot
+                sg_shots = self.mock_sg.find(
+                    "Shot",
+                    [["code", "starts_with", "shot_"]],
+                    ["code"],
+                )
+                self.assertEqual(len(sg_shots), 1)
+                # We should have Versions created linked to Shots
+                sg_versions = self.mock_sg.find(
+                    "Version",
+                    [
+                        ["code", "starts_with", "from_premiere_"],
+                        ["entity", "type_is", "Shot"]
+                    ],
+                    ["code", "entity"]
+                )
+                self.assertEqual(len(sg_versions), 1)
                 timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             # Check all the information relevant to media references and ranges is correct.
             for i, (orig_clip, clip) in enumerate(zip(timeline.each_clip(), timeline_from_sg.each_clip())):
