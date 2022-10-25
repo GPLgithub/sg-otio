@@ -740,7 +740,7 @@ class SGTrackDiff(object):
         repeated = False
         if shot_key not in self._diffs_by_shots:
             self._diffs_by_shots[shot_key] = SGCutDiffGroup(
-                shot_key,
+                shot_name,
                 sg_shot=sg_shot
             )
         else:
