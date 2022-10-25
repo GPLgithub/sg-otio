@@ -231,6 +231,9 @@ class SGCutReader(object):
             available_range=media_available_range,
         )
         clip.media_reference.name = name
+        for field in _PUBLISHED_FILE_FIELDS:
+            if field.startswith("version.Version"):
+                published_file["version"][field.replace("version.Version.", "")] = published_file[field]
         clip.media_reference.metadata["sg"] = published_file
 
     def add_media_references_from_sg(self, track, project):
