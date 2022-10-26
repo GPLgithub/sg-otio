@@ -16,7 +16,7 @@ jobs:
     name: Build and publish Python 🐍 distributions 📦 to PyPI and TestPyPI
     strategy:
       matrix:
-        python-version: ["2.7", "3.10"]
+        python-version: ["2.7", "3.7", "3.9", "3.10"]
         os: [ubuntu-latest]
 
     runs-on: ${{ matrix.os }}
