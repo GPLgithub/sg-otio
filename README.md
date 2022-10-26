@@ -173,8 +173,8 @@ Different timecode in values to frame mapping modes
 
 Three mapping modes are available, which are only relevant for straight
 imports (without comparing to a previous Cut):
-- `0`: Absolute. Timecode in is mapped to the Shot head in.
-- `1`: Automatic. Timecode is converted to an absolute frame number.
+- `0`: Automatic. Timecode in is mapped to the Shot head in.
+- `1`: Absolute. Timecode is converted to an absolute frame number.
 - `2`: Relative. timecode in is converted to an arbitrary frame
 number specified through settings. Example: `["00:00:00:01", 1001]`
 
