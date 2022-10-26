@@ -52,12 +52,12 @@ class SGCutClip(object):
             self._name = self._clip.metadata["cmx_3600"]["reel"]
         self._frame_rate = self._clip.duration().rate
         self._index = index
+        self._cut_item_name = self.name
         # Set the Shot, this will set the Shot name as well, if available.
         self.sg_shot = sg_shot
         if not self._shot_name:
             self._shot_name = compute_clip_shot_name(self._clip)
         self.compute_head_tail_values()
-        self._cut_item_name = self.name
 
     @property
     def clip(self):
@@ -746,7 +746,7 @@ class SGCutClip(object):
                 None, None
             )
             status_field = config.status
-            return self.sg_shot[status_field]
+            return self.sg_shot.get(status_field)
         return None
 
     def compute_head_tail_values(self):

@@ -89,6 +89,9 @@ _VERSION_FIELDS = [
     "sg_last_frame",
     "sg_path_to_movie",
     "sg_uploaded_movie",
+    "entity",
+    "entity.Shot.code",
+    "entity.Shot.id",
 ]
 
 # Fields we need to retrieve on Published Files
@@ -105,7 +108,10 @@ _PUBLISHED_FILE_FIELDS = [
     "version.Version.code",
     "version.Version.sg_first_frame",
     "version.Version.sg_last_frame",
-    "version.Version.sg_path_to_movie"
+    "version.Version.sg_path_to_movie",
+    "version.Version.entity",
+    "version.Version.entity.Shot.code",
+    "version.Version.entity.Shot.id",
 ]
 
 # Shot field templates used for alternate Shot cut fields

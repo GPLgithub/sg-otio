@@ -6,7 +6,7 @@ import logging
 from opentimelineio.opentime import RationalTime
 
 from .cut_clip import SGCutClip
-from .sg_settings import SGSettings
+from .sg_settings import SGShotFieldsConfig, SGSettings
 from .utils import compute_clip_shot_name
 
 logger = logging.getLogger(__name__)
@@ -210,7 +210,11 @@ class ClipGroup(object):
         self._reinstated_sg_shot = False
         omitted_statuses = SGSettings().reinstate_shot_if_status_is
         if self._sg_shot and omitted_statuses:
-            sg_status_list = self._sg_shot.get("sg_status_list")
+            config = SGShotFieldsConfig(
+                None, None
+            )
+            status_field = config.status
+            sg_status_list = self._sg_shot.get(status_field)
             if sg_status_list and sg_status_list in omitted_statuses:
                 self._reinstated_sg_shot = True
 

@@ -69,6 +69,11 @@ class TestCutDiff(SGBaseTest):
             "project": self.mock_project,
             "type": "Sequence",
             "id": 6666,
+        }, {
+            "code": "seq_6667",
+            "project": self.mock_project,
+            "type": "Sequence",
+            "id": 6667,
         }]
         self.add_to_sg_mock_db(self.sg_sequences)
         self._sg_entities_to_delete.extend(self.sg_sequences)
@@ -184,7 +189,7 @@ class TestCutDiff(SGBaseTest):
         """
         return "shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
 
-    def _get_track_diff(self, new_track, old_track=None, mock_compute_clip_shot_name=None):
+    def _get_track_diff(self, new_track, old_track=None, mock_compute_clip_shot_name=None, sg_entity=None):
         """
         Create a track diff altering the shot names so that there's
 
@@ -197,9 +202,9 @@ class TestCutDiff(SGBaseTest):
             if mock_compute_clip_shot_name:
                 with mock.patch("sg_otio.track_diff.compute_clip_shot_name", wraps=mock_compute_clip_shot_name):
                     with mock.patch("sg_otio.cut_clip.compute_clip_shot_name", wraps=mock_compute_clip_shot_name):
-                        return SGTrackDiff(self.mock_sg, self.mock_project, new_track, old_track)
+                        return SGTrackDiff(self.mock_sg, self.mock_project, new_track, old_track, sg_entity)
             else:
-                return SGTrackDiff(self.mock_sg, self.mock_project, new_track, old_track)
+                return SGTrackDiff(self.mock_sg, self.mock_project, new_track, old_track, sg_entity)
 
     def tearDown(self):
         """
@@ -1298,3 +1303,129 @@ class TestCutDiff(SGBaseTest):
         del old_clip.media_reference.metadata["sg"]
         self.assertIsNone(cut_diff.sg_version)
         self.assertIsNone(cut_diff.sg_version_name)
+
+    def test_sg_link(self):
+        """
+        Test defining the SG link for TrackDiffs
+        """
+        self._add_sg_cut_data()
+        # Compare to Cut from EDL
+        path = os.path.join(
+            self.resources_dir,
+            "edls",
+            "R7v26.0_Turnover001_WiP_VFX__1_.edl"
+        )
+        timeline_from_edl = otio.adapters.read_from_file(path)
+        edl_track = timeline_from_edl.tracks[0]
+        # No previous Cut information, no explicit SG Entity
+        # the Project should be used.
+        track_diff = self._get_track_diff(
+            edl_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=None
+        )
+        self.assertEqual(track_diff.sg_link, self.mock_project)
+        # We can explicitly set the Project if we want
+        track_diff = self._get_track_diff(
+            edl_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=self.mock_project
+        )
+        self.assertEqual(track_diff.sg_link, self.mock_project)
+        track_diff = self._get_track_diff(
+            edl_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=self.sg_sequences[0]
+        )
+        self.assertEqual(track_diff.sg_link, self.sg_sequences[0])
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            mock_cut_url = get_read_url(
+                self.mock_sg.base_url,
+                self.sg_cuts[0]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
+            sg_track = timeline_from_sg.tracks[0]
+        # The SG link should be retrieved from the SG Cut track
+        track_diff = self._get_track_diff(
+            sg_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=None
+        )
+        self.assertEqual(track_diff.sg_link["type"], self.sg_sequences[0]["type"])
+        self.assertEqual(track_diff.sg_link["id"], self.sg_sequences[0]["id"])
+        # Using the expected SG link shouldn't cause problem
+        track_diff = self._get_track_diff(
+            sg_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=self.sg_sequences[0],
+        )
+        self.assertEqual(track_diff.sg_link["type"], self.sg_sequences[0]["type"])
+        self.assertEqual(track_diff.sg_link["id"], self.sg_sequences[0]["id"])
+        # Using an unexpected SG link should raise an Exception
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            r"Invalid explicit SG Entity .* not matching existing link"
+        ):
+            track_diff = self._get_track_diff(
+                sg_track,
+                None,
+                self._mock_compute_clip_shot_name,
+                sg_entity=self.sg_sequences[1],
+            )
+        # Using an unexpected SG Project should raise an Exception
+        with six.assertRaisesRegex(
+            self,
+            ValueError,
+            r"Invalid explicit SG Entity .* different from SG Project"
+        ):
+            track_diff = self._get_track_diff(
+                sg_track,
+                None,
+                self._mock_compute_clip_shot_name,
+                sg_entity={"type": "Project", "id": 1234456},
+            )
+        # The SG link should be retrieved from the SG Cut track
+        track_diff = self._get_track_diff(
+            edl_track,
+            sg_track,
+            self._mock_compute_clip_shot_name,
+            sg_entity=None
+        )
+        self.assertEqual(track_diff.sg_link["type"], self.sg_sequences[0]["type"])
+        self.assertEqual(track_diff.sg_link["id"], self.sg_sequences[0]["id"])
+        # Using the expected SG link shouldn't cause problem
+        track_diff = self._get_track_diff(
+            sg_track,
+            None,
+            self._mock_compute_clip_shot_name,
+            sg_entity=self.sg_sequences[0],
+        )
+        self.assertEqual(track_diff.sg_link["type"], self.sg_sequences[0]["type"])
+        self.assertEqual(track_diff.sg_link["id"], self.sg_sequences[0]["id"])
+        # If the previous Cut was linked to the Project, we should get it back
+        sg_track.metadata["sg"]["entity"] = self.mock_project
+        track_diff = self._get_track_diff(
+            edl_track,
+            sg_track,
+            self._mock_compute_clip_shot_name,
+            sg_entity=None
+        )
+        self.assertEqual(track_diff.sg_link, self.mock_project)
+        # If the previous Cut was linked to the Project, we should be able to refine
+        # the link with an Entity in the same Project
+        sg_track.metadata["sg"]["entity"] = self.mock_project
+        track_diff = self._get_track_diff(
+            edl_track,
+            sg_track,
+            self._mock_compute_clip_shot_name,
+            sg_entity=self.sg_sequences[1],
+        )
+        self.assertEqual(track_diff.sg_link, self.sg_sequences[1])
