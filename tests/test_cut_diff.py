@@ -544,15 +544,19 @@ class TestCutDiff(SGBaseTest):
             self.mock_project,
             new_track=track,
         )
-        self.assertEqual(list(track_diff), [None])
-        clip_group = track_diff[None]
-        for clip in clip_group.clips:
-            self.assertIsNone(clip.sg_shot)
-            self.assertIsNone(clip.old_clip)
-            self.assertIsNone(clip.old_cut_in)
-            self.assertIsNone(clip.old_cut_out)
-            self.assertIsNone(clip.old_visible_duration)
-            self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_LINK)
+        # Each clip should have its own group
+        self.assertEqual(len(list(track_diff)), len(track))
+        for name, clip_group in track_diff.items():
+            self.assertTrue(name)
+            self.assertIsNone(clip_group.sg_shot)
+            self.assertIsNone(clip_group.name)
+            for clip in clip_group.clips:
+                self.assertIsNone(clip.sg_shot)
+                self.assertIsNone(clip.old_clip)
+                self.assertIsNone(clip.old_cut_in)
+                self.assertIsNone(clip.old_cut_out)
+                self.assertIsNone(clip.old_visible_duration)
+                self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_LINK)
 
         # Add some markers to the Clips to provide Shot names
         for i, clip in enumerate(track):
