@@ -717,6 +717,23 @@ class SGTrackDiff(object):
             repeated=repeated,
         )
 
+    @staticmethod
+    def get_shot_key(shot_name, clip_index):
+        """
+        Return a case insensitive key based on the Shot name allowing to group together Clips
+        for the same Shot.
+
+        :param shot_name: A string or ``None``.
+        :param clip_index: A value changing for each Clip, used to build a unique key if
+                           no shot name is provided.
+        :returns: A string.
+        """
+        if shot_name:
+            return shot_name.lower()
+        # If no Shot name, forge a key specific to this Clip so it will
+        # not be grouped with other Clips without a Shot name.
+        return "_no_shot_name_%s" % clip_index
+
     def add_cut_diff(self, shot_name, clip, index, sg_shot=None, as_omitted=False):
         """
         Add a new Cut difference to this :class:`TrackDiff`.
@@ -731,11 +748,10 @@ class SGTrackDiff(object):
         # we retrieve from editorial files may be uppercase, but actual SG Shots may be
         # lowercase.
 
-        # Note: previous implementation used special `"_no_shot_name_%s" % index` Shot keys
-        # if the Shot name was not set to avoid considering repeated all entries not linked
-        # to a Shot. This is now covered by not setting the repeated flag on groups with an
-        # empty name.
-        shot_key = shot_name.lower() if shot_name else shot_name  # else "_no_shot_name_%s" % index
+        # We use a special `"_no_shot_name_%s" % index` Shot keys if the Shot name was not set
+        # to avoid considering in the same Shot all entries not linked to a Shot since this
+        # affects the repeated head in, tail out and handles values
+        shot_key = self.get_shot_key(shot_name, index)
 
         repeated = False
         if shot_key not in self._diffs_by_shots:
@@ -744,10 +760,9 @@ class SGTrackDiff(object):
                 sg_shot=sg_shot
             )
         else:
-            if shot_key:  # Don't flag repeated Shots if there is no Shot
-                repeated = bool(len(self._diffs_by_shots[shot_key]))
-                for existing_clip in self._diffs_by_shots[shot_key].clips:
-                    existing_clip.repeated = True
+            repeated = bool(len(self._diffs_by_shots[shot_key]))
+            for existing_clip in self._diffs_by_shots[shot_key].clips:
+                existing_clip.repeated = True
 
         new_diff = self.get_cut_diff_for_clip(
             clip=clip,
