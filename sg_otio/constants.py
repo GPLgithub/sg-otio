@@ -92,6 +92,7 @@ _VERSION_FIELDS = [
     "entity",
     "entity.Shot.code",
     "entity.Shot.id",
+    "image",
 ]
 
 # Fields we need to retrieve on Published Files
@@ -112,6 +113,7 @@ _PUBLISHED_FILE_FIELDS = [
     "version.Version.entity",
     "version.Version.entity.Shot.code",
     "version.Version.entity.Shot.id",
+    "version.Version.image",
 ]
 
 # Shot field templates used for alternate Shot cut fields
