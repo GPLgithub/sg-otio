@@ -544,15 +544,19 @@ class TestCutDiff(SGBaseTest):
             self.mock_project,
             new_track=track,
         )
-        self.assertEqual(list(track_diff), [None])
-        clip_group = track_diff[None]
-        for clip in clip_group.clips:
-            self.assertIsNone(clip.sg_shot)
-            self.assertIsNone(clip.old_clip)
-            self.assertIsNone(clip.old_cut_in)
-            self.assertIsNone(clip.old_cut_out)
-            self.assertIsNone(clip.old_visible_duration)
-            self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_LINK)
+        # Each clip should have its own group
+        self.assertEqual(len(list(track_diff)), len(track))
+        for name, clip_group in track_diff.items():
+            self.assertTrue(name)
+            self.assertIsNone(clip_group.sg_shot)
+            self.assertIsNone(clip_group.name)
+            for clip in clip_group.clips:
+                self.assertIsNone(clip.sg_shot)
+                self.assertIsNone(clip.old_clip)
+                self.assertIsNone(clip.old_cut_in)
+                self.assertIsNone(clip.old_cut_out)
+                self.assertIsNone(clip.old_visible_duration)
+                self.assertEqual(clip.diff_type, _DIFF_TYPES.NO_LINK)
 
         # Add some markers to the Clips to provide Shot names
         for i, clip in enumerate(track):
@@ -1429,3 +1433,36 @@ class TestCutDiff(SGBaseTest):
             sg_entity=self.sg_sequences[1],
         )
         self.assertEqual(track_diff.sg_link, self.sg_sequences[1])
+
+    def test_no_link(self):
+        """
+        """
+        SGSettings().timecode_in_to_frame_mapping_mode = _TC2FRAME_AUTOMATIC_MODE
+        path = os.path.join(
+            self.resources_dir,
+            "media_cutter.edl"
+        )
+        timeline_from_edl = otio.adapters.read_from_file(path)
+        edl_track = timeline_from_edl.tracks[0]
+        track_diff = self._get_track_diff(
+            edl_track,
+            None,
+            None,  # Do not provide Shot names
+            sg_entity=None
+        )
+        # Each clip should get its individual group, even if it does not
+        # provide a Shot name.
+        self.assertEqual(len(track_diff._diffs_by_shots), len(edl_track))
+        for shot_key, cut_group in track_diff.items():
+            # A dedicated key should be set
+            self.assertTrue(shot_key)
+            # But Shot related information should be empty
+            self.assertIsNone(cut_group.sg_shot)
+            self.assertIsNone(cut_group.name)
+            for cut_diff in cut_group.clips:
+                self.assertIsNone(cut_diff.sg_shot)
+                self.assertFalse(cut_diff.repeated)
+                self.assertEqual(cut_diff.head_in.to_frames(), 1001)
+                self.assertEqual(cut_diff.head_duration.to_frames(), 8)
+                self.assertEqual(cut_diff.cut_in.to_frames(), 1009)
+                self.assertIsNone(cut_diff.shot_name)
