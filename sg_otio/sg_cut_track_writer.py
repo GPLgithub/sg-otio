@@ -501,7 +501,7 @@ class SGCutTrackWriter(object):
             cut_item_payload[_EFFECTS_FIELD] = cut_clip.has_effects
 
         if cut_clip.has_retime:
-            description = "%s\nRetime: %s" % (description, self.retime_str)
+            description = "%s\nRetime: %s" % (description, cut_clip.retime_str)
         if _RETIME_FIELD in self.cut_item_schema:
             cut_item_payload[_RETIME_FIELD] = cut_clip.has_retime
 
@@ -797,7 +797,8 @@ class SGCutTrackWriter(object):
         sg_batch_data = []
         sg_shots = []
         for shot_name, clip_group in clips_by_shots.items():
-            if not shot_name:
+            # The shot name might be _no_shot_name, so we need to check the clip group name too.
+            if not shot_name or not clip_group.name:
                 continue
             if not clip_group.sg_shot:
                 logger.info("Creating Shot %s..." % clip_group.name)
