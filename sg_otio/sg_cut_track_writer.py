@@ -839,11 +839,7 @@ class SGCutTrackWriter(object):
             # Update the clips Shots
             for sg_shot in sg_shots:
                 # clips_by_shots has the lowercased name as key.
-                clip_group = clips_by_shots.get(sg_shot["code"].lower())
-                if not clip_group:
-                    raise RuntimeError("No clip group for shot %s. Clip group shots: %s" % (
-                        sg_shot, clips_by_shots.keys()
-                    ))
+                clip_group = clips_by_shots[sg_shot["code"].lower()]
                 if not clip_group.sg_shot:
                     clip_group.sg_shot = sg_shot
                 else:
