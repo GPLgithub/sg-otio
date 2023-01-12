@@ -10,7 +10,7 @@ import opentimelineio as otio
 from shotgun_api3 import Shotgun
 
 from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import get_write_url, get_read_url, add_media_references_from_sg
+from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.constants import _SG_OTIO_MANIFEST_PATH
 from sg_otio.track_diff import SGTrackDiff
@@ -220,14 +220,6 @@ def write_to_sg(args):
         if not os.path.isfile(args.movie):
             raise ValueError("%s does not exist" % args.movie)
     if SGSettings().create_missing_versions and args.movie:
-        sg = Shotgun(args.sg_site_url, session_token=session_token)
-        sg_entity = sg.find_one(args.entity_type, [["id", "is", args.entity_id]], ["project"])
-        # Add Media References to the clips with SG metadata about their Published File/Version
-        # if the clips match existing Entities in SG.
-        add_media_references_from_sg(timeline.video_tracks()[0], sg, sg_entity["project"])
-        # For Clips without Media References, extract the media from the movie,
-        # and add a Media Reference to the Clip.
-        # The write adapter will create a Version for each clip.
         media_cutter = MediaCutter(
             timeline,
             args.movie,
