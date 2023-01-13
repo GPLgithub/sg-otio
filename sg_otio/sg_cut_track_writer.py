@@ -1088,7 +1088,7 @@ class SGCutTrackWriter(object):
             # SG doesn't seem to accept backslashes when creating
             # PublishedFiles with relative paths to local storage
             relative_path = os.path.normpath(relative_path)
-            relative_path = relative_path.replace("\\", "/")
+            relative_path = relative_path.replace("\\", "/").strip("/")
             publish_path = {
                 "relative_path": relative_path,
                 "local_storage": local_storage
