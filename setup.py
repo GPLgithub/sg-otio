@@ -57,7 +57,7 @@ setuptools.setup(
     license_files=["LICENSE.txt"],
     url="https://github.com/GPLgithub/sg-otio.git",
     packages=setuptools.find_packages(),
-    scripts=["bin/sg-otio"],
+    scripts=["bin/sg-otio", "bin/sg-otio.py"],
     entry_points={
         "opentimelineio.plugins": "sg_otio = sg_otio"
     },
