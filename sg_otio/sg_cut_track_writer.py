@@ -4,7 +4,9 @@
 import datetime
 import logging
 import os
+import re
 import shutil
+import sys
 
 import opentimelineio as otio
 from opentimelineio.opentime import RationalTime
@@ -1082,12 +1084,8 @@ class SGCutTrackWriter(object):
         version = self._sg.create("Version", version_payload)
         # Create the Published File
         # Check if we can publish it with a local file path instead of a URL
-        # Make sure the local storage path ends with a separator
-        local_storage_path = local_storage["path"]
-        if not local_storage_path.endswith(os.path.sep):
-            local_storage_path += os.path.sep
-        if local_storage and input_media.startswith(local_storage_path):
-            relative_path = input_media[len(local_storage_path):]
+        relative_path = self.get_local_storage_relative_path(local_storage, input_media)
+        if relative_path:
             # Get rid of double slashes and replace backslashes by forward slashes.
             # SG doesn't seem to accept backslashes when creating
             # PublishedFiles with relative paths to local storage
@@ -1125,3 +1123,48 @@ class SGCutTrackWriter(object):
             "sg_uploaded_movie"
         )
         return version, published_file
+
+    @staticmethod
+    def get_local_storage_relative_path(local_storage, file_path):
+        """
+        Given a Local Storage and a file path, returns the relative path
+        to the file from the Local Storage, if any.
+
+        :param file_path: Absolute and normalized path to a directory or a file
+                          as a string, it can be in an abstract form.
+        :param str file_path: The path to a file.
+        :returns: The file's relative path to the local storage path, if any.
+        """
+        # Make sure we use the right separator for the os. On Windows, add the
+        # current drive if there is not one in the given file path.
+        if sys.platform == "win32":
+            file_path = os.path.abspath(os.path.normpath(file_path))
+        else:
+            file_path = file_path.replace("\\", "/")
+        file_path = os.path.normcase(file_path)
+        dir_path = os.path.dirname(os.path.normpath(file_path))
+        file_basename = os.path.basename(file_path)
+        if dir_path != os.sep:
+            # Paths returned by os.path.dirname don't include
+            # a trailing separator, this is why we add one here.
+            # The path is normalized above, so we use os.sep.
+            dir_path = "%s%s" % (dir_path, os.sep)
+        local_path = local_storage["path"]
+        # Special case for "/" or "E:\\" were adding an additional separator
+        # will cause a mismatch
+        if local_path == "/" or re.match(r"[A-Za-z]:\\", local_path):
+            if dir_path.startswith(local_path):
+                # If the file path is something like /foo/bar/baz.txt or /foo/bar and
+                # the local storage is /foo or /foo/, we want to return bar/baz.txt or bar
+                relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
+                relative_path = os.path.join(relative_path, file_basename)
+                return relative_path
+            else:
+                # Otherwise, we can add an additional separator at the end
+                if dir_path.startswith("%s%s" % (local_path, os.sep)):
+                    # If the file path is something like /foo/bar/baz.txt or /foo/bar and
+                    # the local storage is /foo or /foo/, we want to return bar/baz.txt or bar
+                    relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
+                    relative_path = os.path.join(relative_path, file_basename)
+                    return relative_path
+        return None
