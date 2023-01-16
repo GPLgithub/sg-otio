@@ -1082,13 +1082,17 @@ class SGCutTrackWriter(object):
         version = self._sg.create("Version", version_payload)
         # Create the Published File
         # Check if we can publish it with a local file path instead of a URL
-        if local_storage and input_media.startswith(local_storage["path"]):
-            relative_path = input_media[len(local_storage["path"]):]
+        # Make sure the local storage path ends with a separator
+        local_storage_path = local_storage["path"]
+        if not local_storage_path.endswith(os.path.sep):
+            local_storage_path += os.path.sep
+        if local_storage and input_media.startswith(local_storage_path):
+            relative_path = input_media[len(local_storage_path):]
             # Get rid of double slashes and replace backslashes by forward slashes.
             # SG doesn't seem to accept backslashes when creating
             # PublishedFiles with relative paths to local storage
             relative_path = os.path.normpath(relative_path)
-            relative_path = relative_path.replace("\\", "/").strip("/")
+            relative_path = relative_path.replace("\\", "/")
             publish_path = {
                 "relative_path": relative_path,
                 "local_storage": local_storage
