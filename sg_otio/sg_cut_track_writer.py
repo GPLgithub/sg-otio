@@ -1159,12 +1159,12 @@ class SGCutTrackWriter(object):
                 relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
                 relative_path = os.path.join(relative_path, file_basename)
                 return relative_path
-            else:
-                # Otherwise, we can add an additional separator at the end
-                if dir_path.startswith("%s%s" % (local_path, os.sep)):
-                    # If the file path is something like /foo/bar/baz.txt or /foo/bar and
-                    # the local storage is /foo or /foo/, we want to return bar/baz.txt or bar
-                    relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
-                    relative_path = os.path.join(relative_path, file_basename)
-                    return relative_path
+        else:
+            # Otherwise, we can add an additional separator at the end
+            if dir_path.startswith("%s%s" % (local_path, os.sep)):
+                # If the file path is something like /foo/bar/baz.txt or /foo/bar and
+                # the local storage is /foo or /foo/, we want to return bar/baz.txt or bar
+                relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
+                relative_path = os.path.join(relative_path, file_basename)
+                return relative_path
         return None
