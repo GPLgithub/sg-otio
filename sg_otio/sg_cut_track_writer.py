@@ -1130,9 +1130,8 @@ class SGCutTrackWriter(object):
         Given a Local Storage and a file path, returns the relative path
         to the file from the Local Storage, if any.
 
-        :param file_path: Absolute and normalized path to a directory or a file
-                          as a string, it can be in an abstract form.
-        :param str file_path: The path to a file.
+        :param str local_storage: A SG Local Storage entity
+        :param str file_path: Absolute path to a file, it can be in an abstract form.
         :returns: The file's relative path to the local storage path, if any.
         """
         # Make sure we use the right separator for the os. On Windows, add the
@@ -1149,7 +1148,8 @@ class SGCutTrackWriter(object):
             # a trailing separator, this is why we add one here.
             # The path is normalized above, so we use os.sep.
             dir_path = "%s%s" % (dir_path, os.sep)
-        local_path = local_storage["path"]
+        path_field = "%s_path" % get_platform_name()
+        local_path = local_storage[path_field]
         # Special case for "/" or "E:\\" were adding an additional separator
         # will cause a mismatch
         if local_path == "/" or re.match(r"[A-Za-z]:\\", local_path):
