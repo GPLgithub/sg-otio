@@ -15,7 +15,7 @@ from .constants import _ENTITY_CUT_ORDER_FIELD, _ABSOLUTE_CUT_ORDER_FIELD
 from .constants import _REINSTATE_FROM_PREVIOUS_STATUS
 from .media_uploader import MediaUploader
 from .sg_settings import SGShotFieldsConfig, SGSettings
-from .utils import get_available_filename
+from .utils import get_available_filename, get_local_storage_relative_path
 from .utils import get_platform_name, get_path_from_target_url
 from .track_diff import SGTrackDiff
 
@@ -1082,8 +1082,8 @@ class SGCutTrackWriter(object):
         version = self._sg.create("Version", version_payload)
         # Create the Published File
         # Check if we can publish it with a local file path instead of a URL
-        if local_storage and input_media.startswith(local_storage["path"]):
-            relative_path = input_media[len(local_storage["path"]):]
+        relative_path = get_local_storage_relative_path(local_storage, input_media)
+        if relative_path:
             # Get rid of double slashes and replace backslashes by forward slashes.
             # SG doesn't seem to accept backslashes when creating
             # PublishedFiles with relative paths to local storage

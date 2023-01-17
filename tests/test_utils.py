@@ -2,6 +2,7 @@
 # Copyright Contributors to the SG Otio project
 
 import os
+import sys
 import tempfile
 import unittest
 from functools import partial
@@ -12,6 +13,7 @@ from sg_otio.constants import _DEFAULT_HEAD_IN
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_platform_name
 from sg_otio.utils import compute_clip_version_name
+from sg_otio.utils import get_local_storage_relative_path
 from sg_otio.sg_cut_reader import SGCutReader
 
 from .python.sg_test import SGBaseTest
@@ -310,6 +312,61 @@ class TestUtils(SGBaseTest):
             self.mock_sg.delete("Version", version["id"])
             self.mock_sg.delete("PublishedFile", published_file["id"])
             self.mock_sg.delete("CutItem", cut_item["id"])
+
+    def test_get_local_storage_relative_path(self):
+        """
+        Test SG Local Storages and paths.
+        """
+        # First local storage test.
+        local_storage = {
+            "mac_path": "/foo/bar",
+            "windows_path": "C:\\foo\\bar",
+            "linux_path": "/foo/bar",
+        }
+        # Check that it matches
+        filepaths = {
+            "mac": "/foo/bar/baz.mov",
+            "windows": "C:\\foo\\bar\\baz.mov",
+            "linux": "/foo/bar/baz.mov",
+        }
+        filepath = filepaths[get_platform_name()]
+        relative_path = get_local_storage_relative_path(local_storage, filepath)
+        self.assertEqual(relative_path, "baz.mov")
+        # Check that something in /foo/barbaz doesn't match
+        filepaths = {
+            "mac": "/foo/barbaz/baz.mov",
+            "windows": "C:\\foo\\barbaz\\baz.mov",
+            "linux": "/foo/barbaz/baz.mov",
+        }
+        filepath = filepaths[get_platform_name()]
+        relative_path = get_local_storage_relative_path(local_storage, filepath)
+        self.assertIsNone(relative_path)
+
+        # Test with an edge case.
+        local_storage = {
+            "mac_path": "/",
+            "windows_path": "C:\\",
+            "linux_path": "/",
+        }
+        # Check that it matches
+        filepaths = {
+            "mac": "/foo/foo.mov",
+            "windows": "C://foo/foo.mov",
+            "linux": "/foo/foo.mov",
+        }
+        filepath = filepaths[get_platform_name()]
+        relative_path = get_local_storage_relative_path(local_storage, filepath)
+        self.assertEqual(relative_path, "foo/foo.mov")
+
+        # A couple more tests on Windows
+        if sys.platform == "win32":
+            local_storage = {
+                "windows_path": "//server/share",
+            }
+            # Check that it matches
+            filepath = "//server/share/foo/foo.mov"
+            relative_path = get_local_storage_relative_path(local_storage, filepath)
+            self.assertEqual(relative_path, "foo/foo.mov")
 
 
 if __name__ == "__main__":
