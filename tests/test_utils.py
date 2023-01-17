@@ -371,6 +371,5 @@ class TestUtils(SGBaseTest):
             self.assertEqual(relative_path, "foo/foo.mov")
 
 
-
 if __name__ == "__main__":
     unittest.main()
