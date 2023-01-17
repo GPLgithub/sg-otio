@@ -275,3 +275,48 @@ def get_entity_type_display_name(sg, sg_entity_type):
             return display_name
 
     return sg_entity_type
+
+
+def get_local_storage_relative_path(local_storage, file_path):
+    """
+    Given a Local Storage and a file path, returns the relative path
+    to the file from the Local Storage, if any.
+
+    :param local_storage: A SG Local Storage dictionary.
+    :param str file_path: Absolute path to a file, it can be in an abstract form.
+    :returns: The file's relative path to the local storage path, if any.
+    """
+    # Make sure we use the right separator for the os. On Windows, add the
+    # current drive if there is not one in the given file path.
+    if sys.platform == "win32":
+        file_path = os.path.abspath(os.path.normpath(file_path))
+    else:
+        file_path = file_path.replace("\\", "/")
+    file_path = os.path.normcase(file_path)
+    dir_path = os.path.dirname(os.path.normpath(file_path))
+    file_basename = os.path.basename(file_path)
+    if dir_path != os.sep:
+        # Paths returned by os.path.dirname don't include
+        # a trailing separator, this is why we add one here.
+        # The path is normalized above, so we use os.sep.
+        dir_path = "%s%s" % (dir_path, os.sep)
+    path_field = "%s_path" % get_platform_name()
+    local_path = local_storage[path_field]
+    # Special case for "/" or "E:\\" were adding an additional separator
+    # will cause a mismatch
+    if local_path == "/" or re.match(r"[A-Za-z]:\\", local_path):
+        if dir_path.startswith(local_path):
+            # If the file path is something like /foo/bar/baz.txt or /foo/bar and
+            # the local storage is /foo or /foo/, we want to return bar/baz.txt or bar
+            relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
+            relative_path = os.path.join(relative_path, file_basename)
+            return relative_path
+    else:
+        # Otherwise, we can add an additional separator at the end
+        if dir_path.startswith("%s%s" % (local_path, os.sep)):
+            # If the file path is something like /foo/bar/baz.txt or /foo/bar and
+            # the local storage is /foo or /foo/, we want to return bar/baz.txt or bar
+            relative_path = dir_path.replace(local_path, "").lstrip(os.sep)
+            relative_path = os.path.join(relative_path, file_basename)
+            return relative_path
+    return None
