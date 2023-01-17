@@ -315,9 +315,7 @@ class TestUtils(SGBaseTest):
 
     def test_get_local_storage_relative_path(self):
         """
-        Test that given a SG Local Storage dictionary, and a filepath, if the platform
-        path of the local storage matches the root path of the filepath, we get a relative
-        path back. If not, we get None.
+        Test SG Local Storages and paths.
         """
         # First local storage test.
         local_storage = {
