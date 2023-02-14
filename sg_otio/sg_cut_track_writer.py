@@ -924,8 +924,10 @@ class SGCutTrackWriter(object):
 
         if clip_group.sg_shot_is_reinstated:
             reinstate_status = None
-            reinstate_status_pref = SGSettings().reinstate_shot_if_status_is
-            if reinstate_status_pref == _REINSTATE_FROM_PREVIOUS_STATUS:
+            settings = SGSettings()
+            shot_reinstate_status = settings.shot_reinstate_status
+            shot_reinstate_status_default = settings.shot_reinstate_status_default
+            if shot_reinstate_status == _REINSTATE_FROM_PREVIOUS_STATUS:
                 # Find the most recent status change event log entry where the
                 # project and linked Shot code match the current project/shot
                 filters = [
@@ -947,9 +949,12 @@ class SGCutTrackWriter(object):
                 # event log entry
                 if event_log:
                     reinstate_status = event_log["meta"]["old_value"]
-            elif reinstate_status_pref:
+                elif shot_reinstate_status_default:
+                    # Use the default status if we didn't find a previous status
+                    reinstate_status = shot_reinstate_status_default
+            elif shot_reinstate_status:
                 # Just use the status as is.
-                reinstate_status = reinstate_status_pref
+                reinstate_status = shot_reinstate_status
             # We set it even if we didn't found a valid status, which will unset
             # the status
             shot_payload[sfg.status] = reinstate_status

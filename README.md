@@ -104,6 +104,7 @@ This is what such file would contain with the default settings:
   "shot_cut_fields_prefix": null,
   "shot_omit_status": "omt",
   "shot_reinstate_status": "Previous Status",
+  "shot_reinstate_status_default": "act",
   "reinstate_shot_if_status_is": ["omt", "hld"]
 }
 ```
@@ -198,6 +199,9 @@ is one of the statuses set with the `reinstate_shot_if_status_is` setting.
 Their status will be set to the value set with the `shot_reinstate_status` setting, 
 unless it is the special "Previous Status" value. In this case the status they
 had before being omitted will be set.
+
+To determine the previous status, it relies on EventLogEntries, which means that if it can't find
+one (e.g. there were purged), it will use the value set with the `shot_reinstate_status_default` setting.
 
 License
 -------
