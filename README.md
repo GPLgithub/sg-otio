@@ -201,7 +201,7 @@ unless it is the special "Previous Status" value. In this case the status they
 had before being omitted will be set.
 
 To determine the previous status, it relies on EventLogEntries, which means that if it can't find
-one (e.g. there were purged), it will use the value set with the `shot_reinstate_status_default` setting.
+one (e.g. they were purged), it will use the value set with the `shot_reinstate_status_default` setting.
 
 License
 -------
