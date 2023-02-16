@@ -406,6 +406,34 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         """
         self._reinstate_shot_if_status_is = value or None
 
+    @property
+    def shot_reinstate_status_default(self):
+        """
+        Return the SG Shot status to use when reinstating Shots,
+        if shot_reinstate_status is set to _REINSTATE_FROM_PREVIOUS_STATUS.
+
+        Normally, when _REINSTATE_FROM_PREVIOUS_STATUS is set, the Shot is reinstated
+        from its previous status, but if there is no EventLogEntry for the Shot,
+        then this status is used instead.
+
+        :returns: A SG status short code or ``None``.
+        """
+        return self._shot_reinstate_status_default
+
+    @shot_reinstate_status_default.setter
+    def shot_reinstate_status_default(self, value):
+        """
+        Set the SG Shot status to use when reinstating Shots,
+        if shot_reinstate_status is set to _REINSTATE_FROM_PREVIOUS_STATUS.
+
+        Normally, when _REINSTATE_FROM_PREVIOUS_STATUS is set, the Shot is reinstated
+        from its previous status, but if there is no EventLogEntry for the Shot,
+        then this status is used instead.
+
+        :param value: A SG status short code or ``None``.
+        """
+        self._shot_reinstate_status_default = value or None
+
     def reset_to_defaults(self):
         """
         Reset settings to all default values.
@@ -427,6 +455,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
         self._shot_cut_fields_prefix = None
         self._shot_omit_status = "omt"
         self._shot_reinstate_status = _REINSTATE_FROM_PREVIOUS_STATUS
+        self._shot_reinstate_status_default = "act"
         self._reinstate_shot_if_status_is = ["omt", "hld"]
 
 
