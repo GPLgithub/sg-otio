@@ -61,10 +61,9 @@ setuptools.setup(
     entry_points={
         "opentimelineio.plugins": "sg_otio = sg_otio"
     },
+    include_package_data=True,
     package_data={
-        # Name has to be specific to opentimelineio, otherwise it won't be
-        # recognized as an adapter. See https://opentimelineio.readthedocs.io/en/latest/tutorials/write-an-adapter.html
-        "opentimelineio_shotgrid_adapter": [
+        "sg_otio": [
             "plugin_manifest.json",
         ],
     },
