@@ -956,8 +956,7 @@ class SGCutTrackWriter(object):
                 # Just use the status as is.
                 reinstate_status = shot_reinstate_status
             if reinstate_status:
-                # We set it even if we didn't found a valid status, which will unset
-                # the status
+                # We set it only if we found a status to set.
                 shot_payload[sfg.status] = reinstate_status
             else:
                 logger.warning(
