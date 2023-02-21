@@ -881,12 +881,16 @@ class TestCutDiff(SGBaseTest):
         )
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
         sg_settings = SGSettings()
-        # It's just the short code in settings? #9320
         sg_shot["sg_status_list"] = {
             "code": sg_settings.shot_omit_status,
             "id": -1,
         }
         self.assertIsNotNone(cut_diff.sg_shot_status)
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.REINSTATED)
+        # It also works with short code.
+        sg_shot["sg_status_list"] = sg_settings.shot_omit_status
         cut_diff.compute_head_tail_values()
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.REINSTATED)
