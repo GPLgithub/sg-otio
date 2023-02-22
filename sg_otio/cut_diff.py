@@ -457,14 +457,9 @@ class SGCutDiff(SGCutClip):
             return
 
         # We have both a Shot and a current clip.
-        if self.sg_shot_status:
-            if isinstance(self.sg_shot_status, dict) and self.sg_shot_status.get("code"):
-                sg_shot_status = self.sg_shot_status["code"]
-            elif isinstance(self.sg_shot_status, str):
-                sg_shot_status = self.sg_shot_status
-            if sg_shot_status and sg_shot_status in SGSettings().reinstate_shot_if_status_is:
-                self._diff_type = _DIFF_TYPES.REINSTATED
-                return
+        if self.sg_shot_status and self.sg_shot_status in SGSettings().reinstate_shot_if_status_is:
+            self._diff_type = _DIFF_TYPES.REINSTATED
+            return
 
         # This clip hasn't appeared in previous Cuts.
         if not self._old_clip:
