@@ -59,6 +59,7 @@ jobs:
 
       - name: Install Package
         run: |
+          pip install -e .
           pip install -e .[dev]  # Why 2 pip installs?
 
       - name: Lint with flake8
