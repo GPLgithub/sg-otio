@@ -4,7 +4,6 @@
 import io
 import setuptools
 import subprocess
-import six
 
 with io.open("README.md", "r", encoding="utf-8") as f:
     readme = f.read()
@@ -26,7 +25,7 @@ def get_version():
     # (e.g. pip install ./sg-otio), the version number
     # will be picked up from the most recently added tag.
     try:
-        version_git = six.ensure_str(
+        version_git = "%s" % (
             subprocess.check_output(
                 ["git", "describe", "--abbrev=0", "--tags"]
             ).rstrip()
