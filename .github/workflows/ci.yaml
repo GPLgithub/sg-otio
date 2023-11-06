@@ -53,13 +53,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+#          pip install six
           python -m pip install --upgrade pip
           pip install git+https://github.com/shotgunsoftware/python-api.git
 
       - name: Install Package
         run: |
-          pip install six
-          pip install -e .
           pip install -e .[dev]  # Why 2 pip installs?
 
       - name: Lint with flake8
