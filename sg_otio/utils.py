@@ -111,9 +111,10 @@ def compute_clip_shot_name(clip):
     shot_metadata = sg_metadata.get("shot", {}) or {}
     if shot_metadata.get("code"):
         return clip.metadata["sg"]["shot"]["code"]
-    if clip.markers and clip.markers[0].name:
-        # TODO: we're only considering the first marker? Is that right?
-        return clip.markers[0].name.split()[0]
+    if clip.markers:
+        for marker in clip.markers:
+            if marker.name:
+                return marker.name.split()[0]
     comment_match = None
     if clip.metadata.get("cmx_3600") and clip.metadata["cmx_3600"].get("comments"):
         comments = clip.metadata["cmx_3600"]["comments"]

@@ -68,6 +68,9 @@ class TestCutClip(unittest.TestCase):
             * shot_003
             003  reel_name V     C        00:00:00:00 00:00:01:00 01:00:02:00 01:00:03:00
             * LOC: 01:00:00:12 YELLOW   
+            004  reel_name V     C        00:00:00:00 00:00:01:00 01:00:03:00 01:00:04:00
+            * LOC: 01:00:00:12 YELLOW   
+            * LOC: 01:00:00:12 YELLOW  shot_004
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
@@ -127,6 +130,14 @@ class TestCutClip(unittest.TestCase):
         )
         clip._shot_name = compute_clip_shot_name(clip)
         self.assertIsNone(clip.shot_name)
+
+        # Two locators, the first one has an empty name, the second one has a name.
+        edl_clip = list(timeline.tracks[0].each_clip())[3]
+        clip = SGCutClip(
+            edl_clip
+        )
+        clip._shot_name = compute_clip_shot_name(clip)
+        self.assertEqual(clip.shot_name, "shot_004")
 
     def test_clip_values(self):
         """
