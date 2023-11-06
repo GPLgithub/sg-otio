@@ -67,9 +67,9 @@ class TestCutClip(unittest.TestCase):
             * COMMENT: shot_002
             * shot_003
             003  reel_name V     C        00:00:00:00 00:00:01:00 01:00:02:00 01:00:03:00
-            * LOC: 01:00:00:12 YELLOW   
+            * LOC: 01:00:00:12 YELLOW
             004  reel_name V     C        00:00:00:00 00:00:01:00 01:00:03:00 01:00:04:00
-            * LOC: 01:00:00:12 YELLOW   
+            * LOC: 01:00:00:12 YELLOW
             * LOC: 01:00:00:12 YELLOW  shot_004
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
