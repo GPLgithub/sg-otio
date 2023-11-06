@@ -39,9 +39,8 @@ def get_version():
     # If everything fails, return a sensible string highlighting that the version
     # couldn't be extracted. If a version is not specified in `setup`, 0.0.0
     # will be used by default, it seems better to have an explicit keyword for
-    # this case, following TK "dev" locator pattern and the convention described here:
-    # http://peak.telecommunity.com/DevCenter/setuptools#specifying-your-project-s-version
-    return "dev"
+    # this case, following PEP440
+    return "0.0.0.dev0"
 
 
 setuptools.setup(
