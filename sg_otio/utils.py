@@ -8,7 +8,7 @@ import re
 import string
 import sys
 
-from six.moves.urllib import parse
+from urllib import parse
 
 from .sg_settings import SGSettings
 
@@ -112,8 +112,9 @@ def compute_clip_shot_name(clip):
     if shot_metadata.get("code"):
         return clip.metadata["sg"]["shot"]["code"]
     if clip.markers:
-        # TODO: we're only considering the first marker? Is that right?
-        return clip.markers[0].name.split()[0]
+        for marker in clip.markers:
+            if marker.name:
+                return marker.name.split()[0]
     comment_match = None
     if clip.metadata.get("cmx_3600") and clip.metadata["cmx_3600"].get("comments"):
         comments = clip.metadata["cmx_3600"]["comments"]

@@ -4,7 +4,6 @@
 import copy
 import logging
 import os
-import six
 
 import shotgun_api3
 
@@ -228,8 +227,7 @@ class TestCutDiff(SGBaseTest):
             ),
         )
         # Omitted Clips need to be linked to a SG CutItem
-        with six.assertRaisesRegex(
-            self,
+        with self.assertRaisesRegex(
             ValueError,
             "Omitted Clips need to be linked to a SG CutItem"
         ):
@@ -246,8 +244,7 @@ class TestCutDiff(SGBaseTest):
             sg_shot=None,
         )
         # We can only compare to Clips linked to a SG CutItem
-        with six.assertRaisesRegex(
-            self,
+        with self.assertRaisesRegex(
             ValueError,
             "Old clips for SGCutDiff must be coming from a SG Cut Item"
         ):
@@ -297,8 +294,7 @@ class TestCutDiff(SGBaseTest):
             sg_shot=sg_shots[1],
         )
         # Shot mismatches should raise an error
-        with six.assertRaisesRegex(
-            self,
+        with self.assertRaisesRegex(
             ValueError,
             "Shot mismatch between current clip and old one 2 vs 1"
         ):
@@ -1109,8 +1105,7 @@ class TestCutDiff(SGBaseTest):
         new_track = timeline_from_edl.tracks[0]
         # Check that using custom Shot cut fields is handled
         # Validation should fail
-        with six.assertRaisesRegex(
-            self,
+        with self.assertRaisesRegex(
             ValueError,
             "Following SG Shot fields are missing",
         ):
@@ -1369,8 +1364,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(track_diff.sg_link["type"], self.sg_sequences[0]["type"])
         self.assertEqual(track_diff.sg_link["id"], self.sg_sequences[0]["id"])
         # Using an unexpected SG link should raise an Exception
-        with six.assertRaisesRegex(
-            self,
+        with self.assertRaisesRegex(
             ValueError,
             r"Invalid explicit SG Entity .* not matching existing link"
         ):
@@ -1381,8 +1375,7 @@ class TestCutDiff(SGBaseTest):
                 sg_entity=self.sg_sequences[1],
             )
         # Using an unexpected SG Project should raise an Exception
-        with six.assertRaisesRegex(
-            self,
+        with self.assertRaisesRegex(
             ValueError,
             r"Invalid explicit SG Entity .* different from SG Project"
         ):

@@ -2,7 +2,7 @@
 # Copyright Contributors to the SG Otio project
 
 import logging
-from six.moves.urllib import parse
+from urllib import parse
 
 import opentimelineio as otio
 import shotgun_api3

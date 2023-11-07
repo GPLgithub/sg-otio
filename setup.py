@@ -4,7 +4,6 @@
 import io
 import setuptools
 import subprocess
-import six
 
 with io.open("README.md", "r", encoding="utf-8") as f:
     readme = f.read()
@@ -26,7 +25,7 @@ def get_version():
     # (e.g. pip install ./sg-otio), the version number
     # will be picked up from the most recently added tag.
     try:
-        version_git = six.ensure_str(
+        version_git = "%s" % (
             subprocess.check_output(
                 ["git", "describe", "--abbrev=0", "--tags"]
             ).rstrip()
@@ -40,9 +39,8 @@ def get_version():
     # If everything fails, return a sensible string highlighting that the version
     # couldn't be extracted. If a version is not specified in `setup`, 0.0.0
     # will be used by default, it seems better to have an explicit keyword for
-    # this case, following TK "dev" locator pattern and the convention described here:
-    # http://peak.telecommunity.com/DevCenter/setuptools#specifying-your-project-s-version
-    return "dev"
+    # this case, following PEP440
+    return "0.0.0.dev0"
 
 
 setuptools.setup(
@@ -70,7 +68,6 @@ setuptools.setup(
     install_requires=[
         "OpenTimelineIO >= 0.12.0",
         "shotgun-api3 >= 3.3.3",
-        "six",
         "pathlib2; python_version < '3.4'",
         "futures; python_version < '3.2'",
     ],
@@ -80,7 +77,6 @@ setuptools.setup(
             "pytest",
             "pytest-cov",
             "twine",
-            "mock; python_version < '3.0.0'"
         ]
     },
     classifiers=[
@@ -90,8 +86,6 @@ setuptools.setup(
         "Topic :: Multimedia :: Video :: Display",
         "Topic :: Multimedia :: Video :: Non-Linear Editor",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",

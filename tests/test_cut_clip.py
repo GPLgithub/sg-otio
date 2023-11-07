@@ -3,7 +3,6 @@
 
 import os
 import unittest
-import six
 
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
@@ -66,6 +65,11 @@ class TestCutClip(unittest.TestCase):
             * FROM CLIP NAME: clip_1
             * COMMENT: shot_002
             * shot_003
+            003  reel_name V     C        00:00:00:00 00:00:01:00 01:00:02:00 01:00:03:00
+            * LOC: 01:00:00:12 YELLOW
+            004  reel_name V     C        00:00:00:00 00:00:01:00 01:00:03:00 01:00:04:00
+            * LOC: 01:00:00:12 YELLOW
+            * LOC: 01:00:00:12 YELLOW  shot_004
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         edl_clip = list(timeline.tracks[0].each_clip())[0]
@@ -117,6 +121,23 @@ class TestCutClip(unittest.TestCase):
         clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_from_SG")
 
+        # A locator with an empty name.
+        sg_settings.use_clip_names_for_shot_names = False
+        edl_clip = list(timeline.tracks[0].each_clip())[2]
+        clip = SGCutClip(
+            edl_clip
+        )
+        clip._shot_name = compute_clip_shot_name(clip)
+        self.assertIsNone(clip.shot_name)
+
+        # Two locators, the first one has an empty name, the second one has a name.
+        edl_clip = list(timeline.tracks[0].each_clip())[3]
+        clip = SGCutClip(
+            edl_clip
+        )
+        clip._shot_name = compute_clip_shot_name(clip)
+        self.assertEqual(clip.shot_name, "shot_004")
+
     def test_clip_values(self):
         """
         Test that the clip values are correct.
@@ -160,8 +181,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.retime_str, "LinearTimeWarp (time scalar: 2.0)")
         self.assertTrue(not clip_1.has_effects)
         self.assertEqual(clip_1.effects_str, "")
-        six.assertRegex(
-            self,
+        self.assertRegex(
             clip_1.source_info,
             r"001\s+reel_1\s+V\s+C\s+01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00"
         )
@@ -179,8 +199,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(not clip_2.has_retime)
         self.assertEqual(clip_2.retime_str, "")
-        six.assertRegex(
-            self,
+        self.assertRegex(
             clip_2.source_info,
             r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
         )

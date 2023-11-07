@@ -16,7 +16,7 @@ jobs:
     name: Build and publish Python 🐍 distributions 📦 to PyPI and TestPyPI
     strategy:
       matrix:
-        python-version: ["2.7", "3.10"]
+        python-version: [ "3.10"]
         os: [ubuntu-latest]
 
     runs-on: ${{ matrix.os }}
@@ -32,7 +32,7 @@ jobs:
         python -m pip install --upgrade pip
     - name: Install dependencies
       run: >-
-        pip install six wheel
+        pip install wheel
     - name: Build
       run: >-
         python setup.py bdist_wheel
