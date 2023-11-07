@@ -25,14 +25,9 @@ def get_version():
     # (e.g. pip install ./sg-otio), the version number
     # will be picked up from the most recently added tag.
     try:
-        version_git = "%s" % (
-            subprocess.check_output(
-                ["git", "describe", "--abbrev=0", "--tags"]
-            ).rstrip()
-        )
-        # Convert from bytes to string
-        if isinstance(version_git, bytes):
-            version_git = version_git.decode("utf-8")
+        version_git = subprocess.check_output(
+            ["git", "describe", "--abbrev=0", "--tags"]
+        ).decode("utf-8").rstrip()
         print("Extracted version from git: %s" % version_git)
         return version_git
     except Exception as e:
