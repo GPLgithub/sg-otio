@@ -3,7 +3,6 @@
 
 import os
 import unittest
-import six
 
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
@@ -182,8 +181,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.retime_str, "LinearTimeWarp (time scalar: 2.0)")
         self.assertTrue(not clip_1.has_effects)
         self.assertEqual(clip_1.effects_str, "")
-        six.assertRegex(
-            self,
+        self.assertRegex(
             clip_1.source_info,
             r"001\s+reel_1\s+V\s+C\s+01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00"
         )
@@ -201,8 +199,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.edit_out.to_frames(), 48)
         self.assertTrue(not clip_2.has_retime)
         self.assertEqual(clip_2.retime_str, "")
-        six.assertRegex(
-            self,
+        self.assertRegex(
             clip_2.source_info,
             r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
         )

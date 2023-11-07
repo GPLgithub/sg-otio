@@ -32,7 +32,7 @@ jobs:
         python -m pip install --upgrade pip
     - name: Install dependencies
       run: >-
-        pip install six wheel
+        pip install wheel
     - name: Build
       run: >-
         python setup.py bdist_wheel

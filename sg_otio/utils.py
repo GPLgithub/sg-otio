@@ -8,7 +8,7 @@ import re
 import string
 import sys
 
-from six.moves.urllib import parse
+from urllib import parse
 
 from .sg_settings import SGSettings
 

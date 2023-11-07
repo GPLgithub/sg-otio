@@ -68,7 +68,6 @@ setuptools.setup(
     install_requires=[
         "OpenTimelineIO >= 0.12.0",
         "shotgun-api3 >= 3.3.3",
-        "six",
         "pathlib2; python_version < '3.4'",
         "futures; python_version < '3.2'",
     ],
@@ -78,7 +77,6 @@ setuptools.setup(
             "pytest",
             "pytest-cov",
             "twine",
-            "mock; python_version < '3.0.0'"
         ]
     },
     classifiers=[
@@ -88,8 +86,6 @@ setuptools.setup(
         "Topic :: Multimedia :: Video :: Display",
         "Topic :: Multimedia :: Video :: Non-Linear Editor",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
