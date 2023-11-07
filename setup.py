@@ -31,12 +31,14 @@ def get_version():
             ).rstrip()
         )
         # Convert from bytes to string
-        version_git = version_git.decode("utf-8")
+        if isinstance(version_git, bytes):
+            version_git = version_git.decode("utf-8")
+        print("Extracted version from git: %s" % version_git)
         return version_git
-    except Exception:
+    except Exception as e:
         # Blindly ignore problems, git might be not available, or the user could
         # be installing from zip archive, etc...
-        pass
+        print("Could not extract version from git: %s" % e)
 
     # If everything fails, return a sensible string highlighting that the version
     # couldn't be extracted. If a version is not specified in `setup`, 0.0.0
