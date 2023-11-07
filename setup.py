@@ -30,6 +30,8 @@ def get_version():
                 ["git", "describe", "--abbrev=0", "--tags"]
             ).rstrip()
         )
+        # Convert from bytes to string
+        version_git = version_git.decode("utf-8")
         return version_git
     except Exception:
         # Blindly ignore problems, git might be not available, or the user could
