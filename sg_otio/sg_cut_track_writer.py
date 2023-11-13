@@ -796,6 +796,20 @@ class SGCutTrackWriter(object):
         """
         sg_batch_data = []
         sg_shots = []
+
+        # Check if we need to find an entity cut order, to avoid making the same request for each Shot.
+        linked_entity = sg_linked_entity or sg_project
+        sfg = SGShotFieldsConfig(self._sg, linked_entity["type"])
+        entity_cut_order = None
+        if sfg.absolute_cut_order:
+            # TODO: maybe create Shot fields config before so that
+            #       we can get the field without an extra query?
+            sg_entity = self._sg.find_one(
+                linked_entity["type"],
+                [["id", "is", linked_entity["id"]]],
+                [sfg.absolute_cut_order]
+            )
+            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
         for shot_name, clip_group in clips_by_shots.items():
             # The shot name might be _no_shot_name, so we need to check the clip group name too.
             if not shot_name or not clip_group.name:
@@ -807,6 +821,7 @@ class SGCutTrackWriter(object):
                     sg_project,
                     sg_linked_entity,
                     sg_user,
+                    entity_cut_order
                 )
                 sg_batch_data.append({
                     "request_type": "create",
@@ -820,7 +835,8 @@ class SGCutTrackWriter(object):
                     clip_group,
                     sg_project,
                     sg_linked_entity,
-                    sg_user
+                    sg_user,
+                    entity_cut_order,
                 )
                 if shot_payload:
                     sg_batch_data.append({
@@ -850,7 +866,7 @@ class SGCutTrackWriter(object):
 
         return sg_shots
 
-    def _get_shot_payload(self, clip_group, sg_project, sg_linked_entity, sg_user=None):
+    def _get_shot_payload(self, clip_group, sg_project, sg_linked_entity, sg_user=None, entity_cut_order=None):
         """
         Get a SG Shot payload for a given :class:`sg_otio.ClipGroup` instance.
 
@@ -858,6 +874,7 @@ class SGCutTrackWriter(object):
         :param sg_project: The SG Project to write the Shot to.
         :param sg_linked_entity: If provided, the Entity the Cut will be linked to.
         :param sg_user: An optional user to provide when creating/updating Shots in SG.
+        :param entity_cut_order: If provided, the cut order of the linked entity.
         :returns: A dictionary with the Shot payload.
         """
         sg_linked_entity = sg_linked_entity or sg_project
@@ -907,18 +924,9 @@ class SGCutTrackWriter(object):
         if True:
             shot_payload[sfg.has_effects] = clip_group.has_effects
             shot_payload[sfg.has_retime] = clip_group.has_retime
-        if sfg.absolute_cut_order:
-            # TODO: maybe create Shot fields config before so that
-            #       we can get the field without an extra query?
-            sg_entity = self._sg.find_one(
-                sg_linked_entity["type"],
-                [["id", "is", sg_linked_entity["id"]]],
-                [sfg.absolute_cut_order]
-            )
-            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
-            if entity_cut_order:
-                absolute_cut_order = 1000 * entity_cut_order + clip_group.index
-                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
+        if entity_cut_order:
+            absolute_cut_order = 1000 * entity_cut_order + clip_group.index
+            shot_payload[sfg.absolute_cut_order] = absolute_cut_order
         if sfg.shot_link_field and sg_linked_entity:
             shot_payload[sfg.shot_link_field] = sg_linked_entity
 
