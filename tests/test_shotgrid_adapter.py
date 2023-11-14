@@ -55,6 +55,15 @@ class ShotgridAdapterTest(SGBaseTest):
             "sg_cut_order": 2
         }
         self.add_to_sg_mock_db(self.mock_sequence)
+        self.mock_sequence_absolute_cut_order = {
+            "project": self.mock_project,
+            "type": "Sequence",
+            "code": "SEQ02",
+            "id": 3,
+            "sg_cut_order": 3,
+            "sg_absolute_cut_order": 3
+        }
+        self.add_to_sg_mock_db(self.mock_sequence_absolute_cut_order)
         self.path_field = "%s_path" % get_platform_name()
         self.mock_local_storage = {
             "type": "LocalStorage",
@@ -139,6 +148,12 @@ class ShotgridAdapterTest(SGBaseTest):
             self.mock_sg.base_url,
             "Sequence",
             self.mock_sequence["id"],
+            self._SESSION_TOKEN
+        )
+        self._SG_SEQ_ABSOLUTE_CUT_ORDER_URL = get_write_url(
+            self.mock_sg.base_url,
+            "Sequence",
+            self.mock_sequence_absolute_cut_order["id"],
             self._SESSION_TOKEN
         )
 
@@ -479,6 +494,39 @@ class ShotgridAdapterTest(SGBaseTest):
             for i, clip in enumerate(track.each_clip()):
                 self.assertEqual(clip.metadata["sg"]["type"], "CutItem")
                 self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
+
+    def test_read_write_absolute_cut_order(self):
+        """
+        Test that absolute cut order/entity cut order work as expected.
+        """
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            timeline = otio.adapters.read_from_file(
+                self._SG_CUT_URL,
+                "ShotGrid",
+            )
+        track = timeline.tracks[0]
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_ABSOLUTE_CUT_ORDER_URL, "ShotGrid")
+            track = timeline.tracks[0]
+            self.assertIsNotNone(track.metadata.get("sg"))
+            sg_data = track.metadata["sg"]
+            self.assertEqual(sg_data["type"], "Cut")
+            self.assertIsNotNone(sg_data.get("id"))
+            # Retrieve the Cut from SG
+            sg_cut = self.mock_sg.find_one("Cut", [["id", "is", sg_data["id"]]], [])
+            self.assertIsNotNone(sg_cut)
+            # Retrieve the CutItems
+            sg_cut_items = self.mock_sg.find(
+                "CutItem", [["cut", "is", sg_cut]], [],
+                order=[{"field_name": "cut_order", "direction": "asc"}]
+            )
+            self.assertEqual(len(sg_cut_items), 3)
+            for i, clip in enumerate(track.each_clip()):
+                metadata_sg_shot = clip.metadata["sg"]["shot"]
+                sg_shot = self.mock_sg.find_one("Shot", [["id", "is", metadata_sg_shot["id"]]], ["sg_absolute_cut_order", "code"])
+                # Cut order should be 1000 * entity_cut_order + cut_item["cut_order"]
+                entity_cut_order = self.mock_sequence_absolute_cut_order["sg_absolute_cut_order"]
+                self.assertEqual(sg_shot["sg_absolute_cut_order"], 1000 * entity_cut_order + clip.metadata["sg"]["cut_order"])
 
     def test_read_write_to_edl(self):
         """
