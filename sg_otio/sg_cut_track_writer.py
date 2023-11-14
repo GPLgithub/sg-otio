@@ -820,7 +820,7 @@ class SGCutTrackWriter(object):
                     clip_group,
                     sg_project,
                     sg_linked_entity,
-                    sg_user,
+                    sg_user
                 )
                 if shot_payload:
                     sg_batch_data.append({
