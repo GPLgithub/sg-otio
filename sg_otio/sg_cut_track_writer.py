@@ -1019,7 +1019,11 @@ class SGCutTrackWriter(object):
                 entity_type,
                 [["id", "is", entity_id]],
                 # We might need the absolute cut order of the linked entity later, it's better
-                # to retrieve it now.
+                # to retrieve it now. We should normally get the field from sfg.absolute_cut_order,
+                # but to get the Shot Fields Config, we need the linked entity, so to query it properly,
+                # we'd need to retrieve the linked entity twice.
+                # Instead, we just get the field from the constant instead, if it doesn't exist, it'll just
+                # not be present in the payload.
                 ["project", "code", _ABSOLUTE_CUT_ORDER_FIELD]
             )
             if not sg_linked_entity:
