@@ -806,7 +806,7 @@ class SGCutTrackWriter(object):
                     clip_group,
                     sg_project,
                     sg_linked_entity,
-                    sg_user
+                    sg_user,
                 )
                 sg_batch_data.append({
                     "request_type": "create",
