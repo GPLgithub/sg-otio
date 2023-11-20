@@ -907,18 +907,10 @@ class SGCutTrackWriter(object):
         if True:
             shot_payload[sfg.has_effects] = clip_group.has_effects
             shot_payload[sfg.has_retime] = clip_group.has_retime
-        if sfg.absolute_cut_order:
-            # TODO: maybe create Shot fields config before so that
-            #       we can get the field without an extra query?
-            sg_entity = self._sg.find_one(
-                sg_linked_entity["type"],
-                [["id", "is", sg_linked_entity["id"]]],
-                [sfg.absolute_cut_order]
-            )
-            entity_cut_order = sg_entity.get(sfg.absolute_cut_order)
-            if entity_cut_order:
-                absolute_cut_order = 1000 * entity_cut_order + clip_group.index
-                shot_payload[sfg.absolute_cut_order] = absolute_cut_order
+        if sfg.absolute_cut_order and sg_linked_entity.get(sfg.absolute_cut_order):
+            entity_cut_order = sg_linked_entity[sfg.absolute_cut_order]
+            absolute_cut_order = 1000 * entity_cut_order + clip_group.index
+            shot_payload[sfg.absolute_cut_order] = absolute_cut_order
         if sfg.shot_link_field and sg_linked_entity:
             shot_payload[sfg.shot_link_field] = sg_linked_entity
 
@@ -999,6 +991,19 @@ class SGCutTrackWriter(object):
                 )
             sg_project = sg_cut["project"]
             sg_linked_entity = sg_cut["entity"]
+            # We might need the absolute cut order of the linked entity later, it's better
+            # to retrieve it now.
+            if sg_linked_entity:
+                sfg = SGShotFieldsConfig(
+                    self._sg,
+                    sg_linked_entity["type"],
+                )
+                if sfg.absolute_cut_order:
+                    sg_linked_entity = self._sg.find_one(
+                        sg_linked_entity["type"],
+                        [["id", "is", sg_linked_entity["id"]]],
+                        ["project", "code", sfg.absolute_cut_order]
+                    )
         elif entity_type == "Project":
             sg_project = self._sg.find_one(
                 entity_type,
@@ -1013,7 +1018,13 @@ class SGCutTrackWriter(object):
             sg_linked_entity = self._sg.find_one(
                 entity_type,
                 [["id", "is", entity_id]],
-                ["project", "code"]
+                # We might need the absolute cut order of the linked entity later, it's better
+                # to retrieve it now. We should normally get the field from sfg.absolute_cut_order,
+                # but to get the Shot Fields Config, we need the linked entity, so to query it properly,
+                # we'd need to retrieve the linked entity twice.
+                # Instead, we just get the field from the constant instead, if it doesn't exist, it'll just
+                # not be present in the payload.
+                ["project", "code", _ABSOLUTE_CUT_ORDER_FIELD]
             )
             if not sg_linked_entity:
                 raise ValueError(
