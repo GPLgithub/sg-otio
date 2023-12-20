@@ -495,7 +495,7 @@ class SGCutTrackWriter(object):
         if cut_clip.has_effects:
             description = "%s\nEffects: %s" % (
                 description,
-                self.effects_str
+                cut_clip.effects_str
             )
         if _EFFECTS_FIELD in self.cut_item_schema:
             cut_item_payload[_EFFECTS_FIELD] = cut_clip.has_effects
