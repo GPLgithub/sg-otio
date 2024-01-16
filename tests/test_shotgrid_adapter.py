@@ -75,7 +75,7 @@ class ShotgridAdapterTest(SGBaseTest):
         self.mock_shots = []
         for i in range(1, 4):
             self.mock_shots.append(
-                {"type": "Shot", "code": "%03d" % i, "project": self.mock_project, "id": i}
+                {"type": "Shot", "code": "TestShot%03d" % i, "project": self.mock_project, "id": i}
             )
         self.add_to_sg_mock_db(self.mock_shots)
         # Create a Cut
@@ -393,6 +393,12 @@ class ShotgridAdapterTest(SGBaseTest):
         Test reading an SG Cut, saving it to otio and writing it to SG.
         """
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            # Just make sure that finding entities by name is case insensitive
+            # like for regular SG.
+            sg_shot = self.mock_sg.find_one("Shot", [["code", "is", self.mock_shots[0]["code"]]])
+            self.assertIsNotNone(sg_shot)
+            sg_shot = self.mock_sg.find_one("Shot", [["code", "is", self.mock_shots[0]["code"].lower()]])
+            self.assertIsNotNone(sg_shot)
             timeline = otio.adapters.read_from_file(
                 self._SG_CUT_URL,
                 "ShotGrid",
@@ -412,15 +418,18 @@ class ShotgridAdapterTest(SGBaseTest):
             self.assertEqual(
                 track.source_range.start_time,
                 -otio.opentime.from_timecode(self.mock_cut["timecode_start_text"], self.fps),
-
             )
 
             # Check the track metadata
             for k, v in self.mock_cut.items():
+                logger.info(
+                    "Checking meta data %s %s vs %s" % (k, track.metadata["sg"][k], v)
+                )
                 if k == "entity":
                     # Just check the type and id
                     self.assertEqual(track.metadata["sg"][k]["type"], v["type"])
                     self.assertEqual(track.metadata["sg"][k]["id"], v["id"])
+                    self.assertEqual(track.metadata["sg"][k]["name"], v["code"])
                 else:
                     self.assertEqual(track.metadata["sg"][k], v)
             # Check the track clips
@@ -542,12 +551,12 @@ class ShotgridAdapterTest(SGBaseTest):
         edl_text = otio.adapters.write_to_string(timeline, adapter_name="cmx_3600")
         expected_edl_text = (
             "TITLE: Cut01\n\n"
-            "001  001_v001 V     C        00:00:00:00 00:01:00:00 01:00:00:00 01:01:00:00\n"
-            "* FROM CLIP NAME:  001_v001\n"
-            "002  002_v001 V     C        00:00:00:00 00:01:00:00 01:01:00:00 01:02:00:00\n"
-            "* FROM CLIP NAME:  002_v001\n"
-            "003  003_v001 V     C        00:00:00:00 00:01:00:00 01:02:00:00 01:03:00:00\n"
-            "* FROM CLIP NAME:  003_v001\n"
+            "001  TestShot001_v001 V     C        00:00:00:00 00:01:00:00 01:00:00:00 01:01:00:00\n"
+            "* FROM CLIP NAME:  TestShot001_v001\n"
+            "002  TestShot002_v001 V     C        00:00:00:00 00:01:00:00 01:01:00:00 01:02:00:00\n"
+            "* FROM CLIP NAME:  TestShot002_v001\n"
+            "003  TestShot003_v001 V     C        00:00:00:00 00:01:00:00 01:02:00:00 01:03:00:00\n"
+            "* FROM CLIP NAME:  TestShot003_v001\n"
         )
         self.assertMultiLineEqual(edl_text, expected_edl_text)
         # Read back the EDL and write to SG

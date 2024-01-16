@@ -151,7 +151,8 @@ class SGCutTrackWriter(object):
                 # Apply retrieved Shots to ClipGroups
                 for sg_shot in sg_shots:
                     shot_name = sg_shot["code"]
-                    clips_by_shots[shot_name].sg_shot = sg_shot
+                    # clips_by_shots has the lowercased name as key.
+                    clips_by_shots[shot_name.lower()].sg_shot = sg_shot
 
         sg_cut, sg_cut_version, sg_cut_pf = self.write_cut(
             video_track,
