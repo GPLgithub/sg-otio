@@ -123,4 +123,3 @@ class MockGrid(mockgun.Shotgun):
             return super(MockGrid, self)._compare(field_type, lval.lower(), operator, lower_rval)
 
         return super(MockGrid, self)._compare(field_type, lval, operator, rval)
-

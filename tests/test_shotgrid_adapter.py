@@ -393,6 +393,8 @@ class ShotgridAdapterTest(SGBaseTest):
         Test reading an SG Cut, saving it to otio and writing it to SG.
         """
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            # Just make sure that finding entities by name is case insensitive
+            # like for regular SG.
             sg_shot = self.mock_sg.find_one("Shot", [["code", "is", self.mock_shots[0]["code"]]])
             self.assertIsNotNone(sg_shot)
             sg_shot = self.mock_sg.find_one("Shot", [["code", "is", self.mock_shots[0]["code"].lower()]])
