@@ -3,58 +3,17 @@
 
 import os
 import unittest
-from functools import partial
 
 import shotgun_api3
 from shotgun_api3.lib import mockgun
 
-try:
-    # Python 3.3 forward includes the mock module
-    from unittest import mock
-except ImportError:
-    import mock
 
-
-class SGBaseTest(unittest.TestCase):
+class MockGrid(mockgun.Shotgun):
     """
-    A class to use as a base for SG related tests.
+    Override Mockgun base implementation to make it more SG compliant.
     """
 
-    def setUp(self):
-        """
-        Setup the tests suite.
-        """
-        self.resources_dir = os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "resources"
-        )
-        # Setup mockgun.
-        self.mock_sg = mockgun.Shotgun(
-            "https://mysite.shotgunstudio.com",
-            "foo",
-            "xxxx"
-        )
-        self._SESSION_TOKEN = self.mock_sg.get_session_token()
-
-        # Avoid NotImplementedError for mock_sg.upload
-        self.mock_sg.upload = mock.MagicMock()
-        # Fix the mockgun update method since it returns a list instead of a dict
-        # We unfortunately also need to fix the batch method since it assumes a list
-        self.mock_sg.update = mock.MagicMock(side_effect=partial(self.mock_sg_update, self.mock_sg.update))
-        self.mock_sg.batch = mock.MagicMock(side_effect=self.mock_sg_batch)
-        project = {"type": "Project", "name": "project", "id": 1}
-        self.add_to_sg_mock_db(
-            project
-        )
-        self.mock_project = project
-        user = {"type": "HumanUser", "name": "James Bond", "id": 1}
-        self.add_to_sg_mock_db(
-            user
-        )
-        self.mock_user = user
-
-    def mock_sg_update(self, update, entity_type, entity_id, data):
+    def update(self, entity_type, entity_id, data):
         """
         Update using mockgun.
 
@@ -65,9 +24,9 @@ class SGBaseTest(unittest.TestCase):
         :param entity_id: The entity id to update.
         :param data: The data to update.
         """
-        return update(entity_type, entity_id, data)[0]
+        return super(MockGrid, self).update(entity_type, entity_id, data)[0]
 
-    def mock_sg_batch(self, requests):
+    def batch(self, requests):
         """
         Mockgun batch method.
 
@@ -81,21 +40,21 @@ class SGBaseTest(unittest.TestCase):
         results = []
         for request in requests:
             if request["request_type"] == "create":
-                results.append(self.mock_sg.create(request["entity_type"], request["data"]))
+                results.append(self.create(request["entity_type"], request["data"]))
             elif request["request_type"] == "update":
                 # note: This is the only different line with mockgun.batch.
                 # Since mockgun.update returns a list instead of a dict (which is the case for shotgun),
                 # mockgun.batch here returns the first item of the list, but since we patch mockgun.update
                 # to return a dict, we also need to amend this line to append the dict and not the first element
                 # of a list.
-                results.append(self.mock_sg.update(request["entity_type"], request["entity_id"], request["data"]))
+                results.append(self.update(request["entity_type"], request["entity_id"], request["data"]))
             elif request["request_type"] == "delete":
-                results.append(self.mock_sg.delete(request["entity_type"], request["entity_id"]))
+                results.append(self.delete(request["entity_type"], request["entity_id"]))
             else:
                 raise shotgun_api3.ShotgunError("Invalid request type %s in request %s" % (request["request_type"], request))
         return results
 
-    def add_to_sg_mock_db(self, entities):
+    def add_to_db(self, entities):
         """
         Adds an entity or entities to the mocked ShotGrid database.
 
@@ -149,4 +108,61 @@ class SGBaseTest(unittest.TestCase):
                     # print "Swapping link dict %s -> %s" % (entity[x], link_dict)
                     entity[x] = link_dict
 
-            self.mock_sg._db[et][eid] = entity
+            self._db[et][eid] = entity
+
+    def upload(self, *args, **kwargs):
+        # Avoid NotImplementedError for mock_sg.upload
+        pass
+
+    def _compare(self, field_type, lval, operator, rval):
+        """
+        Override base comparison to allow case insensitive matches, like SG does.
+        """
+        if field_type == "text":
+            if isinstance(rval, list):
+                lower_rval = [x.lower() for x in rval]
+            else:
+                lower_rval = rval.lower()
+            return super(MockGrid, self)._compare(field_type, lval.lower(), operator, lower_rval)
+
+        return super(MockGrid, self)._compare(field_type, lval, operator, rval)
+
+
+class SGBaseTest(unittest.TestCase):
+    """
+    A class to use as a base for SG related tests.
+    """
+
+    def setUp(self):
+        """
+        Setup the tests suite.
+        """
+        self.resources_dir = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "resources"
+        )
+        # Setup mockgun.
+        self.mock_sg = MockGrid(
+            "https://mysite.shotgunstudio.com",
+            "foo",
+            "xxxx"
+        )
+        self._SESSION_TOKEN = self.mock_sg.get_session_token()
+
+        project = {"type": "Project", "name": "project", "id": 1}
+        self.add_to_sg_mock_db(
+            project
+        )
+        self.mock_project = project
+        user = {"type": "HumanUser", "name": "James Bond", "id": 1}
+        self.add_to_sg_mock_db(
+            user
+        )
+        self.mock_user = user
+
+    def add_to_sg_mock_db(self, entities):
+        """
+        Adds an entity or entities to the mocked ShotGrid database.
+        """
+        return self.mock_sg.add_to_db(entities)
