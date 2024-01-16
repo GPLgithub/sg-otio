@@ -148,9 +148,6 @@ class SGCutTrackWriter(object):
                     [["project", "is", sg_project], ["code", "in", shot_names]],
                     sfg.all
                 )
-                logger.warning(
-                    "Retrieved %s from SG for names %s" % (sg_shots, shot_names)
-                )
                 # Apply retrieved Shots to ClipGroups
                 for sg_shot in sg_shots:
                     shot_name = sg_shot["code"]
