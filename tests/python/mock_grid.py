@@ -5,6 +5,7 @@
 import shotgun_api3
 from shotgun_api3.lib import mockgun
 
+
 class MockGrid(mockgun.Shotgun):
     """
     Override Mockgun base implementation to make it more SG compliant.
