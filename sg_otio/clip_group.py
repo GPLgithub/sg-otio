@@ -470,13 +470,15 @@ class ClipGroup(object):
         shots_by_name = {}
         for i, clip in enumerate(video_track.each_clip()):
             shot_name = compute_clip_shot_name(clip)
+            shot_key = ""
             if shot_name:
                 # Matching Shots must be case insensitive
-                shot_name = shot_name.lower()
+                shot_key = shot_name.lower()
             # Ensure a ClipGroup and add SGCutClip to it.
-            if shot_name not in shots_by_name:
-                shots_by_name[shot_name] = ClipGroup(shot_name)
-            shots_by_name[shot_name].add_clip(
+            if shot_key not in shots_by_name:
+                # Preserve the shot name for the group
+                shots_by_name[shot_key] = ClipGroup(shot_name)
+            shots_by_name[shot_key].add_clip(
                 SGCutClip(clip, index=i + 1, sg_shot=None)
             )
         return shots_by_name

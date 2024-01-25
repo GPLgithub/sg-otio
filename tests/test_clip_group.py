@@ -32,7 +32,7 @@ class TestClipGroup(unittest.TestCase):
 
             001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: shot_001
+            * COMMENT: SHOT_001
             002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
             * FROM CLIP NAME: shot_002_v001
             * COMMENT: shot_002
@@ -41,7 +41,7 @@ class TestClipGroup(unittest.TestCase):
             * COMMENT: shot_001
             004  clip_4 V     C        01:00:00:00 01:00:01:00 01:00:16:00 01:00:17:00
             * FROM CLIP NAME: shot_002_v001
-            * COMMENT: shot_002
+            * COMMENT: SHOT_002
             005  clip_5 V     C        01:00:00:00 01:00:01:00 01:00:17:00 01:00:18:00
             * FROM CLIP NAME: shot_003_v001
             * COMMENT: shot_003
@@ -52,10 +52,13 @@ class TestClipGroup(unittest.TestCase):
         shot_groups = ClipGroup.groups_from_track(track)
         self.assertEqual(set(shot_groups.keys()), {"shot_001", "shot_002", "shot_003"})
         self.assertIsNone(shot_groups["shot_001"].sg_shot)
+        self.assertEqual(shot_groups["shot_001"].name, "SHOT_001")  # First entry is upper case
         shot_001_clips = shot_groups["shot_001"].clips
         self.assertEqual({clip.name for clip in shot_001_clips}, {"clip_1", "clip_3"})
+        self.assertEqual(shot_groups["shot_002"].name, "shot_002")  # First entry is lower case
         shot_002_clips = shot_groups["shot_002"].clips
         self.assertEqual({clip.name for clip in shot_002_clips}, {"clip_2", "clip_4"})
+        self.assertEqual(shot_groups["shot_003"].name, "shot_003")  # Single entry is lower case
         shot_003_clips = shot_groups["shot_003"].clips
         self.assertEqual({clip.name for clip in shot_003_clips}, {"clip_5"})
 
@@ -126,7 +129,7 @@ class TestClipGroup(unittest.TestCase):
             shot_groups = ClipGroup.groups_from_track(track)
 
             shot = shot_groups["shot_001"]
-            # Matching Shots is case insensitive
+            # The case is taken from the first entry
             self.assertEqual(shot.name, "shot_001")
             self.assertEqual(shot.index, 3)  # first clip is the last starting at 01:00:00:00
             self.assertEqual(shot.cut_in.to_frames(), head_in + head_duration)

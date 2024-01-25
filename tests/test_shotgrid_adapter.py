@@ -162,7 +162,7 @@ class ShotgridAdapterTest(SGBaseTest):
         """
         Override compute clip shot name to get a unique shot name per clip.
         """
-        return "shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
+        return "Shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
 
     def test_read(self):
         """
@@ -638,6 +638,9 @@ class ShotgridAdapterTest(SGBaseTest):
                     ["code"],
                 )
                 self.assertEqual(len(sg_shots), 6)
+                # Name case should have been preserved
+                for sg_shot in sg_shots:
+                    self.assertTrue(sg_shot["code"].startswith("Shot_"))
                 # We should have Versions created linked to Shots
                 sg_versions = self.mock_sg.find(
                     "Version",
@@ -803,13 +806,13 @@ class ShotgridAdapterTest(SGBaseTest):
 
             001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: test_write_shot_shot_001
+            * COMMENT: test_write_shot_SHOT_001
             002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
             * FROM CLIP NAME: shot_002_v001
             * COMMENT: test_write_shot_shot_002
             003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
             * FROM CLIP NAME: shot_001_v001
-            * COMMENT: test_write_shot_SHOT_001
+            * COMMENT: test_write_shot_shot_001
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         track = timeline.tracks[0]
@@ -818,12 +821,15 @@ class ShotgridAdapterTest(SGBaseTest):
             clip = track[0]
             self.assertEqual(clip.metadata["sg"]["cut_order"], 1)
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
             clip = track[1]
             self.assertEqual(clip.metadata["sg"]["cut_order"], 2)
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
             clip = track[2]
             self.assertEqual(clip.metadata["sg"]["cut_order"], 3)
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            # Shot name case taken from first entry
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
 
             mock_cut_url = get_read_url(
                 self.mock_sg.base_url,
@@ -835,10 +841,12 @@ class ShotgridAdapterTest(SGBaseTest):
             sg_track = timeline_from_sg.tracks[0]
             clip = sg_track[0]
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
             clip = sg_track[1]
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
             clip = sg_track[2]
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
 
     def test_read_shot_fields(self):
         """
