@@ -125,9 +125,9 @@ class SGCutTrackWriter(object):
             shot_names = []
             seen_names = []
             duplicate_names = {}
-            for shot, clip_group in clips_by_shots.items():
-                if shot:
-                    shot_names.append(shot)
+            for shot_key, clip_group in clips_by_shots.items():
+                if shot_key:
+                    shot_names.append(shot_key)
                 for clip in clip_group.clips:
                     if clip.name not in seen_names:
                         seen_names.append(clip.name)
@@ -143,6 +143,8 @@ class SGCutTrackWriter(object):
                     clip_name_index += 1
 
             if shot_names:
+                # find is case insensitive so we can use our
+                # lowered case shot keys.
                 sg_shots = self._sg.find(
                     "Shot",
                     [["project", "is", sg_project], ["code", "in", shot_names]],
@@ -365,9 +367,9 @@ class SGCutTrackWriter(object):
         cut_item_clips = []
 
         # Loop over all clips
-        for shot_name, clip_group in clips_by_shots.items():
+        for shot_key, clip_group in clips_by_shots.items():
             if clip_group.sg_shot_is_omitted:
-                logger.info("Skipping omitted Shot %s" % shot_name)
+                logger.info("Skipping omitted Shot %s" % shot_key)
                 continue
             for clip in clip_group.clips:
                 logger.debug("Getting payload for %s %s %s %s %s" % (
@@ -797,9 +799,9 @@ class SGCutTrackWriter(object):
         """
         sg_batch_data = []
         sg_shots = []
-        for shot_name, clip_group in clips_by_shots.items():
-            # The shot name might be _no_shot_name, so we need to check the clip group name too.
-            if not shot_name or not clip_group.name:
+        for shot_key, clip_group in clips_by_shots.items():
+            # The shot key might be _no_shot_name, so we need to check the clip group name too.
+            if not shot_key or not clip_group.name:
                 continue
             if not clip_group.sg_shot:
                 logger.info("Creating Shot %s..." % clip_group.name)
