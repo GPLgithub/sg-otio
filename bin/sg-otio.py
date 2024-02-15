@@ -262,7 +262,9 @@ def compare_to_sg(args):
     sg = Shotgun(args.sg_site_url, session_token=session_token)
     diff = SGTrackDiff(
         sg,
-        sg_track.metadata["sg"]["project"],
+        # metadata is a AnyDictionary which is not JSON serializable
+        # make it a dict
+        dict(sg_track.metadata["sg"]["project"]),
         new_track=new_track,
         old_track=sg_track
     )
