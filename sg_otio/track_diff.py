@@ -1050,7 +1050,9 @@ class SGTrackDiff(object):
                 )
             # metadata is a AnyDictionary which is not JSON serializable
             # make it a dict
-            new_track_sg_link = dict(sg_cut.get("entity"))
+            new_track_sg_link = sg_cut.get("entity")
+            if new_track_sg_link:
+                new_track_sg_link = dict(new_track_sg_link)
             # We don't support comparing Cuts from different SG Projects
             if sg_cut["project"]["id"] != self._sg_project["id"]:
                 raise ValueError(
@@ -1069,7 +1071,9 @@ class SGTrackDiff(object):
                 )
             # metadata is a AnyDictionary which is not JSON serializable
             # make it a dict
-            old_track_sg_link = dict(sg_cut.get("entity"))
+            old_track_sg_link = sg_cut.get("entity")
+            if old_track_sg_link:
+                old_track_sg_link = dict(old_track_sg_link)
             # If the two SG Cuts are linked to a common Entity, use it.
             if new_track_sg_link:
                 if (
