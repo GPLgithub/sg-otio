@@ -446,7 +446,6 @@ class SGTrackDiff(object):
                 filters.append(
                     [self._sg_shot_link_field_name, "is", self._sg_entity]
                 )
-
             sg_more_shots = self._sg.find(
                 "Shot",
                 filters,

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import json
 import os
 import unittest
 from functools import partial
@@ -43,6 +44,10 @@ class SGBaseTest(unittest.TestCase):
         # We unfortunately also need to fix the batch method since it assumes a list
         self.mock_sg.update = mock.MagicMock(side_effect=partial(self.mock_sg_update, self.mock_sg.update))
         self.mock_sg.batch = mock.MagicMock(side_effect=self.mock_sg_batch)
+        self.mock_sg.original_find_one = self.mock_sg.find_one
+        self.mock_sg.find_one = mock.MagicMock(side_effect=self.mock_sg_find_one)
+        self.mock_sg.original_find = self.mock_sg.find
+        self.mock_sg.find = mock.MagicMock(side_effect=self.mock_sg_find)
         project = {"type": "Project", "name": "project", "id": 1}
         self.add_to_sg_mock_db(
             project
@@ -53,6 +58,38 @@ class SGBaseTest(unittest.TestCase):
             user
         )
         self.mock_user = user
+
+    def mock_sg_find_one(self, entity_type, filters, fields=None, *args, **kwargs):
+        """
+        Find one using mockgun.
+
+        Mockgun returns a list whereas shotgun returns a dict.
+
+        :param entity_type: The entity type to find.
+        :param filters: The filters to use.
+        :param fields: The fields to return.
+        """
+        # Try to dump to JSON to see if filters and fields are serializable,
+        # since SG find_one does not accept non-serializable objects.
+        json.dumps(filters)
+        json.dumps(fields)
+        return self.mock_sg.original_find_one(entity_type, filters, fields, *args, **kwargs)
+
+    def mock_sg_find(self, entity_type, filters, fields=None, *args, **kwargs):
+        """
+        Find using mockgun.
+
+        Mockgun returns a list whereas shotgun returns a dict.
+
+        :param entity_type: The entity type to find.
+        :param filters: The filters to use.
+        :param fields: The fields to return.
+        """
+        # Try to dump to JSON to see if filters and fields are serializable,
+        # since SG find does not accept non-serializable objects.
+        json.dumps(filters)
+        json.dumps(fields)
+        return self.mock_sg.original_find(entity_type, filters, fields, *args, **kwargs)
 
     def mock_sg_update(self, update, entity_type, entity_id, data):
         """
