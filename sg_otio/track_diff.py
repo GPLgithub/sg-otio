@@ -3,6 +3,7 @@
 
 import logging
 from collections import defaultdict
+import csv
 
 from .sg_settings import SGShotFieldsConfig
 from .clip_group import ClipGroup
@@ -959,104 +960,6 @@ class SGTrackDiff(object):
                         cut_diff.reasons,
                     ]
                     csv_writer.writerow(data_row)
-
-        # Body should look like this:
-        # The changes in {Name of Cut/EDL} are as follows:
-        #
-        # 5 New Shots
-        # HT0500
-        # HT0510
-        # HT0520
-        # HT0530
-        # HT0540
-        #
-        # 2 Omitted Shots
-        # HT0050
-        # HT0060
-        #
-        # 1 Reinstated Shot
-        # HT0110
-        #
-        # 4 Cut Changes
-        # HT0070 - Head extended 2 frs
-        # HT0080 - Tail extended 6 frs
-        # HT0090 - Tail trimmed 5 frs
-        # HT0100 - Head extended 5 frs
-        #
-        # 1 Rescan Needed
-        # HT0120 - Head extended 15 frs
-
-        subject = self.get_summary_title(title)
-        # Note: Cut changes were previously reported with sometimes some reasons
-        # and some other times no reasons at all. This was confusing for clients.
-        # So for now we don't show any reason.
-#        cut_changes_details = [
-#            "%s - %s" % (
-#                edit.name, ", ".join(edit.reasons)
-#            ) for edit in sorted(
-#                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
-#                key=lambda x: x.index
-#            )
-#        ]
-        cut_changes_details = [
-            "%s" % (
-                diff.name
-            ) for diff in sorted(
-                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
-                key=lambda x: x.index
-            )
-        ]
-        rescan_details = [
-            "%s - %s" % (
-                diff.name, ", ".join(diff.reasons)
-            ) for diff in sorted(
-                self.diffs_for_type(_DIFF_TYPES.RESCAN),
-                key=lambda x: x.index
-            )
-        ]
-        no_link_details = [
-            diff.sg_version_name or str(diff.index) for diff in sorted(
-                self.diffs_for_type(_DIFF_TYPES.NO_LINK),
-                key=lambda x: x.index
-            )
-        ]
-        body = _BODY_REPORT_FORMAT % (
-            # Let the user know that something is potentially wrong
-            "WARNING, following edits couldn't be linked to any Shot :\n%s\n" % (
-                "\n".join(no_link_details)
-            ) if no_link_details else "",
-            # Urls
-            " , ".join(sg_links),
-            # Title
-            title,
-            # And then counts and lists per type of changes
-            self.count_for_type(_DIFF_TYPES.NEW),
-            "\n".join([
-                diff.shot_name for diff in sorted(
-                    self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
-                    key=lambda x: x.index
-                )
-            ]),
-            self.count_for_type(_DIFF_TYPES.OMITTED),
-            "\n".join([
-                diff.shot_name for diff in sorted(
-                    self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
-                    key=lambda x: x.index or -1
-                )
-            ]),
-            self.count_for_type(_DIFF_TYPES.REINSTATED),
-            "\n".join([
-                diff.shot_name for diff in sorted(
-                    self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
-                    key=lambda x: x.index
-                )
-            ]),
-            self.count_for_type(_DIFF_TYPES.CUT_CHANGE),
-            "\n".join(cut_changes_details),
-            self.count_for_type(_DIFF_TYPES.RESCAN),
-            "\n".join(rescan_details),
-        )
-        return subject, body
 
     def get_summary_title(self, subject):
         """

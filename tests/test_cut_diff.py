@@ -4,7 +4,7 @@
 import copy
 import logging
 import os
-
+import tempfile
 import shotgun_api3
 
 from sg_otio.cut_clip import SGCutClip
@@ -1071,6 +1071,9 @@ class TestCutDiff(SGBaseTest):
                 "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n0 New Shots\n\n\n0 Omitted Shots\n\n\n0 Reinstated Shot\n\n\n0 Cut Changes\n\n\n0 Rescan Needed\n\n\n"
             )
         )
+        # Test csv report
+        _, csv_path = tempfile.mkstemp(suffix=".csv")
+        track_diff.write_csv_report(csv_path, "This is a Test", [])
         # Compare to Cut from EDL
         path = os.path.join(
             self.resources_dir,
