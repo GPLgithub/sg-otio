@@ -914,6 +914,150 @@ class SGTrackDiff(object):
         )
         return subject, body
 
+    def write_csv_report(self, csv_path, title, sg_links):
+        """
+        Build a text report for this summary, highlighting changes.
+
+        :param title: A title for the report.
+        :param sg_links: Shotgun URLs to display in the report as links.
+        :return: A (subject, body) tuple, as strings.
+        """
+        header_row = ["Cut Order", "Status", "Shot", "Shot Duration (fr)", "Shot Start", "Shot End", "Notes"]
+        # We use utf-8-sig to make sure Excel opens the file with the right encoding.
+        # no issues with other apps (e.g. Google Sheets, Numbers, etc.)
+        with open(csv_path, "w", encoding="utf-8-sig") as csv_handle:
+            csv_writer = csv.writer(csv_handle, lineterminator="\n")
+
+            # write the data
+            csv_writer.writerow(header_row)
+            for shot_name, clip_group in self._diffs_by_shots.items():
+                shot_values = clip_group.get_shot_values()
+                for cut_diff in clip_group.clips:
+                    if cut_diff.cut_in != cut_diff.old_cut_in:
+                        start = "%s (%s)" % (cut_diff.cut_in.to_frames(), cut_diff.old_cut_in.to_frames())
+                    else:
+                        start = "%s" % cut_diff.cut_in.to_frames()
+                    if cut_diff.cut_out != cut_diff.old_cut_out:
+                        end = "%s (%s)" % (cut_diff.cut_out.to_frames(), cut_diff.old_cut_out.to_frames())
+                    else:
+                        end = "%s" % cut_diff.cut_out.to_frames()
+                    if cut_diff.index != cut_diff.old_index:
+                        cut_order = "%s (%s)" % (cut_diff.index, cut_diff.old_index)
+                    else:
+                        cut_order = "%s" % cut_diff.index
+                    if cut_diff.visible_duration != cut_diff.old_visible_duration:
+                        duration = "%s (%s)" % (cut_diff.visible_duration.to_frames(), cut_diff.old_visible_duration.to_frames())
+                    else:
+                        duration = "%s" % cut_diff.visible_duration.to_frames()
+                    data_row = [
+                        cut_order,
+                        cut_diff.diff_type,
+                        shot_name,
+                        duration,
+                        start,
+                        end,
+                        cut_diff.reasons,
+                    ]
+                    csv_writer.writerow(data_row)
+
+        # Body should look like this:
+        # The changes in {Name of Cut/EDL} are as follows:
+        #
+        # 5 New Shots
+        # HT0500
+        # HT0510
+        # HT0520
+        # HT0530
+        # HT0540
+        #
+        # 2 Omitted Shots
+        # HT0050
+        # HT0060
+        #
+        # 1 Reinstated Shot
+        # HT0110
+        #
+        # 4 Cut Changes
+        # HT0070 - Head extended 2 frs
+        # HT0080 - Tail extended 6 frs
+        # HT0090 - Tail trimmed 5 frs
+        # HT0100 - Head extended 5 frs
+        #
+        # 1 Rescan Needed
+        # HT0120 - Head extended 15 frs
+
+        subject = self.get_summary_title(title)
+        # Note: Cut changes were previously reported with sometimes some reasons
+        # and some other times no reasons at all. This was confusing for clients.
+        # So for now we don't show any reason.
+#        cut_changes_details = [
+#            "%s - %s" % (
+#                edit.name, ", ".join(edit.reasons)
+#            ) for edit in sorted(
+#                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
+#                key=lambda x: x.index
+#            )
+#        ]
+        cut_changes_details = [
+            "%s" % (
+                diff.name
+            ) for diff in sorted(
+                self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
+                key=lambda x: x.index
+            )
+        ]
+        rescan_details = [
+            "%s - %s" % (
+                diff.name, ", ".join(diff.reasons)
+            ) for diff in sorted(
+                self.diffs_for_type(_DIFF_TYPES.RESCAN),
+                key=lambda x: x.index
+            )
+        ]
+        no_link_details = [
+            diff.sg_version_name or str(diff.index) for diff in sorted(
+                self.diffs_for_type(_DIFF_TYPES.NO_LINK),
+                key=lambda x: x.index
+            )
+        ]
+        body = _BODY_REPORT_FORMAT % (
+            # Let the user know that something is potentially wrong
+            "WARNING, following edits couldn't be linked to any Shot :\n%s\n" % (
+                "\n".join(no_link_details)
+            ) if no_link_details else "",
+            # Urls
+            " , ".join(sg_links),
+            # Title
+            title,
+            # And then counts and lists per type of changes
+            self.count_for_type(_DIFF_TYPES.NEW),
+            "\n".join([
+                diff.shot_name for diff in sorted(
+                    self.diffs_for_type(_DIFF_TYPES.NEW, just_earliest=True),
+                    key=lambda x: x.index
+                )
+            ]),
+            self.count_for_type(_DIFF_TYPES.OMITTED),
+            "\n".join([
+                diff.shot_name for diff in sorted(
+                    self.diffs_for_type(_DIFF_TYPES.OMITTED, just_earliest=True),
+                    key=lambda x: x.index or -1
+                )
+            ]),
+            self.count_for_type(_DIFF_TYPES.REINSTATED),
+            "\n".join([
+                diff.shot_name for diff in sorted(
+                    self.diffs_for_type(_DIFF_TYPES.REINSTATED, just_earliest=True),
+                    key=lambda x: x.index
+                )
+            ]),
+            self.count_for_type(_DIFF_TYPES.CUT_CHANGE),
+            "\n".join(cut_changes_details),
+            self.count_for_type(_DIFF_TYPES.RESCAN),
+            "\n".join(rescan_details),
+        )
+        return subject, body
+
     def get_summary_title(self, subject):
         """
         Return a string suitable as a title for Cut changes reports.
