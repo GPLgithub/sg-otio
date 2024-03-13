@@ -6,14 +6,9 @@ import argparse
 import logging
 import os
 
-import opentimelineio as otio
 from shotgun_api3 import Shotgun
 
-from sg_otio.sg_settings import SGSettings
-from sg_otio.utils import get_write_url, get_read_url
-from sg_otio.media_cutter import MediaCutter
 from sg_otio.constants import _SG_OTIO_MANIFEST_PATH
-from sg_otio.track_diff import SGTrackDiff
 from sg_otio.command import SGOtioCommand
 
 logging.basicConfig(level=logging.INFO)
@@ -145,7 +140,7 @@ def run():
             adapter_name=args.adapter,
             frame_rate=args.frame_rate,
             settings=args.settings,
-            movie=arggs.movie,
+            movie=args.movie,
         )
     elif args.command == "compare":
         command.compare_to_sg(
@@ -155,6 +150,7 @@ def run():
             frame_rate=args.frame_rate,
             write=args.write,
         )
+
 
 def add_common_args(parser):
     """
@@ -235,6 +231,7 @@ def _get_sg_handle(args):
     elif args.script_name and args.api_key:
         return Shotgun(args.sg_site_url, script_name=args.script_name, api_key=args.api_key)
     raise ValueError("Unable to connect to SG from %s" % args)
+
 
 if __name__ == "__main__":
     run()
