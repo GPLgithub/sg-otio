@@ -14,6 +14,7 @@ from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.constants import _SG_OTIO_MANIFEST_PATH
 from sg_otio.track_diff import SGTrackDiff
+from sg_otio.command import SGOtioCommand
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sg-otio")
@@ -127,178 +128,33 @@ def run():
                 )
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    command = SGOtioCommand(_get_sg_handle(args), verbose=args.verbose)
     if args.command == "read":
-        read_from_sg(args)
+        command.read_from_sg(
+            sg_cut_id=args.cut_id,
+            file_path=args.file,
+            adapter_name=args.adapter,
+            frame_rate=args.frame_rate,
+        )
     elif args.command == "write":
-        write_to_sg(args)
+        command.write_to_sg(
+            file_path=args.file,
+            entity_type=args.entity_type,
+            entity_id=args.entity_id,
+            adapter_name=args.adapter,
+            frame_rate=args.frame_rate,
+            settings=args.settings,
+            movie=arggs.movie,
+        )
     elif args.command == "compare":
-        compare_to_sg(args)
-
-
-def read_from_sg(args):
-    """
-    Reads information from a Cut in ShotGrid and print it
-    to stdout, or write it to a file.
-
-    If printed to stdout, the output is in OTIO format.
-    If written to a file, the output depends on the extension of the file
-    or the adapter chosen.
-
-    The retrieved SG entities are stored in the items metadata.
-
-    :param args: The command line arguments.
-    """
-    url = get_read_url(
-        sg_site_url=args.sg_site_url,
-        cut_id=args.cut_id,
-        session_token=_get_session_token(args)
-    )
-    timeline = otio.adapters.read_from_file(
-        url,
-        adapter_name="ShotGrid",
-    )
-    if not args.file:
-        if args.adapter:
-            # It seems otio write_to_string choke on unset adapter?
-            logger.info(otio.adapters.write_to_string(timeline, adapter_name=args.adapter))
-        else:
-            logger.info(otio.adapters.write_to_string(timeline))
-    else:
-        _, ext = os.path.splitext(args.file)
-        if (ext and ext.lower() == ".edl") or args.adapter == "cmx_3600":
-            otio.adapters.write_to_file(
-                timeline,
-                args.file,
-                adapter_name=args.adapter,
-                rate=args.frame_rate,  # param specific to cmx_3600 adapter
-            )
-        else:
-            otio.adapters.write_to_file(timeline, args.file, adapter_name=args.adapter)
-
-
-def read_timeline_from_file(args):
-    """
-    Read and return a timeline from the args.
-
-    :returns: A :class:`otio.schema.Timeline` instance.
-    """
-    _, ext = os.path.splitext(args.file)
-    if (ext and ext.lower() == ".edl") or args.adapter == "cmx_3600":
-        # rate param is specific to cmx_3600 adapter
-        timeline = otio.adapters.read_from_file(
-            args.file, adapter_name=args.adapter, rate=args.frame_rate
+        command.compare_to_sg(
+            file_path=args.file,
+            sg_cut_id=args.cut_id,
+            adapter_name=args.adapter,
+            frame_rate=args.frame_rate,
+            write=args.write,
         )
-    else:
-        timeline = otio.adapters.read_from_file(
-            args.file, adapter_name=args.adapter
-        )
-    return timeline
-
-
-def write_to_sg(args):
-    """
-    Write an input file to SG as a Cut.
-
-    The input file can be any format supported by OTIO.
-    If no adapter is provided, the default adapter for the file extension is used.
-
-    :param args: The command line arguments.
-    """
-    session_token = _get_session_token(args)
-    url = get_write_url(
-        sg_site_url=args.sg_site_url,
-        entity_type=args.entity_type,
-        entity_id=args.entity_id,
-        session_token=session_token
-    )
-    timeline = read_timeline_from_file(args)
-    if not timeline.video_tracks():
-        raise ValueError("The input file does not contain any video tracks.")
-    if args.settings:
-        SGSettings.from_file(args.settings)
-    if args.movie:
-        if not os.path.isfile(args.movie):
-            raise ValueError("%s does not exist" % args.movie)
-    if SGSettings().create_missing_versions and args.movie:
-        media_cutter = MediaCutter(
-            timeline,
-            args.movie,
-        )
-        media_cutter.cut_media_for_clips()
-
-    otio.adapters.write_to_file(
-        timeline,
-        url,
-        adapter_name="ShotGrid",
-        input_media=args.movie,
-        input_file=args.file,
-    )
-    logger.info("File %s successfully written to %s" % (args.file, url))
-
-
-def compare_to_sg(args):
-    """
-    Compare an input file to a SG Cut.
-
-    :param args: The command line arguments.
-    """
-    timeline = read_timeline_from_file(args)
-    if not timeline.video_tracks():
-        raise ValueError("The input file does not contain any video tracks.")
-    new_track = timeline.video_tracks()[0]
-    session_token = _get_session_token(args)
-    url = get_read_url(
-        sg_site_url=args.sg_site_url,
-        cut_id=args.cut_id,
-        session_token=session_token
-    )
-    old_timeline = otio.adapters.read_from_file(
-        url,
-        adapter_name="ShotGrid",
-    )
-    if not old_timeline.video_tracks():
-        raise ValueError("The SG Cut does not contain any video tracks.")
-    sg_track = old_timeline.video_tracks()[0]
-    sg = Shotgun(args.sg_site_url, session_token=session_token)
-    diff = SGTrackDiff(
-        sg,
-        sg_track.metadata["sg"]["project"],
-        new_track=new_track,
-        old_track=sg_track
-    )
-    old_cut_url = "%s/detail/Cut/%s" % (sg.base_url, args.cut_id)
-    title, report = diff.get_report(
-        "%s" % os.path.basename(args.file),
-        sg_links=[old_cut_url]
-    )
-    logger.info(title)
-    logger.info(
-        report,
-    )
-    if args.write:
-        sg_entity = diff.sg_link
-        if not sg_entity:
-            raise ValueError("Can't update a Cut without a SG link.")
-        logger.info(
-            "Writing Cut %s to SG for %s %s..." % (
-                new_track.name, sg_entity["type"], sg_entity["id"]
-            )
-        )
-        write_url = get_write_url(
-            sg_site_url=args.sg_site_url,
-            entity_type=sg_entity["type"],
-            entity_id=sg_entity["id"],
-            session_token=session_token
-        )
-
-        otio.adapters.write_to_file(
-            new_track,
-            write_url,
-            adapter_name="ShotGrid",
-            previous_track=sg_track,
-            input_file=args.file,
-        )
-
 
 def add_common_args(parser):
     """
@@ -366,20 +222,19 @@ def add_common_args(parser):
     )
 
 
-def _get_session_token(args):
+def _get_sg_handle(args):
     """
-    Get the session token from the arguments.
+    Get a SG handle from the arguments.
 
     :param args: The command line arguments.
     """
     if args.session_token:
-        return args.session_token
+        return Shotgun(args.sg_site_url, session_token=args.session_token)
     if args.login and args.password:
-        sg = Shotgun(args.sg_site_url, login=args.login, password=args.password)
+        return Shotgun(args.sg_site_url, login=args.login, password=args.password)
     elif args.script_name and args.api_key:
-        sg = Shotgun(args.sg_site_url, script_name=args.script_name, api_key=args.api_key)
-    return sg.get_session_token()
-
+        return Shotgun(args.sg_site_url, script_name=args.script_name, api_key=args.api_key)
+    raise ValueError("Unable to connect to SG from %s" % args)
 
 if __name__ == "__main__":
     run()
