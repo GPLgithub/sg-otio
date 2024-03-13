@@ -917,13 +917,13 @@ class SGTrackDiff(object):
 
     def write_csv_report(self, csv_path, title, sg_links):
         """
-        Build a text report for this summary, highlighting changes.
+        Write a csv report for this summary, highligting changes.
 
-        :param title: A title for the report.
+        :param str csv_path: Full path to the csv file to write.
+        :param str title: A title for the report.
         :param sg_links: Shotgun URLs to display in the report as links.
-        :return: A (subject, body) tuple, as strings.
         """
-        header_row = ["Cut Order", "Status", "Shot", "Shot Duration (fr)", "Shot Start", "Shot End", "Notes"]
+        header_row = ["Cut Order", "Status", "Shot", "Duration (fr)", "Start", "End", "Notes"]
         # We use utf-8-sig to make sure Excel opens the file with the right encoding.
         # no issues with other apps (e.g. Google Sheets, Numbers, etc.)
         with open(csv_path, "w", encoding="utf-8-sig") as csv_handle:
@@ -952,7 +952,7 @@ class SGTrackDiff(object):
                         duration = "%s" % cut_diff.visible_duration.to_frames()
                     data_row = [
                         cut_order,
-                        cut_diff.diff_type,
+                        cut_diff.diff_type.name,
                         shot_name,
                         duration,
                         start,
