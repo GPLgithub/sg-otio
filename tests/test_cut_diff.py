@@ -1077,9 +1077,40 @@ class TestCutDiff(SGBaseTest):
         track_diff.write_csv_report(csv_path, "This is a Test", [])
         with open(csv_path, newline='') as csvfile:
             reader = csv.reader(csvfile)
+            in_edits_rows = False
+            edits_rows_count = 0
+            checks = 0
             for row in reader:
-                logger.info(row)
-        raise ValueError(csv_path)
+                if not in_edits_rows:
+                    if row[0] == "To:":
+                        self.assertEqual(row[1], sg_track.name)
+                        checks += 1
+                    elif row[0] == "From:":
+                        self.assertEqual(row[1], sg_track.name)
+                        checks += 1
+                    elif row[0] == "Total Run Time [fr]:":
+                        self.assertEqual(row[1], "%s" % sg_track.duration().to_frames())
+                        checks += 1
+                    elif row[0] == "Total Run Time [tc]:":
+                        self.assertEqual(row[1], "%s" % sg_track.duration().to_timecode())
+                        checks += 1
+                    elif row[0] == "Total Count:":
+                        self.assertEqual(row[1], "4")
+                        checks += 1
+                    elif row[0] == "Cut Order":  # Header for edit rows
+                        self.assertEqual(checks, 5)
+                        in_edits_rows = True
+                else:
+                    self.assertEqual(row[0], "%s" % self.sg_cut_items[edits_rows_count]["cut_order"])
+                    self.assertEqual(row[1], _DIFF_TYPES.NO_CHANGE.name)
+                    self.assertEqual(row[2], "%s" % self.sg_cut_items[edits_rows_count]["shot"]["code"])
+                    self.assertEqual(row[3], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_duration"])
+                    self.assertEqual(row[4], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_in"])
+                    self.assertEqual(row[5], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_out"])
+                    edits_rows_count += 1
+                logger.debug(row)
+            self.assertEqual(edits_rows_count, 4)
+
         # Compare to Cut from EDL
         path = os.path.join(
             self.resources_dir,
@@ -1108,6 +1139,48 @@ class TestCutDiff(SGBaseTest):
                 ) % "\n".join(["shot_%d" % (6670 + i) for i in range(28)])
             )
         )
+        # Test csv report
+        _, csv_path = tempfile.mkstemp(suffix=".csv")
+        track_diff.write_csv_report(csv_path, "This is a Test", [])
+        with open(csv_path, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            in_edits_rows = False
+            edits_rows_count = 0
+            checks = 0
+            for row in reader:
+                if not in_edits_rows:
+                    if row[0] == "To:":
+                        self.assertEqual(row[1], new_track.name)
+                        checks += 1
+                    elif row[0] == "From:":
+                        self.assertEqual(row[1], sg_track.name)
+                        checks += 1
+                    elif row[0] == "Total Run Time [fr]:":
+                        self.assertEqual(row[1], "%s (%s)" % (new_track.duration().to_frames(), sg_track.duration().to_frames()))
+                        checks += 1
+                    elif row[0] == "Total Run Time [tc]:":
+                        self.assertEqual(row[1], "%s (%s)" % (new_track.duration().to_timecode(), sg_track.duration().to_timecode()))
+                        checks += 1
+                    elif row[0] == "Total Count:":
+                        self.assertEqual(row[1], "32 (4)")
+                        checks += 1
+                    elif row[0] == "Cut Order":  # Header for edit rows
+                        self.assertEqual(checks, 5)
+                        in_edits_rows = True
+                else:
+                    if edits_rows_count < len(self.sg_cut_items):
+                        # Identical values between the EDL and the SG Cut
+                        self.assertEqual(row[0], "%s" % self.sg_cut_items[edits_rows_count]["cut_order"])
+                        self.assertEqual(row[1], _DIFF_TYPES.NO_CHANGE.name)
+                        self.assertEqual(row[2], "%s" % self.sg_cut_items[edits_rows_count]["shot"]["code"])
+                        self.assertEqual(row[3], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_duration"])
+                        self.assertEqual(row[4], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_in"])
+                        self.assertEqual(row[5], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_out"])
+                    else:
+                        pass
+                    edits_rows_count += 1
+                logger.debug(row)
+            self.assertEqual(edits_rows_count, 32)
         SGSettings().shot_cut_fields_prefix = "myprecious"
 
         timeline_from_edl = otio.adapters.read_from_file(path)
