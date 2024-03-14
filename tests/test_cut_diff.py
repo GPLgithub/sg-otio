@@ -2,6 +2,7 @@
 # Copyright Contributors to the SG Otio project
 
 import copy
+import csv
 import logging
 import os
 import tempfile
@@ -1074,6 +1075,11 @@ class TestCutDiff(SGBaseTest):
         # Test csv report
         _, csv_path = tempfile.mkstemp(suffix=".csv")
         track_diff.write_csv_report(csv_path, "This is a Test", [])
+        with open(csv_path, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                logger.info(row)
+        raise ValueError(csv_path)
         # Compare to Cut from EDL
         path = os.path.join(
             self.resources_dir,
