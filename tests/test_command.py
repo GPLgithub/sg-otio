@@ -14,6 +14,7 @@ import opentimelineio as otio
 from sg_otio.command import SGOtioCommand
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import get_write_url
+from sg_otio.track_diff import SGTrackDiff
 
 
 try:
@@ -55,6 +56,7 @@ class TestCommand(SGBaseTest):
 
     def _add_sg_cut_data(self):
         """
+        Add some SG data used by tests.
         """
         # SG is case insensitive but mockgun is case sensitive so better to
         # keep everything lower case.
@@ -267,7 +269,7 @@ class TestCommand(SGBaseTest):
                     self.assertTrue(new_cut2)
                     self._sg_entities_to_delete.append(new_cut2)
                     command.read_from_sg(
-                        sg_cut_id=new_cut["id"],
+                        sg_cut_id=new_cut2["id"],
                         file_path=new_path,
                     )
                     new_timeline = otio.adapters.read_from_file(new_path)
@@ -276,7 +278,7 @@ class TestCommand(SGBaseTest):
                     self.assertIsNotNone(new_track.metadata.get("sg"))
                     sg_data = new_track.metadata["sg"]
                     self.assertEqual(sg_data["type"], "Cut")
-                    self.assertEqual(sg_data["id"], new_cut["id"])
+                    self.assertEqual(sg_data["id"], new_cut2["id"])
                     self.assertEqual(len(new_track), len(self.sg_cut_items))
                     for i, clip in enumerate(new_track.each_clip()):
                         # Just check basic stuff
@@ -288,5 +290,12 @@ class TestCommand(SGBaseTest):
                                 24,
                             )
                         )
+                    with mock.patch.object(SGTrackDiff, "sg_link", new_callable=mock.PropertyMock) as mocked:
+                        mocked.return_value = None
+                        with self.assertRaisesRegex(
+                            ValueError,
+                            "Can't update a Cut without a SG link"
+                        ):
+                            command.compare_to_sg(file_path=path, sg_cut_id=new_cut2["id"], write=True)
             os.remove(path)
             os.remove(new_path)
