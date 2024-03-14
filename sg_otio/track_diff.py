@@ -394,6 +394,7 @@ class SGTrackDiff(object):
                     raise ValueError(
                         "Invalid clip %s not linked to a SG CutItem" % clip.name
                     )
+                sg_cut_item = sg_cut_item.to_dict()
                 sg_shot = sg_cut_item.get("shot")
                 if sg_shot:
                     shot_id = sg_shot.get("id")
@@ -1044,6 +1045,7 @@ class SGTrackDiff(object):
         new_track = self._new_track
         sg_cut = new_track.metadata.get("sg")
         if sg_cut:
+            sg_cut = sg_cut.to_dict()
             if sg_cut["type"] != "Cut":
                 raise ValueError(
                     "Invalid track %s not linked to a SG Cut" % new_track.name
@@ -1060,6 +1062,7 @@ class SGTrackDiff(object):
                 raise ValueError(
                     "Invalid track %s not linked to a SG Cut" % self._old_track.name
                 )
+            sg_cut = sg_cut.to_dict()
             # We don't support comparing Cuts from different SG Projects
             if sg_cut["project"]["id"] != self._sg_project["id"]:
                 raise ValueError(

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
-
+import json
 import shotgun_api3
 from shotgun_api3.lib import mockgun
 
@@ -10,6 +10,24 @@ class MockGrid(mockgun.Shotgun):
     """
     Override Mockgun base implementation to make it more SG compliant.
     """
+
+    def find(self, *args, **kwargs):
+        """
+        Mockgun find method.
+
+        Override base method so we can validate that arguments
+        are JSON serializable.
+
+        .. note:: Mockgun.find_one calls Mockgun.find so we only
+                  need to check arguments for the latter.
+        """
+        for arg in args:
+            if arg is not None:
+                json.dumps(arg)
+        for arg in kwargs.values():
+            if arg is not None:
+                json.dumps(arg)
+        return super(MockGrid, self).find(*args, **kwargs)
 
     def update(self, entity_type, entity_id, data):
         """
