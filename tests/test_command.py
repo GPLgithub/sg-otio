@@ -56,7 +56,7 @@ class TestCommand(SGBaseTest):
     def _add_sg_cut_data(self):
         """
         """
-        # SG is case insensitive but mockun is case sensitive so better to
+        # SG is case insensitive but mockgun is case sensitive so better to
         # keep everything lower case.
         self.sg_sequences = [{
             "code": "seq_6666",
