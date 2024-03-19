@@ -1074,7 +1074,7 @@ class TestCutDiff(SGBaseTest):
         )
         # Test csv report
         _, csv_path = tempfile.mkstemp(suffix=".csv")
-        track_diff.write_csv_report(csv_path, "This is a Test", [])
+        track_diff.write_csv_report(csv_path, "This is a Test", [mock_cut_url])
         with open(csv_path, newline="") as csvfile:
             reader = csv.reader(csvfile)
             in_edits_rows = False
@@ -1097,8 +1097,11 @@ class TestCutDiff(SGBaseTest):
                     elif row[0] == "Total Count:":
                         self.assertEqual(row[1], "4")
                         checks += 1
+                    elif row[0] == "Links:":
+                        self.assertEqual(row[1], mock_cut_url)
+                        checks += 1
                     elif row[0] == "Cut Order":  # Header for edit rows
-                        self.assertEqual(checks, 5)
+                        self.assertEqual(checks, 6)
                         in_edits_rows = True
                 else:
                     self.assertEqual(row[0], "%s" % self.sg_cut_items[edits_rows_count]["cut_order"])
@@ -1110,7 +1113,7 @@ class TestCutDiff(SGBaseTest):
                     edits_rows_count += 1
                 logger.debug(row)
             self.assertEqual(edits_rows_count, 4)
-
+        os.remove(csv_path)
         # Compare to Cut from EDL
         path = os.path.join(
             self.resources_dir,
@@ -1141,7 +1144,7 @@ class TestCutDiff(SGBaseTest):
         )
         # Test csv report
         _, csv_path = tempfile.mkstemp(suffix=".csv")
-        new_track.name = "R7v26.0_Turnover001_WiP_VFX__1_.edl"
+        new_track.name = "Howdy.edl"
         track_diff.write_csv_report(csv_path, "This is a Test", [])
         with open(csv_path, newline='') as csvfile:
             reader = csv.reader(csvfile)
@@ -1151,7 +1154,7 @@ class TestCutDiff(SGBaseTest):
             for row in reader:
                 if not in_edits_rows:
                     if row[0] == "To:":
-                        self.assertEqual(row[1], "R7v26.0_Turnover001_WiP_VFX__1_.edl")
+                        self.assertEqual(row[1], "Howdy.edl")
                         checks += 1
                     elif row[0] == "From:":
                         self.assertEqual(row[1], sg_track.name)
@@ -1186,12 +1189,12 @@ class TestCutDiff(SGBaseTest):
                         self.assertEqual(row[3], "%s" % clip.duration().to_frames())
                         self.assertEqual(row[4], "%s" % (settings.default_head_in + settings.default_head_duration))
                         self.assertEqual(row[5], "%s" % (
-                            settings.default_head_in + settings.default_head_duration + clip.duration().to_frames() -1)
+                            settings.default_head_in + settings.default_head_duration + clip.duration().to_frames() - 1)
                         )
-                        pass
                     edits_rows_count += 1
                 logger.debug(row)
             self.assertEqual(edits_rows_count, 32)
+        os.remove(csv_path)
 
         SGSettings().shot_cut_fields_prefix = "myprecious"
 

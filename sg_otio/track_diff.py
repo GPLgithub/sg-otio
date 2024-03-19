@@ -810,6 +810,102 @@ class SGTrackDiff(object):
                     if cut_diff.interpreted_diff_type == diff_type:
                         yield cut_diff
 
+    def write_csv_report(self, csv_path, title, sg_links=None):
+        """
+        Write a csv report for this summary, highligting changes.
+
+        :param str csv_path: Full path to the csv file to write.
+        :param str title: A title for the report.
+        :param sg_links: An optional list of SG URLs to display in the report as links.
+        """
+        header_row = ["Cut Order", "Status", "Shot", "Duration (fr)", "Start", "End", "Notes"]
+        # We use utf-8-sig to make sure Excel opens the file with the right encoding.
+        # no issues with other apps (e.g. Google Sheets, Numbers, etc.)
+        with open(csv_path, "w", encoding="utf-8-sig") as csv_handle:
+            csv_writer = csv.writer(csv_handle, lineterminator="\n")
+            # Write some header information
+            data_row = ["Changes Report:", title] + [""] * 5
+            csv_writer.writerow(data_row)
+            data_row = ["Report Date:", date.today().isoformat()] + [""] * 5
+            csv_writer.writerow(data_row)
+            csv_writer.writerow([""] * 7)
+            data_row = ["To:", self._new_track.name] + [""] * 5
+            csv_writer.writerow(data_row)
+            data_row = ["From:", self._old_track.name if self._old_track else ""] + [""] * 5
+            csv_writer.writerow(data_row)
+            csv_writer.writerow([""] * 7)
+            if sg_links:
+                data_row = ["Links:", " ".join(sg_links)] + [""] * 5
+                csv_writer.writerow(data_row)
+                csv_writer.writerow([""] * 7)
+            if self._old_track:
+                old_duration = self._old_track.duration()
+                duration = self._new_track.duration()
+                if old_duration != duration:
+                    duration_frame = "%s (%s)" % (duration.to_frames(), old_duration.to_frames())
+                    duration_tc = "%s (%s)" % (duration.to_timecode(), old_duration.to_timecode())
+                else:
+                    duration_frame = "%s" % duration.to_frames()
+                    duration_tc = "%s" % duration.to_timecode()
+                if old_duration.rate != duration.rate:
+                    duration_fps = "%s fps (%s)" % (duration.rate, old_duration.rate)
+                else:
+                    duration_fps = "%s fps" % duration.rate
+            else:
+                duration_frame = "%s" % duration.to_frames()
+                duration_tc = "%s" % duration.to_timecode()
+                duration_fps = "%s fps" % duration.rate
+            data_row = ["Total Run Time [fr]:", duration_frame] + [""] * 5
+            csv_writer.writerow(data_row)
+            data_row = ["Total Run Time [tc]:", duration_tc, duration_fps] + [""] * 4
+            csv_writer.writerow(data_row)
+            count = (
+                self.count_for_type(_DIFF_TYPES.NEW) + self.count_for_type(_DIFF_TYPES.CUT_CHANGE)
+                + self.count_for_type(_DIFF_TYPES.REINSTATED) + self.count_for_type(_DIFF_TYPES.RESCAN)
+                + self.count_for_type(_DIFF_TYPES.NO_CHANGE)
+            )
+            total_count = "%d" % count
+            if self._old_track:
+                old_count = len(list(self._old_track.each_clip()))
+                if old_count != count:
+                    total_count = "%d (%d)" % (count, old_count)
+            data_row = ["Total Count:", "%s" % total_count] + [""] * 5
+            csv_writer.writerow(data_row)
+
+            # Write the data
+            csv_writer.writerow([""] * 7)
+            csv_writer.writerow(header_row)
+            for shot_name, clip_group in self._diffs_by_shots.items():
+                for cut_diff in clip_group.clips:
+                    # Old values can be None for new edits without
+                    # an old counterpart.
+                    if cut_diff.old_cut_in is not None and cut_diff.cut_in != cut_diff.old_cut_in:
+                        start = "%s (%s)" % (cut_diff.cut_in.to_frames(), cut_diff.old_cut_in.to_frames())
+                    else:
+                        start = "%s" % cut_diff.cut_in.to_frames()
+                    if cut_diff.old_cut_out is not None and cut_diff.cut_out != cut_diff.old_cut_out:
+                        end = "%s (%s)" % (cut_diff.cut_out.to_frames(), cut_diff.old_cut_out.to_frames())
+                    else:
+                        end = "%s" % cut_diff.cut_out.to_frames()
+                    if cut_diff.old_index is not None and cut_diff.index != cut_diff.old_index:
+                        cut_order = "%s (%s)" % (cut_diff.index, cut_diff.old_index)
+                    else:
+                        cut_order = "%s" % cut_diff.index
+                    if cut_diff.old_visible_duration is not None and cut_diff.visible_duration != cut_diff.old_visible_duration:
+                        duration = "%s (%s)" % (cut_diff.visible_duration.to_frames(), cut_diff.old_visible_duration.to_frames())
+                    else:
+                        duration = "%s" % cut_diff.visible_duration.to_frames()
+                    data_row = [
+                        cut_order,
+                        cut_diff.diff_type.name,
+                        shot_name,
+                        duration,
+                        start,
+                        end,
+                        " ".join(cut_diff.reasons),
+                    ]
+                    csv_writer.writerow(data_row)
+
     def get_report(self, title, sg_links):
         """
         Build a text report for this summary, highlighting changes.
@@ -915,103 +1011,6 @@ class SGTrackDiff(object):
             "\n".join(rescan_details),
         )
         return subject, body
-
-    def write_csv_report(self, csv_path, title, sg_links=None):
-        """
-        Write a csv report for this summary, highligting changes.
-
-        :param str csv_path: Full path to the csv file to write.
-        :param str title: A title for the report.
-        :param sg_links: An optional list of SG URLs to display in the report as links.
-        """
-        header_row = ["Cut Order", "Status", "Shot", "Duration (fr)", "Start", "End", "Notes"]
-        # We use utf-8-sig to make sure Excel opens the file with the right encoding.
-        # no issues with other apps (e.g. Google Sheets, Numbers, etc.)
-        with open(csv_path, "w", encoding="utf-8-sig") as csv_handle:
-            csv_writer = csv.writer(csv_handle, lineterminator="\n")
-            # Write some header information
-            data_row = ["Changes Report:", self.get_summary_title(title)] + [""] * 5
-            csv_writer.writerow(data_row)
-            data_row = ["Report Date:", date.today().isoformat()] + [""] * 5
-            csv_writer.writerow(data_row)
-            csv_writer.writerow([""] * 7)
-            data_row = ["To:", self._new_track.name] + [""] * 5
-            csv_writer.writerow(data_row)
-            data_row = ["From:", self._old_track.name if self._old_track else ""] + [""] * 5
-            csv_writer.writerow(data_row)
-            csv_writer.writerow([""] * 7)
-            if sg_links:
-                data_row = ["Links:", " ".join(sg_links)] + [""] * 5
-                csv_writer.writerow(data_row)
-                csv_writer.writerow([""] * 7)
-            if self._old_track:
-                old_duration = self._old_track.duration()
-                duration = self._new_track.duration()
-                if old_duration != duration:
-                    duration_frame = "%s (%s)" % (duration.to_frames(), old_duration.to_frames())
-                    duration_tc = "%s (%s)" % (duration.to_timecode(), old_duration.to_timecode())
-                else:
-                    duration_frame = "%s" % duration.to_frames()
-                    duration_tc = "%s" % duration.to_timecode()
-                if old_duration.rate != duration.rate:
-                    duration_fps = "%s fps (%s)" % (duration.rate, old_duration.rate)
-                else:
-                    duration_fps = "%s fps" % duration.rate
-            else:
-                duration_frame = "%s" % duration.to_frames()
-                duration_tc = "%s" % duration.to_timecode()
-                duration_fps = "%s fps" % duration.rate
-            data_row = ["Total Run Time [fr]:", duration_frame] + [""] * 5
-            csv_writer.writerow(data_row)
-            data_row = ["Total Run Time [tc]:", duration_tc, duration_fps] + [""] * 4
-            csv_writer.writerow(data_row)
-            count = (
-                self.count_for_type(_DIFF_TYPES.NEW) + self.count_for_type(_DIFF_TYPES.CUT_CHANGE)
-                + self.count_for_type(_DIFF_TYPES.REINSTATED) + self.count_for_type(_DIFF_TYPES.RESCAN)
-                + self.count_for_type(_DIFF_TYPES.NO_CHANGE)
-            )
-            total_count = "%d" % count
-            if self._old_track:
-                old_count = len(list(self._old_track.each_clip()))
-                if old_count != count:
-                    total_count = "%d (%d)" % (count, old_count)
-            data_row = ["Total Count:", "%s" % total_count] + [""] * 5
-            csv_writer.writerow(data_row)
-
-            # Write the data
-            csv_writer.writerow([""] * 7)
-            csv_writer.writerow(header_row)
-            for shot_name, clip_group in self._diffs_by_shots.items():
-                shot_values = clip_group.get_shot_values()
-                for cut_diff in clip_group.clips:
-                    # Old values can be None for new edits without
-                    # an old counterpart.
-                    if cut_diff.old_cut_in is not None and cut_diff.cut_in != cut_diff.old_cut_in:
-                        start = "%s (%s)" % (cut_diff.cut_in.to_frames(), cut_diff.old_cut_in.to_frames())
-                    else:
-                        start = "%s" % cut_diff.cut_in.to_frames()
-                    if cut_diff.old_cut_out is not None and cut_diff.cut_out != cut_diff.old_cut_out:
-                        end = "%s (%s)" % (cut_diff.cut_out.to_frames(), cut_diff.old_cut_out.to_frames())
-                    else:
-                        end = "%s" % cut_diff.cut_out.to_frames()
-                    if cut_diff.old_index is not None and cut_diff.index != cut_diff.old_index:
-                        cut_order = "%s (%s)" % (cut_diff.index, cut_diff.old_index)
-                    else:
-                        cut_order = "%s" % cut_diff.index
-                    if cut_diff.old_visible_duration is not None and cut_diff.visible_duration != cut_diff.old_visible_duration:
-                        duration = "%s (%s)" % (cut_diff.visible_duration.to_frames(), cut_diff.old_visible_duration.to_frames())
-                    else:
-                        duration = "%s" % cut_diff.visible_duration.to_frames()
-                    data_row = [
-                        cut_order,
-                        cut_diff.diff_type.name,
-                        shot_name,
-                        duration,
-                        start,
-                        end,
-                        " ".join(cut_diff.reasons),
-                    ]
-                    csv_writer.writerow(data_row)
 
     def get_summary_title(self, subject):
         """
