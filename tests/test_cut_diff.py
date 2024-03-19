@@ -108,12 +108,20 @@ class TestCutDiff(SGBaseTest):
         }]
         self.add_to_sg_mock_db(self.sg_shots)
         self._sg_entities_to_delete.extend(self.sg_shots)
+
         self.sg_cuts = [{
             "code": "cut_6666",
             "project": self.mock_project,
             "type": "Cut",
             "entity": self.sg_sequences[0],
             "id": 6666,
+            "fps": 24.0,
+        }, {
+            "code": "cut_6667",
+            "project": self.mock_project,
+            "type": "Cut",
+            "entity": self.sg_sequences[0],
+            "id": 6667,
             "fps": 24.0,
         }]
         self.add_to_sg_mock_db(self.sg_cuts)
@@ -178,6 +186,36 @@ class TestCutDiff(SGBaseTest):
             "code": "Item 58",
             "timecode_edit_in_text": "07:00:18:16",
             "timecode_edit_out_text": "07:00:25:23",
+        }, {
+            "timecode_cut_item_out_text": "00:00:06:10",
+            "cut": self.sg_cuts[1],
+            "shot": self.sg_shots[2],
+            "cut_item_duration": 149,
+            "cut_item_in": 1004,
+            "cut_order": 1,
+            "timecode_cut_item_in_text": "00:00:00:05",
+            "version": None,
+            "cut_item_out": 1152,
+            "type": "CutItem",
+            "id": 59,
+            "code": "Item 59",
+            "timecode_edit_in_text": "07:00:12:11",
+            "timecode_edit_out_text": "07:00:18:16",
+        }, {
+            "timecode_cut_item_out_text": "00:00:07:20",
+            "cut": self.sg_cuts[1],
+            "shot": self.sg_shots[3],
+            "cut_item_duration": 179,
+            "cut_item_in": 1008,
+            "cut_order": 2,
+            "timecode_cut_item_in_text": "00:00:00:09",
+            "version": None,
+            "cut_item_out": 1186,
+            "type": "CutItem",
+            "id": 60,
+            "code": "Item 60",
+            "timecode_edit_in_text": "07:00:18:16",
+            "timecode_edit_out_text": "07:00:26:03",
         }]
         self.add_to_sg_mock_db(self.sg_cut_items)
         self._sg_entities_to_delete.extend(self.sg_cut_items)
@@ -1031,6 +1069,14 @@ class TestCutDiff(SGBaseTest):
             # Read it back from SG.
             timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             sg_track = timeline_from_sg.tracks[0]
+            mock_cut_url2 = get_read_url(
+                self.mock_sg.base_url,
+                self.sg_cuts[1]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg2 = otio.adapters.read_from_file(mock_cut_url2, adapter_name="ShotGrid")
+            sg_track2 = timeline_from_sg2.tracks[0]
 
         # Compare the existing Cut to itself.
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
@@ -1060,7 +1106,7 @@ class TestCutDiff(SGBaseTest):
         diffs = [x for x in track_diff.diffs_for_type(_DIFF_TYPES.NO_CHANGE, just_earliest=False)]
         self.assertEqual(
             len(diffs),
-            len(self.sg_cut_items),
+            4,  # 4 Cut Items for the Cut
         )
         for diff_type, items in track_diff.get_diffs_by_change_type().items():
             self.assertEqual(items, [])
@@ -1172,7 +1218,7 @@ class TestCutDiff(SGBaseTest):
                         self.assertEqual(checks, 5)
                         in_edits_rows = True
                 else:
-                    if edits_rows_count < len(self.sg_cut_items):
+                    if edits_rows_count < 4:
                         # Identical values between the EDL and the SG Cut
                         self.assertEqual(row[0], "%s" % self.sg_cut_items[edits_rows_count]["cut_order"])
                         self.assertEqual(row[1], _DIFF_TYPES.NO_CHANGE.name)
@@ -1194,6 +1240,88 @@ class TestCutDiff(SGBaseTest):
                     edits_rows_count += 1
                 logger.debug(row)
             self.assertEqual(edits_rows_count, 32)
+        os.remove(csv_path)
+
+        # Compare the two SG Cuts where some items are missing and
+        # in and out differs for the two remaining items
+        track_diff = self._get_track_diff(sg_track2, sg_track)
+        self.assertEqual(len(sg_track2), track_diff.active_count)
+        self.assertEqual(len(sg_track2), 2)
+        # Only 2 items kept
+        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.OMITTED), 2)
+        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.NO_CHANGE), 0)
+        self.assertEqual(track_diff.count_for_type(_DIFF_TYPES.CUT_CHANGE), 2)
+        report = track_diff.get_report("This is a Test", [])
+        self.assertEqual(
+            report,
+            (
+                "This is a Test Cut Summary changes between cut_6667 and cut_6666",
+                (
+                    "\n\nLinks: \n\nThe changes in This is a Test are as follows:\n\n"
+                    "0 New Shots\n\n\n"
+                    "2 Omitted Shots\n%s\n\n"
+                    "0 Reinstated Shot\n\n\n"
+                    "2 Cut Changes\n%s\n\n"
+                    "0 Rescan Needed\n\n\n"
+                ) % (
+                    "\n".join([self.sg_shots[0]["code"], self.sg_shots[1]["code"]]),
+                    "\n".join(["Item 59", "Item 60"]),  # For some reasons Shot names are not used...
+                )
+            )
+        )
+        _, csv_path = tempfile.mkstemp(suffix=".csv")
+        track_diff.write_csv_report(csv_path, "This is a Test", [mock_cut_url])
+        with open(csv_path, newline="") as csvfile:
+            reader = csv.reader(csvfile)
+            in_edits_rows = False
+            edits_rows_count = 0
+            checks = 0
+            for row in reader:
+                if not in_edits_rows:
+                    if row[0] == "To:":
+                        self.assertEqual(row[1], sg_track2.name)
+                        checks += 1
+                    elif row[0] == "From:":
+                        self.assertEqual(row[1], sg_track.name)
+                        checks += 1
+                    elif row[0] == "Total Run Time [fr]:":
+                        self.assertEqual(row[1], "%s (%s)" % (sg_track2.duration().to_frames(), sg_track.duration().to_frames()))
+                        checks += 1
+                    elif row[0] == "Total Run Time [tc]:":
+                        self.assertEqual(row[1], "%s (%s)" % (sg_track2.duration().to_timecode(), sg_track.duration().to_timecode()))
+                        checks += 1
+                    elif row[0] == "Total Count:":
+                        self.assertEqual(row[1], "2 (4)")
+                        checks += 1
+                    elif row[0] == "Links:":
+                        self.assertEqual(row[1], mock_cut_url)
+                        checks += 1
+                    elif row[0] == "Cut Order":  # Header for edit rows
+                        self.assertEqual(checks, 6)
+                        in_edits_rows = True
+                else:
+                    # New cut items start after 4 first old cut items
+                    # and two first old items are omitted.
+                    item = self.sg_cut_items[edits_rows_count + 4]
+                    old_item = self.sg_cut_items[edits_rows_count + 2]
+                    self.assertEqual(row[0], "%s (%s)" % (
+                        item["cut_order"],
+                        old_item["cut_order"]
+                    ))
+                    self.assertEqual(row[1], _DIFF_TYPES.CUT_CHANGE.name)
+                    self.assertEqual(row[2], "%s" % item["shot"]["code"])
+                    self.assertEqual(row[3], "%s (%s)" % (item["cut_item_duration"], old_item["cut_item_duration"]))
+                    if item["cut_item_in"] != old_item["cut_item_in"]:
+                        self.assertEqual(row[4], "%s (%s)" % (item["cut_item_in"], old_item["cut_item_in"]))
+                    else:
+                        self.assertEqual(row[4], "%s" % item["cut_item_in"])
+                    if item["cut_item_out"] != old_item["cut_item_out"]:
+                        self.assertEqual(row[5], "%s (%s)" % (item["cut_item_out"], old_item["cut_item_out"]))
+                    else:
+                        self.assertEqual(row[5], "%s" % item["cut_item_out"])
+                    edits_rows_count += 1
+                logger.debug(row)
+            self.assertEqual(edits_rows_count, 2)
         os.remove(csv_path)
 
         SGSettings().shot_cut_fields_prefix = "myprecious"
