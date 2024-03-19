@@ -1075,7 +1075,7 @@ class TestCutDiff(SGBaseTest):
         # Test csv report
         _, csv_path = tempfile.mkstemp(suffix=".csv")
         track_diff.write_csv_report(csv_path, "This is a Test", [])
-        with open(csv_path, newline='') as csvfile:
+        with open(csv_path, newline="") as csvfile:
             reader = csv.reader(csvfile)
             in_edits_rows = False
             edits_rows_count = 0
@@ -1141,6 +1141,7 @@ class TestCutDiff(SGBaseTest):
         )
         # Test csv report
         _, csv_path = tempfile.mkstemp(suffix=".csv")
+        new_track.name = "R7v26.0_Turnover001_WiP_VFX__1_.edl"
         track_diff.write_csv_report(csv_path, "This is a Test", [])
         with open(csv_path, newline='') as csvfile:
             reader = csv.reader(csvfile)
@@ -1150,7 +1151,7 @@ class TestCutDiff(SGBaseTest):
             for row in reader:
                 if not in_edits_rows:
                     if row[0] == "To:":
-                        self.assertEqual(row[1], new_track.name)
+                        self.assertEqual(row[1], "R7v26.0_Turnover001_WiP_VFX__1_.edl")
                         checks += 1
                     elif row[0] == "From:":
                         self.assertEqual(row[1], sg_track.name)
@@ -1177,10 +1178,21 @@ class TestCutDiff(SGBaseTest):
                         self.assertEqual(row[4], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_in"])
                         self.assertEqual(row[5], "%s" % self.sg_cut_items[edits_rows_count]["cut_item_out"])
                     else:
+                        clip = new_track[edits_rows_count]
+                        # New edits
+                        self.assertEqual(row[0], "%s" % (edits_rows_count + 1))
+                        self.assertEqual(row[1], _DIFF_TYPES.NEW.name)
+                        self.assertEqual(row[2], "%s" % self._mock_compute_clip_shot_name(clip))
+                        self.assertEqual(row[3], "%s" % clip.duration().to_frames())
+                        self.assertEqual(row[4], "%s" % (settings.default_head_in + settings.default_head_duration))
+                        self.assertEqual(row[5], "%s" % (
+                            settings.default_head_in + settings.default_head_duration + clip.duration().to_frames() -1)
+                        )
                         pass
                     edits_rows_count += 1
                 logger.debug(row)
             self.assertEqual(edits_rows_count, 32)
+
         SGSettings().shot_cut_fields_prefix = "myprecious"
 
         timeline_from_edl = otio.adapters.read_from_file(path)

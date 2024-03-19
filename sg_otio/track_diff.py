@@ -916,13 +916,13 @@ class SGTrackDiff(object):
         )
         return subject, body
 
-    def write_csv_report(self, csv_path, title, sg_links):
+    def write_csv_report(self, csv_path, title, sg_links=None):
         """
         Write a csv report for this summary, highligting changes.
 
         :param str csv_path: Full path to the csv file to write.
         :param str title: A title for the report.
-        :param sg_links: Shotgun URLs to display in the report as links.
+        :param sg_links: An optional list of SG URLs to display in the report as links.
         """
         header_row = ["Cut Order", "Status", "Shot", "Duration (fr)", "Start", "End", "Notes"]
         # We use utf-8-sig to make sure Excel opens the file with the right encoding.
@@ -939,7 +939,11 @@ class SGTrackDiff(object):
             csv_writer.writerow(data_row)
             data_row = ["From:", self._old_track.name if self._old_track else ""] + [""] * 5
             csv_writer.writerow(data_row)
-            csv_writer.writerow([" "] * 7)
+            csv_writer.writerow([""] * 7)
+            if sg_links:
+                data_row = ["Links:", " ".join(sg_links)] + [""] * 5
+                csv_writer.writerow(data_row)
+                csv_writer.writerow([""] * 7)
             if self._old_track:
                 old_duration = self._old_track.duration()
                 duration = self._new_track.duration()
