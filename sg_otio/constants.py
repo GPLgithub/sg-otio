@@ -155,12 +155,6 @@ _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE = ran
 # The path to the sg-otio manifest file.
 _SG_OTIO_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "plugin_manifest.json")
 
-
-# Define difference types as enums
-def diff_types(**enums):
-    return type("CutDiffType", (), enums)
-
-
 # Values for CutDiff types
 _DIFF_TYPES = enum.Enum(
     "CutDiffType", {
