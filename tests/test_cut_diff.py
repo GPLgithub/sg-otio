@@ -1121,6 +1121,10 @@ class TestCutDiff(SGBaseTest):
         # Test csv report
         _, csv_path = tempfile.mkstemp(suffix=".csv")
         track_diff.write_csv_report(csv_path, "This is a Test", [mock_cut_url])
+        # If newline='' is not specified, newlines embedded inside quoted fields will not be interpreted correctly,
+        # and on platforms that use \r\n linendings on write an extra \r will be added.
+        # It should always be safe to specify newline='', since the csv module does its own (universal) newline handling.
+        # see: https://docs.python.org/3/library/csv.html#id4
         with open(csv_path, newline="") as csvfile:
             reader = csv.reader(csvfile)
             in_edits_rows = False
