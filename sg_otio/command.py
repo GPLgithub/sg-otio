@@ -150,7 +150,15 @@ class SGOtioCommand(object):
         )
         logger.info("File %s successfully written to %s" % (file_path, url))
 
-    def compare_to_sg(self, file_path, sg_cut_id, adapter_name=None, frame_rate=24, write=False):
+    def compare_to_sg(
+        self,
+        file_path,
+        sg_cut_id,
+        adapter_name=None,
+        frame_rate=24,
+        write=False,
+        report_path=None,
+    ):
         """
         Compare an input file to a SG Cut.
 
@@ -158,7 +166,8 @@ class SGOtioCommand(object):
         :param sg_cut_id: A valid SG Cut id.
         :param str adapter_name: Optional otio adapter name, e.g. cmx_3600.
         :param float frame_rate: Optional frame rate to use when reading the file.
-        :param bool write: If ``True`` do something...
+        :param bool write: If ``True`` import the new Cut in SG.
+        :param str report_path: If set, write a CSV report to the given file.
         """
         timeline = self.read_timeline_from_file(file_path, adapter_name, frame_rate)
         if not timeline.video_tracks():
@@ -188,10 +197,21 @@ class SGOtioCommand(object):
             "%s" % os.path.basename(file_path),
             sg_links=[old_cut_url]
         )
-        logger.info(title)
-        logger.info(
-            report,
-        )
+        if report_path:
+            if os.path.splitext(report_path) == ".csv":
+                diff.write_csv_report(
+                    report_path, title, sg_links=[old_cut_url]
+                )
+            else:
+                with open(report_path, "w") as f:
+                    f.write(title)
+                    f.write(report)
+            logger.info("Report written to %s" % report_path)
+        else:
+            logger.info(title)
+            logger.info(
+                report,
+            )
         if write:
             sg_entity = diff.sg_link
             if not sg_entity:
