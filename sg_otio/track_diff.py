@@ -824,9 +824,7 @@ class SGTrackDiff(object):
         with open(csv_path, "w", encoding="utf-8-sig") as csv_handle:
             csv_writer = csv.writer(csv_handle, lineterminator="\n")
             # Write some header information
-            data_row = ["Changes Report:", title] + [""] * 5
-            csv_writer.writerow(data_row)
-            data_row = ["(previous values in parenthesis if different)"] + [""] * 5
+            data_row = ["Changes Report:", title, "(previous values in parenthesis if different)"] + [""] * 4
             csv_writer.writerow(data_row)
             data_row = ["Report Date:", date.today().isoformat()] + [""] * 5
             csv_writer.writerow(data_row)
