@@ -838,9 +838,9 @@ class SGTrackDiff(object):
                 data_row = ["Links:", " ".join(sg_links)] + [""] * 5
                 csv_writer.writerow(data_row)
                 csv_writer.writerow([""] * 7)
+            duration = self._new_track.duration()
             if self._old_track:
                 old_duration = self._old_track.duration()
-                duration = self._new_track.duration()
                 if old_duration != duration:
                     duration_frame = "%s (%s)" % (duration.to_frames(), old_duration.to_frames())
                     duration_tc = "%s (%s)" % (duration.to_timecode(), old_duration.to_timecode())
