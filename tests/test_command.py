@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+import csv
 import logging
 import os
 import tempfile
@@ -196,9 +197,9 @@ class TestCommand(SGBaseTest):
             self.mock_sg.delete(sg_entity["type"], sg_entity["id"])
         self._sg_entities_to_delete = []
 
-    def test_read_command(self):
+    def test_commands(self):
         """
-        Test the read command
+        Test commands.
         """
         self._add_sg_cut_data()
         command = SGOtioCommand(self.mock_sg)
@@ -229,7 +230,7 @@ class TestCommand(SGBaseTest):
                                 24,
                             )
                         )
-                    # Check compare command
+                    # Check compare command, write new Cut to SG
                     command.compare_to_sg(file_path=path, sg_cut_id=self.sg_cuts[0]["id"], write=True)
                     new_cut = self.mock_sg.find_one(
                         "Cut",
@@ -237,6 +238,20 @@ class TestCommand(SGBaseTest):
                     )
                     self.assertTrue(new_cut)
                     self._sg_entities_to_delete.append(new_cut)
+
+                    # Check we can save reports
+                    _, report_path = tempfile.mkstemp(suffix=".txt")
+                    command.compare_to_sg(file_path=path, sg_cut_id=self.sg_cuts[0]["id"], report_path=report_path)
+                    self.assertTrue(os.path.isfile(report_path))
+                    _, report_path = tempfile.mkstemp(suffix=".csv")
+                    command.compare_to_sg(file_path=path, sg_cut_id=self.sg_cuts[0]["id"], report_path=report_path)
+                    self.assertTrue(os.path.isfile(report_path))
+                    with open(report_path, newline="") as csvfile:
+                        reader = csv.reader(csvfile)
+                        # Just check that we have more rows than the number
+                        # of items
+                        self.assertTrue(len([row for row in reader]) > len(self.sg_cut_items))
+
                     _, new_path = tempfile.mkstemp(suffix=".otio")
                     command.read_from_sg(
                         sg_cut_id=new_cut["id"],
