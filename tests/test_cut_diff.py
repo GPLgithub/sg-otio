@@ -1304,28 +1304,41 @@ class TestCutDiff(SGBaseTest):
                         self.assertEqual(checks, 6)
                         in_edits_rows = True
                 else:
-                    # New cut items start after 4 first old cut items
-                    # and two first old items are omitted.
-                    item = self.sg_cut_items[edits_rows_count + 4]
-                    old_item = self.sg_cut_items[edits_rows_count + 2]
-                    self.assertEqual(row[0], "%s (%s)" % (
-                        item["cut_order"],
-                        old_item["cut_order"]
-                    ))
-                    self.assertEqual(row[1], _DIFF_TYPES.CUT_CHANGE.name)
-                    self.assertEqual(row[2], "%s" % item["shot"]["code"])
-                    self.assertEqual(row[3], "%s (%s)" % (item["cut_item_duration"], old_item["cut_item_duration"]))
-                    if item["cut_item_in"] != old_item["cut_item_in"]:
-                        self.assertEqual(row[4], "%s (%s)" % (item["cut_item_in"], old_item["cut_item_in"]))
+                    # We one line for cut change, then one line for
+                    # the omitted entry
+                    if edits_rows_count % 2:
+                        old_item = self.sg_cut_items[edits_rows_count // 2]
+                        self.assertEqual(row[0], "%s" % (
+                            old_item["cut_order"]
+                        ))
+                        self.assertEqual(row[1], _DIFF_TYPES.OMITTED.name)
+                        self.assertEqual(row[2], "%s" % old_item["shot"]["code"])
+                        self.assertEqual(row[3], "%s" % old_item["cut_item_duration"])
+                        self.assertEqual(row[4], "%s" % old_item["cut_item_in"])
+                        self.assertEqual(row[5], "%s" % old_item["cut_item_out"])
                     else:
-                        self.assertEqual(row[4], "%s" % item["cut_item_in"])
-                    if item["cut_item_out"] != old_item["cut_item_out"]:
-                        self.assertEqual(row[5], "%s (%s)" % (item["cut_item_out"], old_item["cut_item_out"]))
-                    else:
-                        self.assertEqual(row[5], "%s" % item["cut_item_out"])
+                        # New cut items start after 4 first old cut items
+                        # and two first old items are omitted.
+                        item = self.sg_cut_items[edits_rows_count // 2 + 4]
+                        old_item = self.sg_cut_items[edits_rows_count // 2 + 2]
+                        self.assertEqual(row[0], "%s (%s)" % (
+                            item["cut_order"],
+                            old_item["cut_order"]
+                        ))
+                        self.assertEqual(row[1], _DIFF_TYPES.CUT_CHANGE.name)
+                        self.assertEqual(row[2], "%s" % item["shot"]["code"])
+                        self.assertEqual(row[3], "%s (%s)" % (item["cut_item_duration"], old_item["cut_item_duration"]))
+                        if item["cut_item_in"] != old_item["cut_item_in"]:
+                            self.assertEqual(row[4], "%s (%s)" % (item["cut_item_in"], old_item["cut_item_in"]))
+                        else:
+                            self.assertEqual(row[4], "%s" % item["cut_item_in"])
+                        if item["cut_item_out"] != old_item["cut_item_out"]:
+                            self.assertEqual(row[5], "%s (%s)" % (item["cut_item_out"], old_item["cut_item_out"]))
+                        else:
+                            self.assertEqual(row[5], "%s" % item["cut_item_out"])
                     edits_rows_count += 1
                 logger.debug(row)
-            self.assertEqual(edits_rows_count, 2)
+            self.assertEqual(edits_rows_count, 4)  # 2 cut changes, 2 omitted edits
         os.remove(csv_path)
 
         SGSettings().shot_cut_fields_prefix = "myprecious"
