@@ -106,6 +106,12 @@ def run():
         default=False,
         help="If true, update SG with values from the new Cut."
     )
+    compare_parser.add_argument(
+        "--report", "-rp",
+        required=False,
+        help="If set, write a report with changes. "
+             "Text or CSV files are generated, based on the file extension."
+    )
 
     args = parser.parse_args()
 
@@ -149,6 +155,7 @@ def run():
             adapter_name=args.adapter,
             frame_rate=args.frame_rate,
             write=args.write,
+            report_path=args.report,
         )
 
 

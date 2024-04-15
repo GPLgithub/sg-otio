@@ -65,7 +65,7 @@ setuptools.setup(
         ],
     },
     install_requires=[
-        "OpenTimelineIO >= 0.12.0",
+        "OpenTimelineIO == 0.15.0",
         "shotgun-api3 >= 3.3.3",
         "pathlib2; python_version < '3.4'",
         "futures; python_version < '3.2'",

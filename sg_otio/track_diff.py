@@ -824,7 +824,7 @@ class SGTrackDiff(object):
         with open(csv_path, "w", encoding="utf-8-sig") as csv_handle:
             csv_writer = csv.writer(csv_handle, lineterminator="\n")
             # Write some header information
-            data_row = ["Changes Report:", title] + [""] * 5
+            data_row = ["Changes Report:", title, "(previous values in parenthesis if different)"] + [""] * 4
             csv_writer.writerow(data_row)
             data_row = ["Report Date:", date.today().isoformat()] + [""] * 5
             csv_writer.writerow(data_row)
@@ -838,9 +838,9 @@ class SGTrackDiff(object):
                 data_row = ["Links:", " ".join(sg_links)] + [""] * 5
                 csv_writer.writerow(data_row)
                 csv_writer.writerow([""] * 7)
+            duration = self._new_track.duration()
             if self._old_track:
                 old_duration = self._old_track.duration()
-                duration = self._new_track.duration()
                 if old_duration != duration:
                     duration_frame = "%s (%s)" % (duration.to_frames(), old_duration.to_frames())
                     duration_tc = "%s (%s)" % (duration.to_timecode(), old_duration.to_timecode())
@@ -875,7 +875,26 @@ class SGTrackDiff(object):
             # Write the data
             csv_writer.writerow([""] * 7)
             csv_writer.writerow(header_row)
+            # Collect all rows so we can output values in cut orders
+            data_rows = []
             for shot_name, clip_group in self._diffs_by_shots.items():
+                # Omitted clips
+                for cut_diff in clip_group.omitted_clips:
+                    start = "%s" % cut_diff.old_cut_in.to_frames()
+                    end = "%s" % cut_diff.old_cut_out.to_frames()
+                    cut_order = "%s" % cut_diff.old_index
+                    duration = "%s" % cut_diff.old_visible_duration.to_frames()
+                    data_row = [
+                        cut_order,
+                        cut_diff.diff_type.name,
+                        shot_name,
+                        duration,
+                        start,
+                        end,
+                        " ".join(cut_diff.reasons),
+                    ]
+                    data_rows.append(data_row)
+                # Current clips
                 for cut_diff in clip_group.clips:
                     # Old values can be None for new edits without
                     # an old counterpart.
@@ -904,7 +923,13 @@ class SGTrackDiff(object):
                         end,
                         " ".join(cut_diff.reasons),
                     ]
-                    csv_writer.writerow(data_row)
+                    data_rows.append(data_row)
+            # Sort by cut order and then diff type.
+            # We need to convert the cut order to an int otherwise
+            # "2" is bigger than "10" and we ignore the (old value)
+            # if one is present.
+            data_rows.sort(key=lambda row: (int(row[0].split(" ")[0]), row[1]))
+            csv_writer.writerows(data_rows)
 
     def get_report(self, title, sg_links):
         """
