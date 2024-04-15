@@ -198,7 +198,7 @@ class SGOtioCommand(object):
             sg_links=[old_cut_url]
         )
         if report_path:
-            if os.path.splitext(report_path) == ".csv":
+            if os.path.splitext(report_path) in [".csv", ".CSV"]:
                 diff.write_csv_report(
                     report_path, title, sg_links=[old_cut_url]
                 )
