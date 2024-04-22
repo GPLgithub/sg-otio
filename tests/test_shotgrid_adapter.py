@@ -162,7 +162,7 @@ class ShotgridAdapterTest(SGBaseTest):
         """
         Override compute clip shot name to get a unique shot name per clip.
         """
-        return "Shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
+        return "Shot_%d" % (6665 + list(clip.parent().find_clips()).index(clip) + 1)
 
     def test_read(self):
         """
@@ -200,7 +200,7 @@ class ShotgridAdapterTest(SGBaseTest):
             else:
                 self.assertEqual(track.metadata["sg"][k], v)
         # Check the track clips
-        for i, clip in enumerate(track.each_clip()):
+        for i, clip in enumerate(track.find_clips()):
             self.assertEqual(clip.name, self.mock_versions[i]["code"])
             self.assertEqual(
                 # Cut item in has 1001 + 8 frames more than the source range.
@@ -370,9 +370,9 @@ class ShotgridAdapterTest(SGBaseTest):
             tracks = list(timeline.tracks)
             self.assertEqual(len(tracks), 1)
             track = tracks[0]
-            clips = list(track.each_clip())
+            clips = list(track.find_clips())
             self.assertEqual(len(clips), 2)
-            children = list(track.each_child())
+            children = list(track.find_children())
             self.assertEqual(len(children), 3)
             self.assertTrue(isinstance(children[0], otio.schema.Clip))
             self.assertTrue(isinstance(children[2], otio.schema.Clip))
@@ -433,7 +433,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 else:
                     self.assertEqual(track.metadata["sg"][k], v)
             # Check the track clips
-            for i, clip in enumerate(track.each_clip()):
+            for i, clip in enumerate(track.find_clips()):
                 sg_data = clip.metadata["sg"]
                 self.assertEqual(sg_data["type"], "CutItem")
                 cut_item = self.mock_cut_items[i]
@@ -500,7 +500,7 @@ class ShotgridAdapterTest(SGBaseTest):
 
             # Check the SG metadata
             self.assertEqual(track.metadata["sg"]["id"], sg_cuts[0]["id"])
-            for i, clip in enumerate(track.each_clip()):
+            for i, clip in enumerate(track.find_clips()):
                 self.assertEqual(clip.metadata["sg"]["type"], "CutItem")
                 self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
 
@@ -530,7 +530,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 order=[{"field_name": "cut_order", "direction": "asc"}]
             )
             self.assertEqual(len(sg_cut_items), 3)
-            for i, clip in enumerate(track.each_clip()):
+            for i, clip in enumerate(track.find_clips()):
                 metadata_sg_shot = clip.metadata["sg"]["shot"]
                 sg_shot = self.mock_sg.find_one("Shot", [["id", "is", metadata_sg_shot["id"]]], ["sg_absolute_cut_order", "code"])
                 # Cut order should be 1000 * entity_cut_order + cut_item["cut_order"]
@@ -577,7 +577,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 order=[{"field_name": "cut_order", "direction": "asc"}]
             )
             self.assertEqual(len(sg_cut_items), 3)
-            for i, clip in enumerate(track.each_clip()):
+            for i, clip in enumerate(track.find_clips()):
                 self.assertEqual(clip.metadata["sg"]["id"], sg_cut_items[i]["id"])
 
     def test_write_read_edl_with_versions(self):
@@ -656,7 +656,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
 
             # Check all the information relevant to media references is correct.
-            for i, (orig_clip, clip) in enumerate(zip(timeline.each_clip(), timeline_from_sg.each_clip())):
+            for i, (orig_clip, clip) in enumerate(zip(timeline.find_clips(), timeline_from_sg.find_clips())):
                 clip_version_name = compute_clip_version_name(orig_clip, i + 1)
                 self.assertEqual(orig_clip.media_reference.name, clip_version_name)
                 self.assertEqual(orig_clip.media_reference.name, clip.media_reference.name)
@@ -697,7 +697,7 @@ class ShotgridAdapterTest(SGBaseTest):
         xml_file = os.path.join(self.resources_dir, "blue_frame_5_to_25.xml")
         timeline = otio.adapters.read_from_file(xml_file)
         # The path to the media is relative to the machine, replace it.
-        clip = list(timeline.each_clip())[0]
+        clip = list(timeline.find_clips())[0]
         file_path = os.path.join(self.resources_dir, "blue.mov")
         # Premiere prepends its path with file://localhost, and then an absolute path.
         # Keep it to test it would work properly.
@@ -738,7 +738,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 self.assertEqual(len(sg_versions), 1)
                 timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
             # Check all the information relevant to media references and ranges is correct.
-            for i, (orig_clip, clip) in enumerate(zip(timeline.each_clip(), timeline_from_sg.each_clip())):
+            for i, (orig_clip, clip) in enumerate(zip(timeline.find_clips(), timeline_from_sg.find_clips())):
                 self.assertEqual(orig_clip.media_reference.target_url, clip.media_reference.target_url)
                 # In the case of this test, the available range is different than the visible range.
                 # Since we know the values from the files, also check them.
@@ -779,13 +779,13 @@ class ShotgridAdapterTest(SGBaseTest):
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         track = timeline.tracks[0]
         # Check all clips have the same name
-        for clip in track.each_clip():
+        for clip in track.find_clips():
             self.assertIn(SGCutClip(clip).name, ["reelname", "other_reelname"])
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
             # All should have different names
             names = []
-            for i, clip in enumerate(track.each_clip()):
+            for i, clip in enumerate(track.find_clips()):
                 self.assertIsNotNone(clip.metadata.get("sg"))
                 self.assertNotIn(clip.metadata["sg"]["code"], names)
                 names.append(clip.metadata["sg"]["code"])

@@ -79,7 +79,7 @@ class MediaCutter(object):
         """
         clips_to_extract = []
         futures = []
-        for i, clip in enumerate(self._video_track.each_clip()):
+        for i, clip in enumerate(self._video_track.find_clips()):
             if clip.media_reference.is_missing_reference:
                 media_name = compute_clip_version_name(clip, i + 1)
                 clips_to_extract.append(
