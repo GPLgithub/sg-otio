@@ -463,9 +463,9 @@ class ClipHandler:
             )[0]
 
         elif (
-            clip.media_reference and
-            hasattr(clip.media_reference, 'target_url_base') and
-            clip.media_reference.target_url_base is not None
+            clip.media_reference
+            and hasattr(clip.media_reference, 'target_url_base')
+            and clip.media_reference.target_url_base is not None
         ):
             clip.name = os.path.splitext(
                 os.path.basename(_get_image_sequence_url(clip))
