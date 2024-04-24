@@ -399,6 +399,11 @@ class ShotgridAdapterTest(SGBaseTest):
             self.assertIsNotNone(sg_shot)
             sg_shot = self.mock_sg.find_one("Shot", [["code", "is", self.mock_shots[0]["code"].lower()]])
             self.assertIsNotNone(sg_shot)
+            self.mock_sg.update(
+                sg_shot["type"],
+                sg_shot["id"],
+                {"sg_status_list": SGSettings().shot_omit_status}
+            )
             timeline = otio.adapters.read_from_file(
                 self._SG_CUT_URL,
                 "ShotGrid",
