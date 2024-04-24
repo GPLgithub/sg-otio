@@ -64,18 +64,26 @@ channel_map = {
 # the comment string for the media reference:
 #   'avid': '* FROM CLIP:' (default)
 #   'nucoda': '* FROM FILE:'
+#   'premiere': None (If Adobe Premiere imports an EDL that uses
+#                     a "FROM" comment will result in the clips
+#                     being named UNKNOWN instead of using the reel or file name)
 # When adding a new style, please be sure to add sufficient tests
 # to verify both the new and existing styles.
-VALID_EDL_STYLES = ['avid', 'nucoda']
+VALID_EDL_STYLES = {
+    'avid': 'CLIP',
+    'nucoda': 'FILE',
+    'premiere': None,
+}
 
 
 def _extend_source_range_duration(obj, duration):
     obj.source_range = obj.source_range.duration_extended_by(duration)
 
 
-class EDLParser(object):
+class EDLParser:
     def __init__(self, edl_string, rate=24, ignore_timecode_mismatch=False):
         self.timeline = schema.Timeline()
+
         # Start with no tracks. They will be added as we encounter them.
         # This dict maps a track name (e.g "A2" or "V") to an OTIO Track.
         self.tracks_by_name = {}
@@ -358,7 +366,7 @@ class EDLParser(object):
                 track.source_range = None
 
 
-class ClipHandler(object):
+class ClipHandler:
     # /path/filename.[1001-1020].ext
     image_sequence_pattern = re.compile(
         r'.*\.(?P<range>\[(?P<start>[0-9]+)-(?P<end>[0-9]+)\])\.\w+$'
@@ -446,18 +454,18 @@ class ClipHandler(object):
         if 'clip_name' in comment_data:
             clip.name = comment_data["clip_name"]
         elif (
-            clip.media_reference
-            and hasattr(clip.media_reference, 'target_url')
-            and clip.media_reference.target_url is not None
+            clip.media_reference and
+            hasattr(clip.media_reference, 'target_url') and
+            clip.media_reference.target_url is not None
         ):
             clip.name = os.path.splitext(
                 os.path.basename(clip.media_reference.target_url)
             )[0]
 
         elif (
-            clip.media_reference
-            and hasattr(clip.media_reference, 'target_url_base')
-            and clip.media_reference.target_url_base is not None
+            clip.media_reference and
+            hasattr(clip.media_reference, 'target_url_base') and
+            clip.media_reference.target_url_base is not None
         ):
             clip.name = os.path.splitext(
                 os.path.basename(_get_image_sequence_url(clip))
@@ -488,7 +496,7 @@ class ClipHandler(object):
                     power = [floats[6], floats[7], floats[8]]
                 else:
                     raise EDLParseError(
-                        'Invalid ASC_SOP found: {}'.format(asc_sop))
+                        f'Invalid ASC_SOP found: {asc_sop}')
 
             if asc_sat:
                 sat = float(asc_sat)
@@ -607,7 +615,7 @@ class ClipHandler(object):
                 )
         else:
             raise EDLParseError(
-                'incorrect number of fields [{0}] in form statement: {1}'
+                'incorrect number of fields [{}] in form statement: {}'
                 ''.format(field_count, line))
 
         # Frame numbers (not just timecode) are ok
@@ -700,7 +708,7 @@ class ClipHandler(object):
         return new_trx
 
 
-class CommentHandler(object):
+class CommentHandler:
     # this is the for that all comment 'id' tags take
     regex_template = r'\*?\s*{id}:?\s*(?P<comment_body>.*)'
 
@@ -718,6 +726,7 @@ class CommentHandler(object):
         ('ASC_SAT', 'asc_sat'),
         ('M2', 'motion_effect'),
         ('\\* FREEZE FRAME', 'freeze_frame'),
+        ('\\* OTIO REFERENCE [a-zA-Z]+', 'media_reference'),
     ])
 
     def __init__(self, comments):
@@ -789,9 +798,9 @@ def write_to_string(input_otio, rate=None, style='avid', reelname_len=8):
     # also only works for a single video track at the moment
 
     video_tracks = [t for t in input_otio.tracks
-                    if t.kind == schema.TrackKind.Video]
+                    if t.kind == schema.TrackKind.Video and t.enabled]
     audio_tracks = [t for t in input_otio.tracks
-                    if t.kind == schema.TrackKind.Audio]
+                    if t.kind == schema.TrackKind.Audio and t.enabled]
 
     if len(video_tracks) != 1:
         raise exceptions.NotSupportedError(
@@ -823,7 +832,7 @@ def write_to_string(input_otio, rate=None, style='avid', reelname_len=8):
     return writer.get_content_for_track_at_index(0, title=input_otio.name)
 
 
-class EDLWriter(object):
+class EDLWriter:
     def __init__(self, tracks, rate, style, reelname_len=8):
         self._tracks = tracks
         self._rate = rate
@@ -903,27 +912,30 @@ class EDLWriter(object):
                     )
                 )
             elif isinstance(child, schema.Clip):
-                events.append(
-                    Event(
-                        child,
-                        self._tracks,
-                        track.kind,
-                        self._rate,
-                        self._style,
-                        self._reelname_len
+                if child.enabled:
+                    events.append(
+                        Event(
+                            child,
+                            self._tracks,
+                            track.kind,
+                            self._rate,
+                            self._style,
+                            self._reelname_len
+                        )
                     )
-                )
+                else:
+                    pass
             elif isinstance(child, schema.Gap):
                 # Gaps are represented as missing record timecode, no event
                 # needed.
                 pass
 
-        content = "TITLE: {}\n\n".format(title) if title else ''
-
-        # Convert each event/dissolve-event into plain text.
-        for idx, event in enumerate(events):
-            event.edit_number = idx + 1
-            content += event.to_edl_format() + '\n'
+        content = f"TITLE: {title}\n\n" if title else ''
+        if track.enabled:
+            # Convert each event/dissolve-event into plain text.
+            for idx, event in enumerate(events):
+                event.edit_number = idx + 1
+                content += event.to_edl_format() + '\n'
 
         return content
 
@@ -957,7 +969,7 @@ def _relevant_timing_effect(clip):
     return timing_effect
 
 
-class Event(object):
+class Event:
     def __init__(
         self,
         clip,
@@ -968,7 +980,13 @@ class Event(object):
         reelname_len
     ):
 
-        line = EventLine(kind, rate, reel=_reel_from_clip(clip, reelname_len))
+        # Premiere style uses AX for the reel name
+        if style == 'premiere':
+            reel = 'AX'
+        else:
+            reel = _reel_from_clip(clip, reelname_len)
+
+        line = EventLine(kind, rate, reel=reel)
         line.source_in = clip.source_range.start_time
         line.source_out = clip.source_range.end_time_exclusive()
 
@@ -1026,7 +1044,7 @@ class Event(object):
         return "\n".join(lines)
 
 
-class DissolveEvent(object):
+class DissolveEvent:
 
     def __init__(
         self,
@@ -1145,7 +1163,7 @@ class DissolveEvent(object):
         return "\n".join(lines)
 
 
-class EventLine(object):
+class EventLine:
     def __init__(self, kind, rate, reel='AX'):
         self.reel = reel
         self._kind = 'V' if kind == schema.TrackKind.Video else 'A'
@@ -1208,6 +1226,10 @@ def _generate_comment_lines(
         elif hasattr(clip.media_reference, 'abstract_target_url'):
             url = _get_image_sequence_url(clip)
 
+        if url:
+            # Premiere style uses the base name of the media reference
+            if style == 'premiere':
+                clip.name = os.path.basename(clip.media_reference.target_url)
     else:
         url = clip.name
 
@@ -1236,27 +1258,36 @@ def _generate_comment_lines(
         lines.append(
             "* {from_or_to} CLIP NAME:  {name}{suffix}".format(
                 from_or_to=from_or_to,
-                name=clip.name,
+                name=os.path.basename(url) if style == 'premiere' else clip.name,
                 suffix=suffix
             )
         )
     if timing_effect and timing_effect.effect_name == "FreezeFrame":
         lines.append('* * FREEZE FRAME')
-    if url and style == 'avid':
-        lines.append("* {from_or_to} CLIP: {url}".format(
-            from_or_to=from_or_to,
-            url=url
-        ))
-    if url and style == 'nucoda':
-        lines.append("* {from_or_to} FILE: {url}".format(
-            from_or_to=from_or_to,
-            url=url
-        ))
+
+    # If the style has a spec, apply it and add it as a comment
+    style_spec = VALID_EDL_STYLES.get(style)
+    if url:
+        if style_spec:
+            lines.append("* {from_or_to} {style_spec}: {url}".format(
+                from_or_to=from_or_to,
+                style_spec=style_spec,
+                url=_flip_windows_slashes(url)
+            ))
+        else:
+            lines.append("* OTIO REFERENCE {from_or_to}: {url}".format(
+                from_or_to=from_or_to,
+                url=_flip_windows_slashes(url)
+            ))
 
     if reelname_len and not clip.metadata.get('cmx_3600', {}).get('reel'):
         lines.append("* OTIO TRUNCATED REEL NAME FROM: {url}".format(
             url=os.path.basename(_flip_windows_slashes(url or clip.name))
         ))
+
+    if style == 'premiere':
+        clip.metadata.setdefault('cmx_3600', {})
+        clip.metadata['cmx_3600'].update({'reel': 'AX'})
 
     cdl = clip.metadata.get('cdl')
     if cdl:
@@ -1292,13 +1323,13 @@ def _generate_comment_lines(
         if not color and meta and meta.get("color"):
             color = meta.get("color").upper()
         comment = (marker.name or '').upper()
-        lines.append("* LOC: {} {:7} {}".format(timecode, color, comment))
+        lines.append(f"* LOC: {timecode} {color:7} {comment}")
 
     # If we are carrying any unhandled CMX 3600 comments on this clip
     # then output them blindly.
     extra_comments = clip.metadata.get('cmx_3600', {}).get('comments', [])
     for comment in extra_comments:
-        lines.append("* {}".format(comment))
+        lines.append(f"* {comment}")
 
     return lines
 
