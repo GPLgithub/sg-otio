@@ -926,7 +926,7 @@ class SGCutTrackWriter(object):
                 # Find the most recent status change event log entry where the
                 # project and linked Shot code match the current project/shot
                 filters = [
-                    ["project", "is", {"type": "Project", "id": self._project["id"]}],
+                    ["project", "is", sg_project],
                     ["event_type", "is", "Shotgun_Shot_Change"],
                     ["attribute_name", "is", sfg.status],
                     ["entity.Shot.id", "is", clip_group.sg_shot["id"]]
