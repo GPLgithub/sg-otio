@@ -45,6 +45,7 @@ jobs:
           # Not strictly necessary, but it may prevent rate limit
           # errors especially on GitHub-hosted macos machines.
           token: ${{ secrets.GITHUB_TOKEN }}
+          architecture: "x64"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
