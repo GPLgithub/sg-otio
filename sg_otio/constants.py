@@ -161,7 +161,7 @@ _DIFF_TYPES = enum.Enum(
         "NEW": 0,              # A new Shot will be created
         "OMITTED": 1,          # The Shot is not part of the cut anymore
         "REINSTATED": 2,       # The Shot is back in the cut
-        "RESCAN": 3,           # A rescan will be needed with the new in / out points
+        "EXTENDED": 3,         # New in and/or out points are outside previous range
         "CUT_CHANGE": 4,       # Some values changed, but don't fall in previous categories
         "NO_CHANGE": 5,        # Values are identical to previous ones
         "NO_LINK": 6,          # Related Shot name couldn't be found

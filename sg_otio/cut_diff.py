@@ -371,7 +371,7 @@ class SGCutDiff(SGCutClip):
 
         :returns: ``True`` if a rescan is needed, ``False`` otherwise
         """
-        return self._diff_type == _DIFF_TYPES.RESCAN
+        return self._diff_type == _DIFF_TYPES.EXTENDED
 
     @property
     def repeated(self):
@@ -509,14 +509,14 @@ class SGCutDiff(SGCutClip):
             and self.head_duration is not None
             and self.head_duration.to_frames() < 0
         ):
-            self._diff_type = _DIFF_TYPES.RESCAN
+            self._diff_type = _DIFF_TYPES.EXTENDED
 
         if (
             self.sg_shot_tail_out is not None  # Report rescan only if value is set on the Shot
             and self.tail_duration is not None
             and self.tail_duration.to_frames() < 0
         ):
-            self._diff_type = _DIFF_TYPES.RESCAN
+            self._diff_type = _DIFF_TYPES.EXTENDED
 
         # We use cut in and cut out values which accurately report changes since
         # they are not based on Shot values.
@@ -525,7 +525,7 @@ class SGCutDiff(SGCutClip):
             and self.cut_in is not None
             and self.old_cut_in != self.cut_in
         ):
-            if self._diff_type != _DIFF_TYPES.RESCAN:
+            if self._diff_type != _DIFF_TYPES.EXTENDED:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
             diff = (self.cut_in - self.old_cut_in).to_frames()
             if diff > 0:
@@ -538,7 +538,7 @@ class SGCutDiff(SGCutClip):
             and self.cut_out is not None
             and self.old_cut_out != self.cut_out
         ):
-            if self._diff_type != _DIFF_TYPES.RESCAN:
+            if self._diff_type != _DIFF_TYPES.EXTENDED:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
             diff = (self.cut_out - self.old_cut_out).to_frames()
             if diff > 0:
