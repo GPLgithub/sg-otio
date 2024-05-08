@@ -185,7 +185,7 @@ class TestCommand(SGBaseTest):
         """
         Override compute clip shot name to get a unique shot name per clip.
         """
-        return "shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
+        return "shot_%d" % (6665 + list(clip.parent().find_clips()).index(clip) + 1)
 
     def tearDown(self):
         """
@@ -220,7 +220,7 @@ class TestCommand(SGBaseTest):
                     self.assertEqual(sg_data["type"], "Cut")
                     self.assertEqual(sg_data["id"], self.sg_cuts[0]["id"])
                     self.assertEqual(len(track), len(self.sg_cut_items))
-                    for i, clip in enumerate(track.each_clip()):
+                    for i, clip in enumerate(track.find_clips()):
                         # Just check basic stuff
                         self.assertEqual(clip.name, self.sg_cut_items[i]["code"])
                         self.assertEqual(
@@ -265,7 +265,7 @@ class TestCommand(SGBaseTest):
                     self.assertEqual(sg_data["type"], "Cut")
                     self.assertEqual(sg_data["id"], new_cut["id"])
                     self.assertEqual(len(new_track), len(self.sg_cut_items))
-                    for i, clip in enumerate(new_track.each_clip()):
+                    for i, clip in enumerate(new_track.find_clips()):
                         # Just check basic stuff
                         self.assertEqual(clip.name, self.sg_cut_items[i]["code"])
                         self.assertEqual(
@@ -295,7 +295,7 @@ class TestCommand(SGBaseTest):
                     self.assertEqual(sg_data["type"], "Cut")
                     self.assertEqual(sg_data["id"], new_cut2["id"])
                     self.assertEqual(len(new_track), len(self.sg_cut_items))
-                    for i, clip in enumerate(new_track.each_clip()):
+                    for i, clip in enumerate(new_track.find_clips()):
                         # Just check basic stuff
                         self.assertEqual(clip.name, self.sg_cut_items[i]["code"])
                         self.assertEqual(

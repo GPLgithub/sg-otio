@@ -389,7 +389,7 @@ class SGTrackDiff(object):
         sg_shot_ids = []
         prev_clip_list = []
         if self._old_track:
-            for i, clip in enumerate(self._old_track.each_clip()):
+            for i, clip in enumerate(self._old_track.find_clips()):
                 # Check if we have some SG meta data
                 sg_cut_item = clip.metadata.get("sg")
                 if not sg_cut_item or sg_cut_item.get("type") != "CutItem":
@@ -431,7 +431,7 @@ class SGTrackDiff(object):
         # Retrieve additional Shots from the new track if needed
         self._diffs_by_shots = {}
         more_shot_names = set()
-        for i, clip in enumerate(new_track.each_clip()):
+        for i, clip in enumerate(new_track.find_clips()):
             shot_name = compute_clip_shot_name(clip)
             if shot_name:
                 more_shot_names.add(shot_name)
@@ -866,7 +866,7 @@ class SGTrackDiff(object):
             )
             total_count = "%d" % count
             if self._old_track:
-                old_count = len(list(self._old_track.each_clip()))
+                old_count = len(list(self._old_track.find_clips()))
                 if old_count != count:
                     total_count = "%d (%d)" % (count, old_count)
             data_row = ["Total Count:", "%s" % total_count] + [""] * 5

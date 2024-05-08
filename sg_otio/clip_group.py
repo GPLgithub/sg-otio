@@ -468,7 +468,7 @@ class ClipGroup(object):
                   instances.
         """
         shots_by_name = {}
-        for i, clip in enumerate(video_track.each_clip()):
+        for i, clip in enumerate(video_track.find_clips()):
             shot_name = compute_clip_shot_name(clip)
             shot_key = ""
             if shot_name:

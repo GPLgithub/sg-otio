@@ -251,7 +251,7 @@ class SGCutReader(object):
         # add_version_media_reference_to_clip be tested instead? #9393
         clips_with_no_media_references = []
         clip_media_names = []
-        for i, clip in enumerate(track.each_clip()):
+        for i, clip in enumerate(track.find_clips()):
             if clip.media_reference.is_missing_reference:
                 clips_with_no_media_references.append(clip)
                 clip_media_names.append(compute_clip_version_name(clip, i + 1))

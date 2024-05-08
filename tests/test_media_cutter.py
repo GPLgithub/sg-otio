@@ -109,7 +109,7 @@ class TestMediaCutter(unittest.TestCase):
         media_names = ["green_tape", "pink_tape", "green_tape", "red_tape", "", "red_tape"]
         file_names = ["green_tape.mov", "pink_tape.mov", "green_tape_001.mov", "red_tape.mov", "foo.mov", "red_tape_001.mov"]
         ffprobe = find_executable("ffprobe")
-        for i, clip in enumerate(timeline.each_clip()):
+        for i, clip in enumerate(timeline.find_clips()):
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(clip.media_reference.name, media_names[i])
             self.assertEqual(os.path.basename(clip.media_reference.target_url), file_names[i])
@@ -158,7 +158,7 @@ class TestMediaCutter(unittest.TestCase):
 
         media_cutter = MediaCutter(timeline, movie_filepath)
         media_cutter.cut_media_for_clips()
-        for i, clip in enumerate(timeline.each_clip()):
+        for i, clip in enumerate(timeline.find_clips()):
             clip_name = clip.metadata["cmx_3600"]["reel"]
             self.assertFalse(clip.media_reference.is_missing_reference)
             self.assertEqual(

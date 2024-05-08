@@ -225,7 +225,7 @@ class TestCutDiff(SGBaseTest):
         """
         Override compute clip shot name to get a unique shot name per clip.
         """
-        return "shot_%d" % (6665 + list(clip.parent().each_clip()).index(clip) + 1)
+        return "shot_%d" % (6665 + list(clip.parent().find_clips()).index(clip) + 1)
 
     def _get_track_diff(self, new_track, old_track=None, mock_compute_clip_shot_name=None, sg_entity=None):
         """
@@ -692,7 +692,7 @@ class TestCutDiff(SGBaseTest):
         ]
         self.add_to_sg_mock_db(sg_shots)
         self._sg_entities_to_delete = sg_shots
-        for i, clip in enumerate(old_track.each_clip()):
+        for i, clip in enumerate(old_track.find_clips()):
             clip.metadata["sg"] = {
                 "type": "CutItem",
                 "id": -1,
@@ -774,7 +774,7 @@ class TestCutDiff(SGBaseTest):
         ]
         self.add_to_sg_mock_db(sg_shots)
         self._sg_entities_to_delete = sg_shots
-        for i, clip in enumerate(old_track.each_clip()):
+        for i, clip in enumerate(old_track.find_clips()):
             clip.metadata["sg"] = {
                 "type": "CutItem",
                 "id": -1,

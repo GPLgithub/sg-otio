@@ -47,7 +47,7 @@ class TestCutClip(unittest.TestCase):
             * FROM CLIP NAME: clip_name
          """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        edl_clip = list(timeline.tracks[0].each_clip())[0]
+        edl_clip = list(timeline.tracks[0].find_clips())[0]
         clip = SGCutClip(edl_clip)
         self.assertEqual(clip.name, "clip_reel_name")
 
@@ -72,7 +72,7 @@ class TestCutClip(unittest.TestCase):
             * LOC: 01:00:00:12 YELLOW  shot_004
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
-        edl_clip = list(timeline.tracks[0].each_clip())[0]
+        edl_clip = list(timeline.tracks[0].find_clips())[0]
         # Set use reel names to True to see it does not affect the outcome.
         sg_settings = SGSettings()
         sg_settings.use_clip_names_for_shot_names = True
@@ -83,7 +83,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip.shot_name, "shot_001")
 
         # Without a locator. Comment starting with COMMENT: is used.
-        edl_clip = list(timeline.tracks[0].each_clip())[1]
+        edl_clip = list(timeline.tracks[0].find_clips())[1]
         clip = SGCutClip(
             edl_clip
         )
@@ -123,7 +123,7 @@ class TestCutClip(unittest.TestCase):
 
         # A locator with an empty name.
         sg_settings.use_clip_names_for_shot_names = False
-        edl_clip = list(timeline.tracks[0].each_clip())[2]
+        edl_clip = list(timeline.tracks[0].find_clips())[2]
         clip = SGCutClip(
             edl_clip
         )
@@ -131,7 +131,7 @@ class TestCutClip(unittest.TestCase):
         self.assertIsNone(clip.shot_name)
 
         # Two locators, the first one has an empty name, the second one has a name.
-        edl_clip = list(timeline.tracks[0].each_clip())[3]
+        edl_clip = list(timeline.tracks[0].find_clips())[3]
         clip = SGCutClip(
             edl_clip
         )
@@ -163,7 +163,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
-        clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.each_clip())]
+        clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.find_clips())]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.
@@ -241,7 +241,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_tail_duration = 20
         edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
-        clips = [SGCutClip(c) for c in video_track.each_clip()]
+        clips = [SGCutClip(c) for c in video_track.find_clips()]
         self.assertEqual(len(clips), 3)
         for clip in clips:
             self.assertIsNotNone(clip.shot_name)
@@ -287,7 +287,7 @@ class TestCutClip(unittest.TestCase):
         edl_filepath = os.path.join(self._edls_dir, "raphe_temp1_rfe_R01_v01_TRANSITIONS.edl")
         edl_timeline = otio.adapters.read_from_file(edl_filepath, adapter_name="cmx_3600")
         video_track = edl_timeline.tracks[0]
-        clip = list(video_track.each_clip())[1]
+        clip = list(video_track.find_clips())[1]
         cut_clip = SGCutClip(clip)
         self.assertEqual(cut_clip.source_in.to_timecode(), "00:59:59:09")
         self.assertEqual(cut_clip.source_out.to_timecode(), "01:00:05:15")
@@ -334,7 +334,7 @@ class TestCutClip(unittest.TestCase):
             track = edl_timeline.tracks[0]
             clip_group = ClipGroup("shot_001")
             i = 1
-            for clip in track.each_clip():
+            for clip in track.find_clips():
                 clip_group.add_clip(SGCutClip(clip, index=i))
                 i += 1
             self.assertEqual(clip_group.index, 3)  # First clip is the last starting at 01:00:00:00
