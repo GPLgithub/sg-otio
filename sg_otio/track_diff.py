@@ -28,7 +28,7 @@ _PER_SHOT_TYPE_COUNTS = [
     _DIFF_TYPES.NEW,
     _DIFF_TYPES.OMITTED,
     _DIFF_TYPES.REINSTATED,
-    _DIFF_TYPES.RESCAN
+    _DIFF_TYPES.EXTENDED,
 ]
 
 
@@ -242,14 +242,14 @@ class SGCutDiffGroup(ClipGroup):
             # - A Shot is NEW if any of its items is NEW (should be all of them)
             # - A Shot is REINSTATED if at least one of its items is REINSTATED (should
             #       be all of them)
-            # - A Shot needs RESCAN if any of its items need RESCAN
+            # - A Shot needs RESCAN if any of its items is EXTENDED
             cut_diff_type = cut_diff.diff_type
             if cut_diff_type in [
                 _DIFF_TYPES.NO_LINK,
                 _DIFF_TYPES.NEW,
                 _DIFF_TYPES.REINSTATED,
                 _DIFF_TYPES.OMITTED,
-                _DIFF_TYPES.RESCAN
+                _DIFF_TYPES.EXTENDED,
             ]:
                 shot_diff_type = cut_diff_type
                 # Can't be changed by another entry, no need to loop further
@@ -861,7 +861,7 @@ class SGTrackDiff(object):
             csv_writer.writerow(data_row)
             count = (
                 self.count_for_type(_DIFF_TYPES.NEW) + self.count_for_type(_DIFF_TYPES.CUT_CHANGE)
-                + self.count_for_type(_DIFF_TYPES.REINSTATED) + self.count_for_type(_DIFF_TYPES.RESCAN)
+                + self.count_for_type(_DIFF_TYPES.REINSTATED) + self.count_for_type(_DIFF_TYPES.EXTENDED)
                 + self.count_for_type(_DIFF_TYPES.NO_CHANGE)
             )
             total_count = "%d" % count
@@ -989,7 +989,7 @@ class SGTrackDiff(object):
             "%s - %s" % (
                 diff.name, ", ".join(diff.reasons)
             ) for diff in sorted(
-                self.diffs_for_type(_DIFF_TYPES.RESCAN),
+                self.diffs_for_type(_DIFF_TYPES.EXTENDED),
                 key=lambda x: x.index
             )
         ]
@@ -1032,7 +1032,7 @@ class SGTrackDiff(object):
             ]),
             self.count_for_type(_DIFF_TYPES.CUT_CHANGE),
             "\n".join(cut_changes_details),
-            self.count_for_type(_DIFF_TYPES.RESCAN),
+            self.count_for_type(_DIFF_TYPES.EXTENDED),
             "\n".join(rescan_details),
         )
         return subject, body
@@ -1072,8 +1072,8 @@ class SGTrackDiff(object):
             self.diffs_for_type(_DIFF_TYPES.CUT_CHANGE),
             key=lambda x: x.index
         )
-        diff_groups[_DIFF_TYPES.RESCAN] = sorted(
-            self.diffs_for_type(_DIFF_TYPES.RESCAN),
+        diff_groups[_DIFF_TYPES.EXTENDED] = sorted(
+            self.diffs_for_type(_DIFF_TYPES.EXTENDED),
             key=lambda x: x.index
         )
         diff_groups[_DIFF_TYPES.NO_LINK] = sorted(

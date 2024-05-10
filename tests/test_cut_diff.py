@@ -1012,7 +1012,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
         self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
         self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
-        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
 
         # Same cut in, cut out after registered handles.
         clip.source_range = TimeRange(
@@ -1029,7 +1029,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
         self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
         self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
-        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
 
         # Both cut in and cut out out of handle margins.
         clip.source_range = TimeRange(
@@ -1049,7 +1049,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
         self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
         self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
-        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.RESCAN)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
 
     def test_report(self):
         """
