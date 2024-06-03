@@ -887,7 +887,7 @@ class SGTrackDiff(object):
                     data_row = [
                         cut_order,
                         cut_diff.diff_type.name,
-                        shot_name,
+                        cut_diff.shot_name,
                         duration,
                         start,
                         end,
@@ -917,7 +917,7 @@ class SGTrackDiff(object):
                     data_row = [
                         cut_order,
                         cut_diff.diff_type.name,
-                        shot_name,
+                        cut_diff.shot_name,
                         duration,
                         start,
                         end,

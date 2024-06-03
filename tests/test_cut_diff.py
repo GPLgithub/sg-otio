@@ -78,7 +78,7 @@ class TestCutDiff(SGBaseTest):
         self.add_to_sg_mock_db(self.sg_sequences)
         self._sg_entities_to_delete.extend(self.sg_sequences)
         self.sg_shots = [{
-            "code": "shot_6666",
+            "code": "SHOT_6666",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
@@ -92,7 +92,7 @@ class TestCutDiff(SGBaseTest):
             "id": 6667,
             "sg_status_list": None,
         }, {
-            "code": "shot_6668",
+            "code": "SHOT_6668",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
