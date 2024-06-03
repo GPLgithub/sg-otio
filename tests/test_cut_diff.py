@@ -78,7 +78,7 @@ class TestCutDiff(SGBaseTest):
         self.add_to_sg_mock_db(self.sg_sequences)
         self._sg_entities_to_delete.extend(self.sg_sequences)
         self.sg_shots = [{
-            "code": "shot_6666",
+            "code": "SHOT_6666",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
@@ -92,7 +92,7 @@ class TestCutDiff(SGBaseTest):
             "id": 6667,
             "sg_status_list": None,
         }, {
-            "code": "shot_6668",
+            "code": "SHOT_6668",
             "project": self.mock_project,
             "type": "Shot",
             "sg_sequence": self.sg_sequences[0],
@@ -960,7 +960,7 @@ class TestCutDiff(SGBaseTest):
         cut_diff.compute_head_tail_values()
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
-        self.assertEqual(cut_diff.reasons, ["Tail trimmed 10 frs"])
+        self.assertEqual(cut_diff.reasons, ["Tail handle trimmed 10 frs"])
         clip.source_range = TimeRange(
             RationalTime(100, 24),
             RationalTime(20, 24),  # duration, 20 frames.
@@ -968,7 +968,7 @@ class TestCutDiff(SGBaseTest):
         cut_diff.compute_head_tail_values()
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
-        self.assertEqual(cut_diff.reasons, ["Head trimmed 10 frs"])
+        self.assertEqual(cut_diff.reasons, ["Head handle trimmed 10 frs"])
         clip.source_range = TimeRange(
             RationalTime(111, 24),
             RationalTime(8, 24),  # duration, 8 frames.
@@ -976,9 +976,44 @@ class TestCutDiff(SGBaseTest):
         cut_diff.compute_head_tail_values()
         cut_diff._check_and_set_changes()
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
-        self.assertEqual(cut_diff.reasons, ["Head extended 1 frs", "Tail extended 1 frs"])
+        self.assertEqual(cut_diff.reasons, ["Head handle extended 1 frs", "Tail handle extended 1 frs"])
 
-        # Check rescan are correctly detected.
+        # Without handles extended/trimmed are reported
+        # for in and out points.
+        settings = SGSettings()
+        head_duration = settings.default_head_duration
+        tail_duration = settings.default_tail_duration
+        settings.default_head_duration = 0
+        settings.default_tail_duration = 0
+        clip.source_range = TimeRange(
+            RationalTime(110, 24),
+            RationalTime(20, 24),  # duration, 20 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        self.assertEqual(cut_diff.reasons, ["Out extended 10 frs"])
+        clip.source_range = TimeRange(
+            RationalTime(100, 24),
+            RationalTime(20, 24),  # duration, 20 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        self.assertEqual(cut_diff.reasons, ["In extended 10 frs"])
+        clip.source_range = TimeRange(
+            RationalTime(111, 24),
+            RationalTime(8, 24),  # duration, 8 frames.
+        )
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        self.assertEqual(cut_diff.reasons, ["In trimmed 1 frs", "Out trimmed 1 frs"])
+
+        settings.default_head_duration = head_duration
+        settings.default_tail_duration = tail_duration
+
+        # Check "extended" are correctly detected.
         # So far values coming from the Shot should be None
         self.assertIsNone(cut_diff.sg_shot_head_in)
         self.assertIsNone(cut_diff.old_head_duration)

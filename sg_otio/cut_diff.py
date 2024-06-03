@@ -505,19 +505,20 @@ class SGCutDiff(SGCutClip):
         # some entries might be flagged as "Need rescan", even if there are no
         # cut changes.
         if (
-            self.sg_shot_head_in is not None  # Report rescan only if value is set on the Shot
+            self.sg_shot_head_in is not None  # Report extended only if value is set on the Shot
             and self.head_duration is not None
             and self.head_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.EXTENDED
 
         if (
-            self.sg_shot_tail_out is not None  # Report rescan only if value is set on the Shot
+            self.sg_shot_tail_out is not None  # Report extended only if value is set on the Shot
             and self.tail_duration is not None
             and self.tail_duration.to_frames() < 0
         ):
             self._diff_type = _DIFF_TYPES.EXTENDED
 
+        sg_settings = SGSettings()
         # We use cut in and cut out values which accurately report changes since
         # they are not based on Shot values.
         if (
@@ -528,10 +529,19 @@ class SGCutDiff(SGCutClip):
             if self._diff_type != _DIFF_TYPES.EXTENDED:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
             diff = (self.cut_in - self.old_cut_in).to_frames()
-            if diff > 0:
-                self._cut_changes_reasons.append("Head extended %d frs" % diff)
+            if sg_settings.default_head_duration:
+                # Report handle changes if handles are in use
+                if diff > 0:
+                    # More frames in the handle
+                    self._cut_changes_reasons.append("Head handle extended %d frs" % diff)
+                else:
+                    # Less frames in the handle
+                    self._cut_changes_reasons.append("Head handle trimmed %d frs" % -diff)
             else:
-                self._cut_changes_reasons.append("Head trimmed %d frs" % -diff)
+                if diff > 0:
+                    self._cut_changes_reasons.append("In trimmed %d frs" % diff)
+                else:
+                    self._cut_changes_reasons.append("In extended %d frs" % -diff)
 
         if (
             self.old_cut_out is not None
@@ -541,7 +551,16 @@ class SGCutDiff(SGCutClip):
             if self._diff_type != _DIFF_TYPES.EXTENDED:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
             diff = (self.cut_out - self.old_cut_out).to_frames()
-            if diff > 0:
-                self._cut_changes_reasons.append("Tail trimmed %d frs" % diff)
+            if sg_settings.default_head_duration:
+                # Report handle changes if handles are in use
+                if diff > 0:
+                    # Less frames in the handle
+                    self._cut_changes_reasons.append("Tail handle trimmed %d frs" % diff)
+                else:
+                    # More frames in the handle
+                    self._cut_changes_reasons.append("Tail handle extended %d frs" % -diff)
             else:
-                self._cut_changes_reasons.append("Tail extended %d frs" % -diff)
+                if diff > 0:
+                    self._cut_changes_reasons.append("Out extended %d frs" % diff)
+                else:
+                    self._cut_changes_reasons.append("Out trimmed %d frs" % -diff)
