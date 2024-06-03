@@ -978,7 +978,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
         self.assertEqual(cut_diff.reasons, ["Head extended 1 frs", "Tail extended 1 frs"])
 
-        # Check rescan are correctly detected.
+        # Check "extended" are correctly detected.
         # So far values coming from the Shot should be None
         self.assertIsNone(cut_diff.sg_shot_head_in)
         self.assertIsNone(cut_diff.old_head_duration)
