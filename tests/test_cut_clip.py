@@ -121,6 +121,21 @@ class TestCutClip(unittest.TestCase):
         clip._shot_name = compute_clip_shot_name(clip)
         self.assertEqual(clip.shot_name, "shot_from_SG")
 
+        # If there is some media with SG meta data and a Shot code it
+        # should be used
+        clip.media_reference.metadata["sg"] = {
+            "version": {
+                "type": "Version",
+                "id": 123456,
+                "entity.Shot.code": "shot_from_SG_version",
+            }
+        }
+        clip._shot_name = compute_clip_shot_name(clip)
+        self.assertEqual(clip.shot_name, "shot_from_SG")  # Still coming from the CutItem
+        del clip.metadata["sg"]
+        clip._shot_name = compute_clip_shot_name(clip)
+        self.assertEqual(clip.shot_name, "shot_from_SG_version")
+
         # A locator with an empty name.
         sg_settings.use_clip_names_for_shot_names = False
         edl_clip = list(timeline.tracks[0].find_clips())[2]
