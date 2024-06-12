@@ -92,6 +92,7 @@ def compute_clip_shot_name(clip):
 
     The shot name can be found in the following places, in order of preference:
     - SG metadata about the Cut Item, if it has a shot field.
+    - SG metadata about the Version, if it has a shot field.
     - A :class:`otio.schema.Marker`, in an EDL it would be
       * LOC: 00:00:02:19 YELLOW  053_CSC_0750_PC01_V0001 997 // 8-8 Match to edit,
       which otio would convert to a marker with name "name='053_CSC_0750_PC01_V0001 997 // 8-8 Match to edit".
@@ -107,10 +108,21 @@ def compute_clip_shot_name(clip):
     :returns: A string containing the shot name or ``None``.
     """
     settings = SGSettings()
+
     sg_metadata = clip.metadata.get("sg", {}) or {}
     shot_metadata = sg_metadata.get("shot", {}) or {}
-    if shot_metadata.get("code"):
-        return clip.metadata["sg"]["shot"]["code"]
+    shot_code = shot_metadata.get("code")
+    if shot_code:
+        return shot_code
+
+    sg_media_metadata = clip.media_reference.metadata.get("sg", {}) or {}
+    # Media SG metadata is a PublishedFile and a Version under the
+    # "version" key.
+    version_media_metadata = sg_media_metadata.get("version", {}) or {}
+    shot_code = version_media_metadata.get("entity.Shot.code")
+    if shot_code:
+        return shot_code
+
     if clip.markers:
         for marker in clip.markers:
             if marker.name:
