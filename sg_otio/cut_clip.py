@@ -578,7 +578,7 @@ class SGCutClip(object):
 
         :returns: A :class:`RationalTime` instance.
         """
-        return self.tail_out - self.head_in  + RationalTime(1, self._frame_rate)
+        return self.tail_out - self.head_in + RationalTime(1, self._frame_rate)
 
     @property
     def transition_before(self):
