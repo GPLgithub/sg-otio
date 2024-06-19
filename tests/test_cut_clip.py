@@ -184,6 +184,7 @@ class TestCutClip(unittest.TestCase):
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.
         self.assertEqual(clip_1.duration().to_frames(), 24)
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
+        self.assertEqual(clip_1.working_duration.to_frames(), 10 + 48 + 20)
         self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
         self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
@@ -204,6 +205,7 @@ class TestCutClip(unittest.TestCase):
         clip_2 = clips[1]
         self.assertEqual(clip_2.duration().to_frames(), 24)
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
+        self.assertEqual(clip_2.working_duration.to_frames(), 10 + 24 + 20)
         self.assertEqual(clip_2.source_in.to_timecode(), "00:00:00:00")
         self.assertEqual(clip_2.source_out.to_timecode(), "00:00:01:00")
         self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
@@ -265,6 +267,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_1.duration().to_frames(), 24)
         # The visible duration takes into account the whole duration of the transition
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
+        self.assertEqual(clip_1.working_duration.to_frames(), 10 + 48 + 20)
         # All out values take into account the transition time
         self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
         self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
@@ -283,6 +286,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(clip_2.duration().to_frames(), 24)
         # The visible duration takes into account the whole duration of the transition
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)
+        self.assertEqual(clip_2.working_duration.to_frames(), 10 + 24 + 20)
         self.assertEqual(clip_2.source_in.to_timecode(), "01:00:01:00")
         self.assertEqual(clip_2.source_out.to_timecode(), "01:00:02:00")
         self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
@@ -312,6 +316,7 @@ class TestCutClip(unittest.TestCase):
         self.assertEqual(cut_clip.duration().to_frames(), 120)
         # The visible duration takes into account the whole duration of the transition
         self.assertEqual(cut_clip.visible_duration.to_frames(), 150)
+        self.assertEqual(cut_clip.working_duration.to_frames(), 8 + 150 + 8)  # Default handles are 8 frames
         self.assertTrue(cut_clip.has_effects)
         self.assertEqual(cut_clip.effects_str, "Before: SMPTE_Dissolve (0 frames)\nAfter: SMPTE_Dissolve (30 frames)")
 

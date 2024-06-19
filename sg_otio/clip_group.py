@@ -435,7 +435,7 @@ class ClipGroup(object):
 
         :returns: A :class:`otio.opentime.RationalTime` instance.
         """
-        return self.tail_out - self.head_in
+        return self.tail_out - self.head_in + RationalTime(1, self._frame_rate)
 
     @property
     def sg_shot_is_omitted(self):

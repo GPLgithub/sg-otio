@@ -145,7 +145,7 @@ class TestClipGroup(unittest.TestCase):
             self.assertTrue(not shot.has_effects)
             self.assertTrue(not shot.has_retime)
             self.assertEqual(shot.duration.to_frames(), 10 * 24)
-            self.assertEqual(shot.working_duration.to_frames(), head_duration + 10 * 24 + tail_duration - 1)
+            self.assertEqual(shot.working_duration.to_frames(), head_duration + 10 * 24 + tail_duration)
             clips = list(shot.clips)
             self.assertEqual(len(clips), 2)
             self.assertEqual(clips[0].cut_in.to_frames(), head_in + head_duration + 24)
