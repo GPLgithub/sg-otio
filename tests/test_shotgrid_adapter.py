@@ -821,20 +821,52 @@ class ShotgridAdapterTest(SGBaseTest):
         """
         timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
         track = timeline.tracks[0]
+        # No SG data so far
+        for clip in track.find_clips():
+            self.assertIsNone(clip.metadata.get("sg"))
+        link = self.mock_sequence
+        fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            default_status = self.mock_sg.schema_read()["Shot"]["sg_status_list"]["properties"]["default_value"]["value"]
+            # Just make sure that a default status was set in the schema
+            self.assertIsNotNone(default_status)
             clip = track[0]
-            self.assertEqual(clip.metadata["sg"]["cut_order"], 1)
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
-            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
+            sg_meta = clip.metadata["sg"]
+            self.assertEqual(sg_meta["cut_order"], 1)
+            self.assertEqual(sg_meta["cut_item_in"], 1033)
+            sg_shot = sg_meta["shot"]
+            # Check that we have all fields we would have if the Shot
+            # already existed
+            for field in fields_conf.all:
+                if field not in sg_shot:
+                    raise ValueError("%s is missing from %s" % (field, sg_shot))
+            self.assertEqual(sg_shot["code"], "test_write_shot_SHOT_001")
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
             clip = track[1]
-            self.assertEqual(clip.metadata["sg"]["cut_order"], 2)
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            sg_meta = clip.metadata["sg"]
+            self.assertEqual(sg_meta["cut_order"], 2)
+            self.assertEqual(sg_meta["cut_item_in"], 1009)
+            sg_shot = sg_meta["shot"]
+            # Check that we have all fields we would have if the Shot
+            # already existed
+            for field in fields_conf.all:
+                if field not in sg_shot:
+                    raise ValueError("%s is missing from %s" % (field, sg_shot))
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
             clip = track[2]
-            self.assertEqual(clip.metadata["sg"]["cut_order"], 3)
-            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            sg_meta = clip.metadata["sg"]
+            sg_shot = sg_meta["shot"]
+            # Check that we have all fields we would have if the Shot
+            # already existed
+            for field in fields_conf.all:
+                if field not in sg_shot:
+                    raise ValueError("%s is missing from %s" % (field, sg_shot))
+            self.assertEqual(sg_meta["cut_order"], 3)
+            self.assertEqual(sg_meta["cut_item_in"], 1009)
             # Shot name case taken from first entry
-            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
+            self.assertEqual(sg_shot["code"], "test_write_shot_SHOT_001")
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
 
             mock_cut_url = get_read_url(
                 self.mock_sg.base_url,
