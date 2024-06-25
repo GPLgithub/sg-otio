@@ -188,6 +188,7 @@ class SGCutTrackWriter(object):
             sg_user,
             update_shots=update_shots,
         )
+
         if SGSettings().create_missing_versions:
             self._write_versions(
                 video_track.name,
@@ -435,14 +436,11 @@ class SGCutTrackWriter(object):
         if batch_data:
             res = self._sg.batch(batch_data)
             for cut_item_clip, sg_cut_item in zip(cut_item_clips, res):
-                # Set the Shot code we don't get back from the batch request
+                # Set the Shot values we don't get back from the batch request
                 if sg_cut_item.get("shot"):
-                    sg_cut_item["shot"]["code"] = shots_by_id[sg_cut_item["shot"]["id"]]["code"]
+                    sg_cut_item["shot"] = shots_by_id[sg_cut_item["shot"]["id"]]
                 cut_item_clip.metadata["sg"] = sg_cut_item
                 sg_cut_items.append(sg_cut_item)
-                logger.debug("Updating %s SG metadata with %s" % (
-                    cut_item_clip.name, sg_cut_item)
-                )
         return sg_cut_items
 
     def get_sg_cut_item_payload(self, cut_clip, sg_shot=None, sg_version=None, sg_user=None):
@@ -840,16 +838,36 @@ class SGCutTrackWriter(object):
         if sg_batch_data:
             sg_shots = self._sg.batch(sg_batch_data)
             # Update the clips Shots
+            # Keep the list of Shots which were created to refresh data
+            # from SG for them, since we don't set all data when
+            # creating them.
+            to_refresh_from_sg = []
+            up_to_date_from_sg = []
             for sg_shot in sg_shots:
                 # clips_by_shots has the lowercased name as key.
                 clip_group = clips_by_shots[sg_shot["code"].lower()]
                 if not clip_group.sg_shot:
-                    clip_group.sg_shot = sg_shot
+                    to_refresh_from_sg.append(sg_shot)
                 else:
                     # Only update with values which were updated in case it
                     # was a partial update.
                     for k in sg_shot.keys():
                         clip_group.sg_shot[k] = sg_shot[k]
+                    up_to_date_from_sg.append(sg_shot)
+            if to_refresh_from_sg:
+                sg_linked_entity = sg_linked_entity or sg_project
+                sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
+                logger.debug("Refetching data from SG for %d created Shots" % len(to_refresh_from_sg))
+                refreshed_from_sg = self._sg.find(
+                    "Shot",
+                    [["id", "in", [sg_shot["id"] for sg_shot in to_refresh_from_sg]]],
+                    sfg.all,
+                )
+                for sg_shot in refreshed_from_sg:
+                    # clips_by_shots has the lowercased name as key.
+                    clip_group = clips_by_shots[sg_shot["code"].lower()]
+                    clip_group.sg_shot = sg_shot
+                return up_to_date_from_sg + refreshed_from_sg
 
         return sg_shots
 
@@ -875,13 +893,6 @@ class SGCutTrackWriter(object):
                 }
             return None
 
-        # Set the status even if we don't change it to get it
-        # back in SG batch result.
-        if clip_group.sg_shot:
-            shot_status = clip_group.sg_shot.get(sfg.status)
-        else:
-            shot_status = None
-
         shot_payload = {
             "project": sg_project,
             "code": clip_group.name,
@@ -891,8 +902,8 @@ class SGCutTrackWriter(object):
             sfg.tail_out: clip_group.tail_out.to_frames(),
             sfg.cut_duration: clip_group.duration.to_frames(),
             sfg.cut_order: clip_group.index,
-            sfg.status: shot_status,
         }
+
         if sg_user and not clip_group.sg_shot:  # Only settable on create
             shot_payload["created_by"] = sg_user
             shot_payload["updated_by"] = sg_user
@@ -956,7 +967,7 @@ class SGCutTrackWriter(object):
             else:
                 logger.warning(
                     "Shot %s reinstated but no status to set found, leaving to current value %s" % (
-                        shot_payload["code"], shot_payload[sfg.status]
+                        shot_payload["code"], clip_group.sg_shot.get(sfg.status)
                     )
                 )
 
