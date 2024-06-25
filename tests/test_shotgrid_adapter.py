@@ -828,6 +828,9 @@ class ShotgridAdapterTest(SGBaseTest):
         fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
+            default_status = self.mock_sg.schema_read()["Shot"]["sg_status_list"]["properties"]["default_value"]["value"]
+            # Just make sure that a default status was set in the schema
+            self.assertIsNotNone(default_status)
             clip = track[0]
             sg_meta = clip.metadata["sg"]
             self.assertEqual(sg_meta["cut_order"], 1)
@@ -839,7 +842,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 if field not in sg_shot:
                     raise ValueError("%s is missing from %s" % (field, sg_shot))
             self.assertEqual(sg_shot["code"], "test_write_shot_SHOT_001")
-            self.assertIsNotNone(sg_shot["sg_status_list"])
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
             clip = track[1]
             sg_meta = clip.metadata["sg"]
             self.assertEqual(sg_meta["cut_order"], 2)
@@ -850,6 +853,7 @@ class ShotgridAdapterTest(SGBaseTest):
             for field in fields_conf.all:
                 if field not in sg_shot:
                     raise ValueError("%s is missing from %s" % (field, sg_shot))
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
             clip = track[2]
             sg_meta = clip.metadata["sg"]
             sg_shot = sg_meta["shot"]
@@ -862,6 +866,7 @@ class ShotgridAdapterTest(SGBaseTest):
             self.assertEqual(sg_meta["cut_item_in"], 1009)
             # Shot name case taken from first entry
             self.assertEqual(sg_shot["code"], "test_write_shot_SHOT_001")
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
 
             mock_cut_url = get_read_url(
                 self.mock_sg.base_url,
