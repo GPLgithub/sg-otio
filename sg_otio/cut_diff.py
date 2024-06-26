@@ -497,6 +497,7 @@ class SGCutDiff(SGCutClip):
                   since Shot values can be unset or manually set to any value
                   regardless of imported Cuts.
         """
+        sg_settings = SGSettings()
         # Note: the head_in and tail_out values are actually the values
         # set on the Shot (if set). So these values can't be used to check for
         # changes.
@@ -504,21 +505,22 @@ class SGCutDiff(SGCutClip):
         # on the Shot and the Cut which was previously imported is imported again
         # some entries might be flagged as "Need rescan", even if there are no
         # cut changes.
-        if (
-            self.sg_shot_head_in is not None  # Report extended only if value is set on the Shot
-            and self.head_duration is not None
-            and self.head_duration.to_frames() < 0
-        ):
-            self._diff_type = _DIFF_TYPES.EXTENDED
+        # Only flag extended if handles are in use.
+        if sg_settings.default_head_duration:
+            if (
+                self.sg_shot_head_in is not None  # Report extended only if value is set on the Shot
+                and self.head_duration is not None
+                and self.head_duration.to_frames() < 0
+            ):
+                self._diff_type = _DIFF_TYPES.EXTENDED
+        if sg_settings.default_tail_duration:
+            if (
+                self.sg_shot_tail_out is not None  # Report extended only if value is set on the Shot
+                and self.tail_duration is not None
+                and self.tail_duration.to_frames() < 0
+            ):
+                self._diff_type = _DIFF_TYPES.EXTENDED
 
-        if (
-            self.sg_shot_tail_out is not None  # Report extended only if value is set on the Shot
-            and self.tail_duration is not None
-            and self.tail_duration.to_frames() < 0
-        ):
-            self._diff_type = _DIFF_TYPES.EXTENDED
-
-        sg_settings = SGSettings()
         # We use cut in and cut out values which accurately report changes since
         # they are not based on Shot values.
         if (
@@ -529,8 +531,8 @@ class SGCutDiff(SGCutClip):
             if self._diff_type != _DIFF_TYPES.EXTENDED:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
             diff = (self.cut_in - self.old_cut_in).to_frames()
+            # Report handle changes if handles are in use
             if sg_settings.default_head_duration:
-                # Report handle changes if handles are in use
                 if diff > 0:
                     # More frames in the handle
                     self._cut_changes_reasons.append("Head handle extended %d frs" % diff)
@@ -551,8 +553,8 @@ class SGCutDiff(SGCutClip):
             if self._diff_type != _DIFF_TYPES.EXTENDED:
                 self._diff_type = _DIFF_TYPES.CUT_CHANGE
             diff = (self.cut_out - self.old_cut_out).to_frames()
-            if sg_settings.default_head_duration:
-                # Report handle changes if handles are in use
+            # Report handle changes if handles are in use
+            if sg_settings.default_tail_duration:
                 if diff > 0:
                     # Less frames in the handle
                     self._cut_changes_reasons.append("Tail handle trimmed %d frs" % diff)

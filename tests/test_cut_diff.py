@@ -979,7 +979,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.reasons, ["Head handle extended 1 frs", "Tail handle extended 1 frs"])
 
         # Without handles extended/trimmed are reported
-        # for in and out points.
+        # for in and out points and as cut changes.
         settings = SGSettings()
         head_duration = settings.default_head_duration
         tail_duration = settings.default_tail_duration
@@ -1010,6 +1010,7 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
         self.assertEqual(cut_diff.reasons, ["In trimmed 1 frs", "Out trimmed 1 frs"])
 
+        # Restore default handles
         settings.default_head_duration = head_duration
         settings.default_tail_duration = tail_duration
 
@@ -1048,6 +1049,18 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
         self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
+        # If the default head duration is 0, changes are flagged as CUT_CHANGE
+        settings.default_head_duration = 0
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_head_in, 1001)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.head_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        settings.default_head_duration = head_duration
 
         # Same cut in, cut out after registered handles.
         clip.source_range = TimeRange(
@@ -1065,6 +1078,20 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
         self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
+        # If the default tail duration is 0, changes are flagged as CUT_CHANGE
+        settings.default_tail_duration = 0
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
+        self.assertEqual(cut_diff.tail_out.to_frames(), 1026)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.cut_out.to_frames(), 1009 + 19 - 1)
+        self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
+        settings.default_tail_duration = tail_duration
 
         # Both cut in and cut out out of handle margins.
         clip.source_range = TimeRange(
@@ -1085,6 +1112,39 @@ class TestCutDiff(SGBaseTest):
         self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
         self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
         self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
+
+        # If both the head and tail default durations are 0
+        # the change is CUT_CHANGE, EXTENDED otherwise.
+        settings.default_head_duration = 0
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_head_in, 1001)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.head_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
+        self.assertEqual(cut_diff.tail_out.to_frames(), 1026)  # Retrieved from the Shot
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.cut_out.to_frames(), 1000 + 28 - 1)
+        self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.EXTENDED)
+        settings.default_tail_duration = 0
+        cut_diff.compute_head_tail_values()
+        cut_diff._check_and_set_changes()
+        self.assertEqual(cut_diff.sg_shot_head_in, 1001)
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.head_duration.to_frames(), -1)
+        self.assertEqual(cut_diff.sg_shot_tail_out, 1026)
+        self.assertEqual(cut_diff.tail_out.to_frames(), 1026)  # Retrieved from the Shot
+        self.assertEqual(cut_diff.cut_in.to_frames(), 1000)
+        self.assertEqual(cut_diff.cut_out.to_frames(), 1000 + 28 - 1)
+        self.assertEqual(cut_diff.tail_duration.to_frames(), - 1)
+        self.assertEqual(cut_diff.old_cut_in.to_frames(), 1009)
+        self.assertEqual(cut_diff.old_head_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.old_tail_duration.to_frames(), 8)
+        self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.CUT_CHANGE)
 
     def test_report(self):
         """
