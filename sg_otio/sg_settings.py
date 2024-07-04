@@ -377,7 +377,7 @@ class SGSettings(Singleton("SGSettings", (object,), {})):
     @shot_reinstate_status.setter
     def shot_reinstate_status(self, value):
         """
-        Set the SG Shot status to use when omitting Shots.
+        Set the SG Shot status to use when reinstating Shots.
 
         The value can be set to the special `_REINSTATE_FROM_PREVIOUS_STATUS`
         constant value which makes the SG Shot status being restored to the

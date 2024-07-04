@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 import opentimelineio as otio
+from opentimelineio.opentime import TimeRange, RationalTime
 import shotgun_api3
 
 from .python.sg_test import SGBaseTest
@@ -17,6 +18,11 @@ from sg_otio.sg_settings import SGSettings, SGShotFieldsConfig
 from sg_otio.utils import compute_clip_version_name, get_platform_name
 from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.cut_clip import SGCutClip
+from sg_otio.clip_group import ClipGroup
+from sg_otio.track_diff import SGCutDiffGroup
+from sg_otio.cut_diff import SGCutDiff
+from sg_otio.constants import _DIFF_TYPES, _REINSTATE_FROM_PREVIOUS_STATUS
+from sg_otio.sg_cut_track_writer import SGCutTrackWriter
 
 
 try:
@@ -935,6 +941,55 @@ class ShotgridAdapterTest(SGBaseTest):
             for field in fields_conf.all:
                 self.assertTrue(field in sg_shot)
 
+    def test_shot_status(self):
+        """
+        """
+        settings = SGSettings()
+        settings.shot_reinstate_status = _REINSTATE_FROM_PREVIOUS_STATUS
+        link = self.mock_sequence
+        fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
+        clip = otio.schema.Clip(
+            name="test_clip_001",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),  # duration, 10 frames.
+            ),
+        )
+        track = otio.schema.Track()
+        track.append(clip)
+        cut_clip = SGCutDiff(clip=clip, index=1)
+        clip_group = SGCutDiffGroup("test_group")
+        clip_group.add_clip(cut_clip)
+        self.assertEqual(clip_group.name, cut_clip.shot_name)
+        self.assertEqual(cut_clip.diff_type, _DIFF_TYPES.NEW)
+        sg_shot = {
+            "type": "Shot",
+            "id": 666,
+            "code": "Evil Shot",
+            fields_conf.status: {"code": "ip", "id": -1},
+            "project": self.mock_project,
+        }
+        clip_group.sg_shot = sg_shot
+        self.assertEqual(cut_clip.sg_shot, sg_shot)
+        self.assertEqual(cut_clip.shot_name, "Evil Shot")
+        self.assertEqual(cut_clip.diff_type, _DIFF_TYPES.NEW_IN_CUT)
+        writer = SGCutTrackWriter(self.mock_sg)
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        # Status shouldn't be set for new Shots
+        self.assertFalse(fields_conf.status in payload)
+        cut_clip._diff_type = _DIFF_TYPES.OMITTED
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        # Status should be set for omitting Shots
+        self.assertTrue(fields_conf.status in payload)
+        self.assertEqual(payload[fields_conf.status], settings.shot_omit_status)
+        cut_clip._diff_type = _DIFF_TYPES.REINSTATED
+        sg_shot[fields_conf.status] = settings.reinstate_shot_if_status_is[0]
+        clip_group.sg_shot = sg_shot
+        self.assertTrue(clip_group.sg_shot_is_reinstated)
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        # Status should be set for re-instating Shots
+        self.assertTrue(fields_conf.status in payload)
+        self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status_default)
 
 if __name__ == "__main__":
     unittest.main()
