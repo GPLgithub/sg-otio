@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Contributors to the SG Otio project
 
+from datetime import datetime
 import logging
 import os
 import re
@@ -943,8 +944,10 @@ class ShotgridAdapterTest(SGBaseTest):
 
     def test_shot_status(self):
         """
+        Test setting the Shot status from cut changes.
         """
         settings = SGSettings()
+        settings.reset_to_defaults()
         settings.shot_reinstate_status = _REINSTATE_FROM_PREVIOUS_STATUS
         link = self.mock_sequence
         fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
@@ -962,16 +965,9 @@ class ShotgridAdapterTest(SGBaseTest):
         clip_group.add_clip(cut_clip)
         self.assertEqual(clip_group.name, cut_clip.shot_name)
         self.assertEqual(cut_clip.diff_type, _DIFF_TYPES.NEW)
-        sg_shot = {
-            "type": "Shot",
-            "id": 666,
-            "code": "Evil Shot",
-            fields_conf.status: {"code": "ip", "id": -1},
-            "project": self.mock_project,
-        }
+        sg_shot = self.mock_shots[0]
         clip_group.sg_shot = sg_shot
         self.assertEqual(cut_clip.sg_shot, sg_shot)
-        self.assertEqual(cut_clip.shot_name, "Evil Shot")
         self.assertEqual(cut_clip.diff_type, _DIFF_TYPES.NEW_IN_CUT)
         writer = SGCutTrackWriter(self.mock_sg)
         payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
@@ -989,7 +985,68 @@ class ShotgridAdapterTest(SGBaseTest):
         payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
         # Status should be set for re-instating Shots
         self.assertTrue(fields_conf.status in payload)
+        # No event log so default status should be used
         self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status_default)
+        event = self.mock_sg.create(
+            "EventLogEntry", {
+                "event_type": "Shotgun_Shot_Change",
+                "attribute_name": fields_conf.status,
+                "project": self.mock_project,
+                "entity": sg_shot,
+                "meta": {
+                    "old_value": "myip",
+                    "new_value": settings.shot_omit_status,
+                },
+                "created_at": datetime.now(),
+            }
+        )
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        # Status should be set for re-instating Shots
+        self.assertTrue(fields_conf.status in payload)
+        # The old value from the event log should be used
+        self.assertEqual(payload[fields_conf.status], "myip")
+        event = self.mock_sg.create(
+            "EventLogEntry", {
+                "event_type": "Shotgun_Shot_Change",
+                "attribute_name": fields_conf.status,
+                "project": self.mock_project,
+                "entity": sg_shot,
+                "meta": {
+                    "old_value": None,
+                    "new_value": settings.shot_omit_status,
+                },
+                "created_at": datetime.now(),
+            }
+        )
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        # Status should be set for re-instating Shots
+        self.assertTrue(fields_conf.status in payload)
+        # The old value is empty so default status should be used
+        self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status_default)
+        # Fake egde case where the status was changed after the cut change type
+        # was detected
+        event = self.mock_sg.create(
+            "EventLogEntry", {
+                "event_type": "Shotgun_Shot_Change",
+                "attribute_name": fields_conf.status,
+                "project": self.mock_project,
+                "entity": sg_shot,
+                "meta": {
+                    "old_value": settings.shot_omit_status,
+                    "new_value": "myip",
+                },
+                "created_at": datetime.now(),
+            }
+        )
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        # Status should be left to whatever it is
+        self.assertFalse(fields_conf.status in payload)
+
+        settings.shot_reinstate_status = "ip"
+        payload = writer._get_shot_payload(clip_group, sg_project=self.mock_project, sg_linked_entity=link)
+        self.assertTrue(fields_conf.status in payload)
+        self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status)
+
 
 if __name__ == "__main__":
     unittest.main()
