@@ -19,7 +19,6 @@ from sg_otio.sg_settings import SGSettings, SGShotFieldsConfig
 from sg_otio.utils import compute_clip_version_name, get_platform_name
 from sg_otio.utils import get_write_url, get_read_url
 from sg_otio.cut_clip import SGCutClip
-from sg_otio.clip_group import ClipGroup
 from sg_otio.track_diff import SGCutDiffGroup
 from sg_otio.cut_diff import SGCutDiff
 from sg_otio.constants import _DIFF_TYPES, _REINSTATE_FROM_PREVIOUS_STATUS
@@ -987,7 +986,7 @@ class ShotgridAdapterTest(SGBaseTest):
         self.assertTrue(fields_conf.status in payload)
         # No event log so default status should be used
         self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status_default)
-        event = self.mock_sg.create(
+        self.mock_sg.create(
             "EventLogEntry", {
                 "event_type": "Shotgun_Shot_Change",
                 "attribute_name": fields_conf.status,
@@ -1005,7 +1004,7 @@ class ShotgridAdapterTest(SGBaseTest):
         self.assertTrue(fields_conf.status in payload)
         # The old value from the event log should be used
         self.assertEqual(payload[fields_conf.status], "myip")
-        event = self.mock_sg.create(
+        self.mock_sg.create(
             "EventLogEntry", {
                 "event_type": "Shotgun_Shot_Change",
                 "attribute_name": fields_conf.status,
@@ -1025,7 +1024,7 @@ class ShotgridAdapterTest(SGBaseTest):
         self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status_default)
         # Fake egde case where the status was changed after the cut change type
         # was detected
-        event = self.mock_sg.create(
+        self.mock_sg.create(
             "EventLogEntry", {
                 "event_type": "Shotgun_Shot_Change",
                 "attribute_name": fields_conf.status,
