@@ -883,9 +883,10 @@ class SGCutTrackWriter(object):
         """
         sg_linked_entity = sg_linked_entity or sg_project
         sfg = SGShotFieldsConfig(self._sg, sg_linked_entity["type"])
+        settings = SGSettings()
+        omit_status = settings.shot_omit_status
         if clip_group.sg_shot_is_omitted:
             # Just update the status of the Shot.
-            omit_status = SGSettings().shot_omit_status
             if omit_status:
                 return {
                     "code": clip_group.name,
@@ -930,12 +931,16 @@ class SGCutTrackWriter(object):
 
         if clip_group.sg_shot_is_reinstated:
             reinstate_status = None
-            settings = SGSettings()
             shot_reinstate_status = settings.shot_reinstate_status
             shot_reinstate_status_default = settings.shot_reinstate_status_default
+            # Note: we have the guarantee that reinstate_shot_if_status_is is
+            # set if the Shot is reinstated
+            reinstate_shot_if_status_is = settings.reinstate_shot_if_status_is
             if shot_reinstate_status == _REINSTATE_FROM_PREVIOUS_STATUS:
                 # Find the most recent status change event log entry where the
                 # project and linked Shot code match the current project/shot
+                # The Shot is re-instated only if its current status is
+                # one of reinstate_shot_if_status_is statuses.
                 filters = [
                     ["project", "is", sg_project],
                     ["event_type", "is", "Shotgun_Shot_Change"],
@@ -952,15 +957,19 @@ class SGCutTrackWriter(object):
                     ]
                 )
                 # Set the reinstate status value to the value previous to the
-                # event log entry
+                # event log entry if the new value set was one of the omit statuses
                 if event_log:
-                    reinstate_status = event_log["meta"]["old_value"]
+                    # Double check the Shot status was not changed after importing
+                    # the Cut started by checking the value set in the event.
+                    if event_log["meta"]["new_value"] in reinstate_shot_if_status_is:
+                        reinstate_status = event_log["meta"]["old_value"] or shot_reinstate_status_default
                 elif shot_reinstate_status_default:
                     # Use the default status if we didn't find a previous status
                     reinstate_status = shot_reinstate_status_default
             elif shot_reinstate_status:
                 # Just use the status as is.
                 reinstate_status = shot_reinstate_status
+
             if reinstate_status:
                 # We set it only if we found a status to set.
                 shot_payload[sfg.status] = reinstate_status
