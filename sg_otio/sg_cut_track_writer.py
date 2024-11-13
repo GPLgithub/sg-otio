@@ -904,7 +904,6 @@ class SGCutTrackWriter(object):
             sfg.cut_duration: clip_group.duration.to_frames(),
             sfg.cut_order: clip_group.index,
         }
-
         if sg_user and not clip_group.sg_shot:  # Only settable on create
             shot_payload["created_by"] = sg_user
             shot_payload["updated_by"] = sg_user
@@ -919,8 +918,9 @@ class SGCutTrackWriter(object):
         if sfg.tail_duration:
             shot_payload[sfg.tail_duration] = clip_group.tail_duration.to_frames()
         # TODO: Add setting for flagging retimes and effects?
-        if True:
+        if sfg.has_effects:
             shot_payload[sfg.has_effects] = clip_group.has_effects
+        if sfg.has_retime:
             shot_payload[sfg.has_retime] = clip_group.has_retime
         if sfg.absolute_cut_order and sg_linked_entity.get(sfg.absolute_cut_order):
             entity_cut_order = sg_linked_entity[sfg.absolute_cut_order]

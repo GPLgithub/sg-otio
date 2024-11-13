@@ -941,6 +941,117 @@ class ShotgridAdapterTest(SGBaseTest):
             for field in fields_conf.all:
                 self.assertTrue(field in sg_shot)
 
+    def test_get_shot_payload_missing_fields(self):
+        """
+        Test that _get_shot_payload handles missing Shot fields correctly by checking
+        that has_retime and has_effects fields are only included in the payload when
+        the corresponding SGShotFieldsConfig properties return valid field names.
+        """
+        # Create a clip and track
+        clip = otio.schema.Clip(
+            name="test_clip_001",
+            source_range=TimeRange(
+                RationalTime(10, 24),
+                RationalTime(10, 24),
+            ),
+        )
+        track = otio.schema.Track()
+        track.append(clip)
+
+        # Set up the clip group
+        cut_clip = SGCutDiff(clip=clip, index=1)
+        clip_group = SGCutDiffGroup("test_group")
+        clip_group.add_clip(cut_clip)
+
+        # Mock the shot
+        sg_shot = self.mock_shots[0]
+        clip_group.sg_shot = sg_shot
+
+        writer = SGCutTrackWriter(self.mock_sg)
+
+        # Test when both fields are missing
+        with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_effects",
+                        new_callable=mock.PropertyMock) as mock_effects:
+            with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_retime",
+                            new_callable=mock.PropertyMock) as mock_retime:
+                # Simulate missing fields by returning None
+                mock_effects.return_value = None
+                mock_retime.return_value = None
+
+                # Get the payload
+                payload = writer._get_shot_payload(
+                    clip_group,
+                    sg_project=self.mock_project,
+                    sg_linked_entity=self.mock_sequence
+                )
+
+                # Verify neither field is in the payload
+                self.assertNotIn("sg_has_effects", payload)
+                self.assertNotIn("sg_has_retime", payload)
+                # Verify that `None` is not a key
+                self.assertNotIn(None, payload)
+
+        # Test when only effects field exists
+        with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_effects",
+                        new_callable=mock.PropertyMock) as mock_effects:
+            with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_retime",
+                            new_callable=mock.PropertyMock) as mock_retime:
+                mock_effects.return_value = "sg_has_effects"
+                mock_retime.return_value = None
+
+                payload = writer._get_shot_payload(
+                    clip_group,
+                    sg_project=self.mock_project,
+                    sg_linked_entity=self.mock_sequence
+                )
+
+                # Verify only effects field is in payload
+                self.assertIn("sg_has_effects", payload)
+                self.assertNotIn("sg_has_retime", payload)
+                # Verify that `None` is not a key
+                self.assertNotIn(None, payload)
+
+        # Test when only retime field exists
+        with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_effects",
+                        new_callable=mock.PropertyMock) as mock_effects:
+            with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_retime",
+                            new_callable=mock.PropertyMock) as mock_retime:
+                mock_effects.return_value = None
+                mock_retime.return_value = "sg_has_retime"
+
+                payload = writer._get_shot_payload(
+                    clip_group,
+                    sg_project=self.mock_project,
+                    sg_linked_entity=self.mock_sequence
+                )
+
+                # Verify only retime field is in payload
+                self.assertNotIn("sg_has_effects", payload)
+                self.assertIn("sg_has_retime", payload)
+                # Verify that `None` is not a key
+                self.assertNotIn(None, payload)
+
+        # Test when both fields exist
+        with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_effects",
+                        new_callable=mock.PropertyMock) as mock_effects:
+            with mock.patch("sg_otio.sg_settings.SGShotFieldsConfig.has_retime",
+                            new_callable=mock.PropertyMock) as mock_retime:
+                mock_effects.return_value = "sg_has_effects"
+                mock_retime.return_value = "sg_has_retime"
+
+                payload = writer._get_shot_payload(
+                    clip_group,
+                    sg_project=self.mock_project,
+                    sg_linked_entity=self.mock_sequence
+                )
+
+                # Verify both fields are in payload
+                self.assertIn("sg_has_effects", payload)
+                self.assertIn("sg_has_retime", payload)
+                # Verify that `None` is not a key
+                self.assertNotIn(None, payload)
+
+
     def test_shot_status(self):
         """
         Test setting the Shot status from cut changes.
