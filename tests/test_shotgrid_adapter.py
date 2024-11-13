@@ -1051,7 +1051,6 @@ class ShotgridAdapterTest(SGBaseTest):
                 # Verify that `None` is not a key
                 self.assertNotIn(None, payload)
 
-
     def test_shot_status(self):
         """
         Test setting the Shot status from cut changes.
