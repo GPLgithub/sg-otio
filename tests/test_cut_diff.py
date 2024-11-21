@@ -379,21 +379,89 @@ class TestCutDiff(SGBaseTest):
                 self.assertIsNone(cut_diff.old_clip)
                 self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW)
 
+        sg_sequences = [
+            {"type": "Sequence", "code": "seq_001", "project": self.mock_project, "id": 1},
+            {"type": "Sequence", "code": "seq_002", "project": self.mock_project, "id": 2},
+        ]
+        self.add_to_sg_mock_db(sg_sequences)
+        self._sg_entities_to_delete.extend(sg_sequences)
+
         sg_shots = [
-            {"type": "Shot", "code": "shot_001", "project": self.mock_project, "id": 1},
-            {"type": "Shot", "code": "shot_002", "project": self.mock_project, "id": 2}
+            {"type": "Shot", "code": "shot_001", "project": self.mock_project, "id": 1, "sg_sequence": sg_sequences[1]},
+            {"type": "Shot", "code": "shot_002", "project": self.mock_project, "id": 2, "sg_sequence": sg_sequences[1]}
         ]
         by_name = {
             "shot_001": sg_shots[0],
             "shot_002": sg_shots[1],
         }
         self.add_to_sg_mock_db(sg_shots)
-        self._sg_entities_to_delete = sg_shots
+        self._sg_entities_to_delete = []
+        self._sg_entities_to_delete.extend(sg_shots)
         track_diff = SGTrackDiff(
             self.mock_sg,
             self.mock_project,
             new_track=track,
         )
+        self.assertEqual(track_diff.sg_link, self.mock_project)
+        self.assertEqual(track_diff.sg_shot_link_field_name, "project")
+        for shot_name, cut_group in track_diff.items():
+            self.assertEqual(cut_group.sg_shot["id"], by_name[shot_name]["id"])
+            self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
+            for cut_diff in cut_group.clips:
+                self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+                self.assertIsNone(cut_diff.old_clip)
+                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
+                self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["type"], self.mock_project["type"])
+                self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["id"], self.mock_project["id"])
+                if shot_name == "shot_001":
+                    self.assertTrue(cut_diff.repeated)
+                else:
+                    self.assertFalse(cut_diff.repeated)
+        # Check that Shots linked to the Project are re-used
+        # even if a target entity is explicitly set
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=track,
+            sg_entity=sg_sequences[0],
+        )
+        self.assertEqual(track_diff.sg_link, sg_sequences[0])
+        self.assertIsNotNone(track_diff.sg_shot_link_field_name)
+        for shot_name, cut_group in track_diff.items():
+            self.assertEqual(cut_group.sg_shot["id"], by_name[shot_name]["id"])
+            self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
+            for cut_diff in cut_group.clips:
+                self.assertEqual(cut_diff.sg_shot, cut_group.sg_shot)
+                self.assertIsNone(cut_diff.old_clip)
+                self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
+                self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["type"], sg_sequences[1]["type"])
+                self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["id"], sg_sequences[1]["id"])
+                if shot_name == "shot_001":
+                    self.assertTrue(cut_diff.repeated)
+                else:
+                    self.assertFalse(cut_diff.repeated)
+        # Check that Shots linked to the Project are re-used
+        # but Shots linked to the target entity are favored
+        sg_shots2 = [
+            # Add multiple entries to ensure the order does not matter
+            {"type": "Shot", "code": "shot_001", "project": self.mock_project, "id": 3, "sg_sequence": sg_sequences[0]},
+            {"type": "Shot", "code": "shot_001", "project": self.mock_project, "id": 4, "sg_sequence": sg_sequences[1]}
+        ]
+        by_name = {
+            "shot_001": sg_shots2[0],
+            "shot_002": sg_shots[1],
+        }
+        self.add_to_sg_mock_db(sg_shots2)
+        self._sg_entities_to_delete.extend(sg_shots2)
+
+        track_diff = SGTrackDiff(
+            self.mock_sg,
+            self.mock_project,
+            new_track=track,
+            sg_entity=sg_sequences[0],
+        )
+        self.assertEqual(track_diff.sg_link, sg_sequences[0])
+        self.assertIsNotNone(track_diff.sg_shot_link_field_name)
         for shot_name, cut_group in track_diff.items():
             self.assertEqual(cut_group.sg_shot["id"], by_name[shot_name]["id"])
             self.assertEqual(cut_group.sg_shot["type"], by_name[shot_name]["type"])
@@ -403,8 +471,13 @@ class TestCutDiff(SGBaseTest):
                 self.assertEqual(cut_diff.diff_type, _DIFF_TYPES.NEW_IN_CUT)
                 if shot_name == "shot_001":
                     self.assertTrue(cut_diff.repeated)
+                    self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["type"], sg_sequences[0]["type"])
+                    self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["id"], sg_sequences[0]["id"])
                 else:
                     self.assertFalse(cut_diff.repeated)
+                    # Re-use from the other Sequence
+                    self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["type"], sg_sequences[1]["type"])
+                    self.assertEqual(cut_diff.sg_shot[track_diff.sg_shot_link_field_name]["id"], sg_sequences[1]["id"])
 
     def test_old_clip_for_shot(self):
         """
