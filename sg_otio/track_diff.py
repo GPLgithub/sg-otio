@@ -303,9 +303,12 @@ class SGTrackDiff(object):
         If an old track is provided it must have been read from SG with `sg`
         metadata populated for each of its Clips.
 
-        If an SG Entity is explicitly defined, only SG Shots linked to this Entity
-        will be considered. If it is not explicitly defined, one will be retrieved
-        from the SG Cut linked the to the tracks, if any.
+        If an SG Entity is explicitly defined, SG Shots linked to this Entity
+        will be considered first, but SG Shots for the current Project will be
+        considered as well.
+
+        If an SG Entity is not explicitly defined, one will be retrieved from the
+        SG Cut linked the to the tracks, if any.
 
         :param sg: A connected SG handle.
         :param sg_project: A SG Project as a dictionary.
@@ -437,18 +440,13 @@ class SGTrackDiff(object):
                 more_shot_names.add(shot_name)
             # Ensure a SGCutDiffGroup and add SGCutDiff to it.
             self.add_cut_diff(shot_name, clip=clip, index=i + 1, sg_shot=None)
+
         if more_shot_names:
             logger.debug("Looking for additional Shots %s" % more_shot_names)
             filters = [
                 ["project", "is", self._sg_project],
                 ["code", "in", list(more_shot_names)]
             ]
-            # If we have a linked SG Entity from a previous Cut, restrict
-            # to Shots linked to this SG Entity.
-            if self._sg_shot_link_field_name:
-                filters.append(
-                    [self._sg_shot_link_field_name, "is", self._sg_entity]
-                )
 
             sg_more_shots = self._sg.find(
                 "Shot",
@@ -457,9 +455,26 @@ class SGTrackDiff(object):
             )
             logger.debug("Found additional Shots %s" % sg_more_shots)
 
-            for sg_shot in sg_more_shots:
-                shot_name = sg_shot["code"].lower()
-                self._diffs_by_shots[shot_name].sg_shot = sg_shot
+            # If we have a linked SG Entity favor Shots linked to it.
+            if self._sg_shot_link_field_name != "project":
+                for sg_shot in sg_more_shots:
+                    shot_name = sg_shot["code"].lower()
+                    shot_link = sg_shot.get(self._sg_shot_link_field_name)
+                    if (
+                        shot_link
+                        and shot_link["type"] == self._sg_entity["type"]
+                        and shot_link["id"] == self._sg_entity["id"]
+                    ):
+                        self._diffs_by_shots[shot_name].sg_shot = sg_shot
+                    else:
+                        if not self._diffs_by_shots[shot_name].sg_shot:
+                            logger.debug("Re-using SG Shot %s for %s" % (sg_shot, self._sg_entity))
+                            self._diffs_by_shots[shot_name].sg_shot = sg_shot
+            else:
+                # No specific SG Entity to favor
+                for sg_shot in sg_more_shots:
+                    shot_name = sg_shot["code"].lower()
+                    self._diffs_by_shots[shot_name].sg_shot = sg_shot
 
         # Duplicate the list of shots, allowing us to know easily which ones are
         # not part of the new track by removing entries when we use them.
