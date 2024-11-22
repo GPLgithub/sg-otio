@@ -1156,6 +1156,96 @@ class ShotgridAdapterTest(SGBaseTest):
         self.assertTrue(fields_conf.status in payload)
         self.assertEqual(payload[fields_conf.status], settings.shot_reinstate_status)
 
+    def test_write_no_shot_upd(self):
+        """
+        Test saving a Cut to SG without updating Shots.
+        """
+        # Second edit points to an existing Shot
+        edl = """
+            TITLE:   CUT_DIFF_TEST
+
+            001  clip_1 V     C        01:00:01:00 01:00:10:00 01:00:00:00 01:00:09:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: test_write_shot_SHOT_001
+            002  clip_2 V     C        01:00:02:00 01:00:05:00 01:00:09:00 01:00:12:00
+            * FROM CLIP NAME: TestShot002
+            * COMMENT: TestShot002
+            003  clip_3 V     C        01:00:00:00 01:00:04:00 01:00:12:00 01:00:16:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: test_write_shot_shot_001
+        """
+        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        track = timeline.tracks[0]
+        # No SG data so far
+        for clip in track.find_clips():
+            self.assertIsNone(clip.metadata.get("sg"))
+        link = self.mock_sequence
+        fields_conf = SGShotFieldsConfig(self.mock_sg, link["type"])
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid", update_shots=False)
+            default_status = self.mock_sg.schema_read()["Shot"]["sg_status_list"]["properties"]["default_value"]["value"]
+            # Just make sure that a default status was set in the schema
+            self.assertIsNotNone(default_status)
+            clip = track[0]
+            sg_meta = clip.metadata["sg"]
+            self.assertEqual(sg_meta["cut_order"], 1)
+            self.assertEqual(sg_meta["cut_item_in"], 1033)
+            sg_shot = sg_meta["shot"]
+            # Check that we have all fields we would have if the Shot
+            # already existed
+            for field in fields_conf.all:
+                if field not in sg_shot:
+                    raise ValueError("%s is missing from %s" % (field, sg_shot))
+            self.assertEqual(sg_shot["code"], "test_write_shot_SHOT_001")
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
+            clip = track[1]
+            sg_meta = clip.metadata["sg"]
+            self.assertEqual(sg_meta["cut_order"], 2)
+            self.assertEqual(sg_meta["cut_item_in"], 1009)
+            sg_shot = sg_meta["shot"]
+            # Check that we have all fields we would have if the Shot
+            # already existed
+            for field in fields_conf.all:
+                if field not in sg_shot:
+                    raise ValueError("%s is missing from %s" % (field, sg_shot))
+            if sg_shot["code"] != "TestShot002":  # Not updated and its status is not set
+                self.assertEqual(sg_shot["sg_status_list"], default_status)
+            clip = track[2]
+            sg_meta = clip.metadata["sg"]
+            sg_shot = sg_meta["shot"]
+            # Check that we have all fields we would have if the Shot
+            # already existed
+            for field in fields_conf.all:
+                if field not in sg_shot:
+                    raise ValueError("%s is missing from %s" % (field, sg_shot))
+            self.assertEqual(sg_meta["cut_order"], 3)
+            self.assertEqual(sg_meta["cut_item_in"], 1009)
+            # Shot name case taken from first entry
+            self.assertEqual(sg_shot["code"], "test_write_shot_SHOT_001")
+            self.assertEqual(sg_shot["sg_status_list"], default_status)
+
+            mock_cut_url = get_read_url(
+                self.mock_sg.base_url,
+                track.metadata["sg"]["id"],
+                self._SESSION_TOKEN
+            )
+            # Read it back from SG.
+            timeline_from_sg = otio.adapters.read_from_file(mock_cut_url, adapter_name="ShotGrid")
+            sg_track = timeline_from_sg.tracks[0]
+            clip = sg_track[0]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1033)
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
+            clip = sg_track[1]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "TestShot002")
+            clip = sg_track[2]
+            self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
+            self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
+        # Do it again with update_shots enabled. Since everything is up to date
+        # Shots should be updated.
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid", update_shots=True)
+
 
 if __name__ == "__main__":
     unittest.main()
