@@ -814,36 +814,40 @@ class SGCutTrackWriter(object):
                     "entity_type": "Shot",
                     "data": shot_payload
                 })
-            elif update_shots:
-                logger.info("Updating Shot %s..." % clip_group.name)
-                sg_shot = clip_group.sg_shot
-                shot_payload = self._get_shot_payload(
-                    clip_group,
-                    sg_project,
-                    sg_linked_entity,
-                    sg_user
-                )
-                if shot_payload:
-                    sg_batch_data.append({
-                        "request_type": "update",
-                        "entity_type": "Shot",
-                        "entity_id": sg_shot["id"],
-                        "data": shot_payload
-                    })
-                else:
-                    logger.info(
-                        "No update to perform for Shot %s..." % clip_group.name
+            else:
+                if update_shots:
+                    logger.info("Updating Shot %s..." % clip_group.name)
+                    sg_shot = clip_group.sg_shot
+                    shot_payload = self._get_shot_payload(
+                        clip_group,
+                        sg_project,
+                        sg_linked_entity,
+                        sg_user
                     )
+                    if shot_payload:
+                        sg_batch_data.append({
+                            "request_type": "update",
+                            "entity_type": "Shot",
+                            "entity_id": sg_shot["id"],
+                            "data": shot_payload
+                        })
+                    else:
+                        sg_shots.append(clip_group.sg_shot)
+                        logger.info(
+                            "No update to perform for Shot %s..." % clip_group.name
+                        )
+                else:
+                    sg_shots.append(clip_group.sg_shot)
 
         if sg_batch_data:
-            sg_shots = self._sg.batch(sg_batch_data)
+            sg_updated_shots = self._sg.batch(sg_batch_data)
             # Update the clips Shots
             # Keep the list of Shots which were created to refresh data
             # from SG for them, since we don't set all data when
             # creating them.
             to_refresh_from_sg = []
             up_to_date_from_sg = []
-            for sg_shot in sg_shots:
+            for sg_shot in sg_updated_shots:
                 # clips_by_shots has the lowercased name as key.
                 clip_group = clips_by_shots[sg_shot["code"].lower()]
                 if not clip_group.sg_shot:
@@ -867,7 +871,10 @@ class SGCutTrackWriter(object):
                     # clips_by_shots has the lowercased name as key.
                     clip_group = clips_by_shots[sg_shot["code"].lower()]
                     clip_group.sg_shot = sg_shot
-                return up_to_date_from_sg + refreshed_from_sg
+                sg_updated_shots = up_to_date_from_sg + refreshed_from_sg
+            # Update the list of Shots with created ones
+            # and updated ones
+            sg_shots.extend(sg_updated_shots)
 
         return sg_shots
 

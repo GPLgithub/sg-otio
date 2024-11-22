@@ -105,6 +105,7 @@ class SGOtioCommand(object):
         frame_rate=24,
         settings=None,
         movie=None,
+        update_shots=True,
     ):
         """
         Write an input file to SG as a Cut.
@@ -119,6 +120,7 @@ class SGOtioCommand(object):
         :param float frame_rate: Optional frame rate to use when reading the file.
         :param str settings: Optional settings file path to use.
         :param str movie: Optional movie file path to use with the Cut.
+        :param bool update_shots: Whether existing Shots should be updated or not.
         """
         url = get_write_url(
             sg_site_url=self._sg.base_url,
@@ -147,6 +149,7 @@ class SGOtioCommand(object):
             adapter_name="ShotGrid",
             input_media=movie,
             input_file=file_path,
+            update_shots=update_shots,
         )
         logger.info("File %s successfully written to %s" % (file_path, url))
 

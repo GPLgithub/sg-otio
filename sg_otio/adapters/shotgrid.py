@@ -65,7 +65,7 @@ def read_from_file(filepath):
     return SGCutReader(sg).read(cut_id)
 
 
-def write_to_file(input_otio, filepath, input_media=None, previous_track=None, input_file=None):
+def write_to_file(input_otio, filepath, input_media=None, previous_track=None, input_file=None, update_shots=True):
     """
     Write the given timeline to SG.
 
@@ -87,6 +87,7 @@ def write_to_file(input_otio, filepath, input_media=None, previous_track=None, i
     :param str input_media: A path to a media file representing the video track, if any.
     :param previous_track: An optional :class:`otio.schema.Track` instance.
     :param str input_file: Optional input source file for the Cut.
+    :param bool update_shots: Whether existing Shots should be updated or not.
     :raises ValueError: For unsupported SG Entity types.
     """
     if not isinstance(input_otio, otio.schema.Timeline) and not isinstance(input_otio, otio.schema.Track):
@@ -115,6 +116,7 @@ def write_to_file(input_otio, filepath, input_media=None, previous_track=None, i
         description="Generated from sg-otio",
         input_media=input_media,
         previous_track=previous_track,
-        input_file=input_file
+        input_file=input_file,
+        update_shots=update_shots,
     )
     return
