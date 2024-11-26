@@ -1242,7 +1242,7 @@ class ShotgridAdapterTest(SGBaseTest):
             self.assertEqual(clip.metadata["sg"]["cut_item_in"], 1009)
             self.assertEqual(clip.metadata["sg"]["shot"]["code"], "test_write_shot_SHOT_001")
         # Do it again with update_shots enabled. Since everything is up to date
-        # Shots should be updated.
+        # Shots shouldn't be updated.
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid", update_shots=True)
 
