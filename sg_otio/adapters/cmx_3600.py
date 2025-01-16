@@ -23,7 +23,6 @@ from .. import (
     opentime,
 )
 
-
 class EDLParseError(exceptions.OTIOError):
     pass
 

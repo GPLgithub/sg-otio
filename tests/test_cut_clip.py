@@ -6,13 +6,14 @@ import unittest
 
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
+from opentimelineio.exceptions import OTIOError
 
 from sg_otio.cut_clip import SGCutClip
 from sg_otio.clip_group import ClipGroup
 from sg_otio.sg_settings import SGSettings
 from sg_otio.utils import compute_clip_shot_name
 from sg_otio.constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
-
+from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 
 class TestCutClip(unittest.TestCase):
 
@@ -46,7 +47,7 @@ class TestCutClip(unittest.TestCase):
             001  clip_reel_name V     C        00:00:00:00 00:00:01:00 01:00:00:00 01:00:01:00
             * FROM CLIP NAME: clip_name
          """
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         edl_clip = list(timeline.tracks[0].find_clips())[0]
         clip = SGCutClip(edl_clip)
         self.assertEqual(clip.name, "clip_reel_name")
@@ -71,7 +72,7 @@ class TestCutClip(unittest.TestCase):
             * LOC: 01:00:00:12 YELLOW
             * LOC: 01:00:00:12 YELLOW  shot_004
         """
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         edl_clip = list(timeline.tracks[0].find_clips())[0]
         # Set use reel names to True to see it does not affect the outcome.
         sg_settings = SGSettings()
@@ -176,12 +177,85 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_head_in = 555
         sg_settings.default_head_duration = 10
         sg_settings.default_tail_duration = 20
-        edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         video_track = edl_timeline.tracks[0]
         clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.find_clips())]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
         # There's a retime, so the clip is actually 2 * 0.5 seconds long.
+        self.assertEqual(clip_1.duration().to_frames(), 24)
+        self.assertEqual(clip_1.visible_duration.to_frames(), 48)
+        self.assertEqual(clip_1.working_duration.to_frames(), 10 + 48 + 20)
+        self.assertEqual(clip_1.source_in.to_timecode(), "01:00:00:00")
+        self.assertEqual(clip_1.source_out.to_timecode(), "01:00:02:00")
+        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
+        self.assertEqual(clip_1.cut_out.to_frames(), clip_1.cut_in.to_frames() + 48 - 1)
+        self.assertEqual(clip_1.record_in.to_timecode(), "02:00:00:00")
+        self.assertEqual(clip_1.record_out.to_timecode(), "02:00:01:00")
+        self.assertEqual(clip_1.edit_in.to_frames(), 1)
+        self.assertEqual(clip_1.edit_out.to_frames(), 24)
+        self.assertTrue(clip_1.has_retime)
+        self.assertEqual(clip_1.retime_str, "LinearTimeWarp (time scalar: 2.0)")
+        self.assertTrue(not clip_1.has_effects)
+        self.assertEqual(clip_1.effects_str, "")
+        self.assertRegex(
+            clip_1.source_info,
+            r"001\s+reel_1\s+V\s+C\s+01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00"
+        )
+
+        clip_2 = clips[1]
+        self.assertEqual(clip_2.duration().to_frames(), 24)
+        self.assertEqual(clip_2.visible_duration.to_frames(), 24)
+        self.assertEqual(clip_2.working_duration.to_frames(), 10 + 24 + 20)
+        self.assertEqual(clip_2.source_in.to_timecode(), "00:00:00:00")
+        self.assertEqual(clip_2.source_out.to_timecode(), "00:00:01:00")
+        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
+        self.assertEqual(clip_2.cut_out.to_frames(), clip_2.cut_in.to_frames() + 24 - 1)
+        self.assertEqual(clip_2.record_in.to_timecode(), "02:00:01:00")
+        self.assertEqual(clip_2.record_out.to_timecode(), "02:00:02:00")
+        self.assertEqual(clip_2.edit_in.to_frames(), 25)
+        self.assertEqual(clip_2.edit_out.to_frames(), 48)
+        self.assertTrue(not clip_2.has_retime)
+        self.assertEqual(clip_2.retime_str, "")
+        self.assertRegex(
+            clip_2.source_info,
+            r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
+        )
+
+    def test_clip_fix_for_bad_values(self):
+        """
+        Test that autofixing clip values is correct.
+        """
+        edl = """
+            TITLE:   OTIO_TEST
+            FCM: NON-DROP FRAME
+
+            001  reel_1 V     C        01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00
+            * FROM CLIP NAME: clip_1
+            * COMMENT: shot_001
+
+            002  reel_2 V     C        00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00
+            * FROM CLIP NAME: clip_1
+            * COMMENT: shot_002
+        """
+        # set non_default head_in, head_duration, tail_duration
+        # to show that the results are still consistent.
+        sg_settings = SGSettings()
+        sg_settings.default_head_in = 555
+        sg_settings.default_head_duration = 10
+        sg_settings.default_tail_duration = 20
+        with self.assertRaisesRegex(
+            ValueError,  # Actaully EDLParserError but hard to import here
+            "Source and record duration don't match",
+        ):
+            edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
+
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER, ignore_timecode_mismatch=True)
+        video_track = edl_timeline.tracks[0]
+        clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.find_clips())]
+        self.assertEqual(len(clips), 2)
+        clip_1 = clips[0]
+        # Should be fixed by the reader, so the clip is actually 2 * 0.5 seconds long.
         self.assertEqual(clip_1.duration().to_frames(), 24)
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
         self.assertEqual(clip_1.working_duration.to_frames(), 10 + 48 + 20)
@@ -256,7 +330,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_head_in = 555
         sg_settings.default_head_duration = 10
         sg_settings.default_tail_duration = 20
-        edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         video_track = edl_timeline.tracks[0]
         clips = [SGCutClip(c) for c in video_track.find_clips()]
         self.assertEqual(len(clips), 3)
@@ -304,7 +378,7 @@ class TestCutClip(unittest.TestCase):
         Test that transitions are properly computed from an example EDL file.
         """
         edl_filepath = os.path.join(self._edls_dir, "raphe_temp1_rfe_R01_v01_TRANSITIONS.edl")
-        edl_timeline = otio.adapters.read_from_file(edl_filepath, adapter_name="cmx_3600")
+        edl_timeline = otio.adapters.read_from_file(edl_filepath, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         video_track = edl_timeline.tracks[0]
         clip = list(video_track.find_clips())[1]
         cut_clip = SGCutClip(clip)
@@ -350,7 +424,7 @@ class TestCutClip(unittest.TestCase):
             sg_settings.default_head_in = head_in
             sg_settings.default_head_duration = head_duration
             sg_settings.default_tail_duration = tail_duration
-            edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600", rate=30)
+            edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER, rate=30)
             track = edl_timeline.tracks[0]
             clip_group = ClipGroup("shot_001")
             i = 1
