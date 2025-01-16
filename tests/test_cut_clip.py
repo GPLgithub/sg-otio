@@ -6,7 +6,6 @@ import unittest
 
 import opentimelineio as otio
 from opentimelineio.opentime import TimeRange, RationalTime
-from opentimelineio.exceptions import OTIOError
 
 from sg_otio.cut_clip import SGCutClip
 from sg_otio.clip_group import ClipGroup
