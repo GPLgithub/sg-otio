@@ -245,8 +245,9 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_head_in = 555
         sg_settings.default_head_duration = 10
         sg_settings.default_tail_duration = 20
+        EDLParseError = otio.adapters.from_name(_SG_OTIO_CMX_3600_ADAPTER).module().EDLParseError
         with self.assertRaisesRegex(
-            OTIOError,  # Actually EDLParserError but hard to import here
+            EDLParseError,
             "Source and record duration don't match",
         ):
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
