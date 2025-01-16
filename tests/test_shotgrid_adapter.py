@@ -23,6 +23,7 @@ from sg_otio.track_diff import SGCutDiffGroup
 from sg_otio.cut_diff import SGCutDiff
 from sg_otio.constants import _DIFF_TYPES, _REINSTATE_FROM_PREVIOUS_STATUS
 from sg_otio.sg_cut_track_writer import SGCutTrackWriter
+from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 
 
 try:
@@ -559,7 +560,7 @@ class ShotgridAdapterTest(SGBaseTest):
                 self._SG_CUT_URL,
                 "ShotGrid",
             )
-        edl_text = otio.adapters.write_to_string(timeline, adapter_name="cmx_3600")
+        edl_text = otio.adapters.write_to_string(timeline, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         expected_edl_text = (
             "TITLE: Cut01\n\n"
             "001  TestShot001_v001 V     C        00:00:00:00 00:01:00:00 01:00:00:00 01:01:00:00\n"
@@ -571,7 +572,7 @@ class ShotgridAdapterTest(SGBaseTest):
         )
         self.assertMultiLineEqual(edl_text, expected_edl_text)
         # Read back the EDL and write to SG
-        timeline = otio.adapters.read_from_string(expected_edl_text, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(expected_edl_text, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
             track = timeline.tracks[0]
@@ -636,7 +637,7 @@ class ShotgridAdapterTest(SGBaseTest):
             * FROM CLIP NAME: red.mov
             """
             edl_movie = os.path.join(self.resources_dir, "media_cutter.mov")
-            timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+            timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
             media_cutter = MediaCutter(timeline, edl_movie)
             media_cutter.cut_media_for_clips()
             with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
@@ -787,7 +788,7 @@ class ShotgridAdapterTest(SGBaseTest):
         000003 reelname     V     C        00:00:00:05 00:00:00:16 01:00:00:22 01:00:01:09
         000004 other_reelname       V     C        00:00:00:12 00:00:01:00 01:00:01:09 01:00:01:21
         """
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         track = timeline.tracks[0]
         # Check all clips have the same name
         for clip in track.find_clips():
@@ -825,7 +826,7 @@ class ShotgridAdapterTest(SGBaseTest):
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: test_write_shot_shot_001
         """
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         track = timeline.tracks[0]
         # No SG data so far
         for clip in track.find_clips():
@@ -1174,7 +1175,7 @@ class ShotgridAdapterTest(SGBaseTest):
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: test_write_shot_shot_001
         """
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         track = timeline.tracks[0]
         # No SG data so far
         for clip in track.find_clips():

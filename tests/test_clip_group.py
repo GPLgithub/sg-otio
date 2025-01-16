@@ -11,6 +11,7 @@ from sg_otio.sg_settings import SGSettings
 from sg_otio.track_diff import SGCutDiffGroup
 from sg_otio.cut_diff import SGCutDiff
 from sg_otio.constants import _DIFF_TYPES
+from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 
 
 class TestClipGroup(unittest.TestCase):
@@ -47,7 +48,7 @@ class TestClipGroup(unittest.TestCase):
             * COMMENT: shot_003
         """
 
-        edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         track = edl_timeline.tracks[0]
         shot_groups = ClipGroup.groups_from_track(track)
         self.assertEqual(set(shot_groups.keys()), {"shot_001", "shot_002", "shot_003"})
@@ -124,7 +125,7 @@ class TestClipGroup(unittest.TestCase):
             sg_settings.default_head_in = head_in
             sg_settings.default_head_duration = head_duration
             sg_settings.default_tail_duration = tail_duration
-            edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+            edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
             track = edl_timeline.tracks[0]
             shot_groups = ClipGroup.groups_from_track(track)
 

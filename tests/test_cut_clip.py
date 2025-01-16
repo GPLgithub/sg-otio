@@ -15,6 +15,7 @@ from sg_otio.utils import compute_clip_shot_name
 from sg_otio.constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 
+
 class TestCutClip(unittest.TestCase):
 
     def setUp(self):
@@ -245,7 +246,7 @@ class TestCutClip(unittest.TestCase):
         sg_settings.default_head_duration = 10
         sg_settings.default_tail_duration = 20
         with self.assertRaisesRegex(
-            ValueError,  # Actaully EDLParserError but hard to import here
+            OTIOError,  # Actually EDLParserError but hard to import here
             "Source and record duration don't match",
         ):
             edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
@@ -255,7 +256,8 @@ class TestCutClip(unittest.TestCase):
         clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.find_clips())]
         self.assertEqual(len(clips), 2)
         clip_1 = clips[0]
-        # Should be fixed by the reader, so the clip is actually 2 * 0.5 seconds long.
+        # Should be fixed by the reader, so the clip is actually 2 * 0.5 seconds long
+        # with a retime added
         self.assertEqual(clip_1.duration().to_frames(), 24)
         self.assertEqual(clip_1.visible_duration.to_frames(), 48)
         self.assertEqual(clip_1.working_duration.to_frames(), 10 + 48 + 20)
@@ -275,7 +277,9 @@ class TestCutClip(unittest.TestCase):
             clip_1.source_info,
             r"001\s+reel_1\s+V\s+C\s+01:00:00:00 01:00:02:00 02:00:00:00 02:00:01:00"
         )
-
+        self.assertTrue(
+            "WARNING: 2.0 motion effect added to fix source/record duration mismatch" in clip_1.metadata["cmx_3600"]["comments"]
+        )
         clip_2 = clips[1]
         self.assertEqual(clip_2.duration().to_frames(), 24)
         self.assertEqual(clip_2.visible_duration.to_frames(), 24)

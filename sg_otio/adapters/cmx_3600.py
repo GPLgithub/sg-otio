@@ -23,6 +23,7 @@ from .. import (
     opentime,
 )
 
+
 class EDLParseError(exceptions.OTIOError):
     pass
 
@@ -157,13 +158,20 @@ class EDLParser:
                     )
 
             elif self.ignore_timecode_mismatch:
-                # Pretend there was no problem by adjusting the record_out.
-                # Note that we don't actually use record_out after this
-                # point in the code, since all of the subsequent math uses
-                # the clip's source_range. Adjusting the record_out is
-                # just to document what the implications of ignoring the
-                # mismatch here entails.
-                record_out = record_in + src_duration
+                # Adjust the clip as if there was a motion effect.
+                clip.source_range = opentime.TimeRange(
+                    start_time=clip.source_range.start_time,
+                    duration=rec_duration
+                )
+                time_scalar = src_duration.to_frames() / rec_duration.to_frames()
+                clip.effects.append(
+                    schema.LinearTimeWarp(time_scalar=time_scalar)
+                )
+                clip.metadata.setdefault("cmx_3600", {})
+                clip.metadata['cmx_3600'].setdefault("comments", [])
+                clip.metadata['cmx_3600']['comments'].append(
+                    "WARNING: %s motion effect added to fix source/record duration mismatch" % time_scalar
+                )
 
             else:
                 raise EDLParseError(
