@@ -18,6 +18,7 @@ import opentimelineio as otio
 
 from sg_otio.media_cutter import MediaCutter
 from sg_otio.sg_settings import SGSettings
+from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class TestMediaCutter(unittest.TestCase):
         * FROM CLIP NAME: red_v01.mov
         """
         movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         media_cutter = MediaCutter(timeline, movie_filepath)
         # Mocked resutls for extract: process exit code and output lines
         _mock_extract = [
@@ -98,7 +99,7 @@ class TestMediaCutter(unittest.TestCase):
         * FROM CLIP NAME: red_v01.mov
         """
         movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         media_cutter = MediaCutter(timeline, movie_filepath)
         media_cutter.cut_media_for_clips()
         self.assertIsNotNone(media_cutter._media_dir)
@@ -154,7 +155,7 @@ class TestMediaCutter(unittest.TestCase):
                * FROM CLIP NAME: red_v01.mov
         """
         movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
 
         media_cutter = MediaCutter(timeline, movie_filepath)
         media_cutter.cut_media_for_clips()

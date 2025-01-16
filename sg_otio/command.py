@@ -7,6 +7,7 @@ import os
 import opentimelineio as otio
 
 from .sg_settings import SGSettings
+from .constants import _CMX_3600_ADAPTERS
 from .utils import get_write_url, get_read_url
 from .media_cutter import MediaCutter
 from .track_diff import SGTrackDiff
@@ -65,7 +66,7 @@ class SGOtioCommand(object):
                 logger.info(otio.adapters.write_to_string(timeline))
         else:
             _, ext = os.path.splitext(file_path)
-            if (ext and ext.lower() == ".edl") or adapter_name == "cmx_3600":
+            if (ext and ext.lower() == ".edl") or adapter_name in _CMX_3600_ADAPTERS:
                 otio.adapters.write_to_file(
                     timeline,
                     file_path,
@@ -85,7 +86,7 @@ class SGOtioCommand(object):
         :returns: A :class:`otio.schema.Timeline` instance.
         """
         _, ext = os.path.splitext(file_path)
-        if (ext and ext.lower() == ".edl") or adapter_name == "cmx_3600":
+        if (ext and ext.lower() == ".edl") or adapter_name in _CMX_3600_ADAPTERS:
             # rate param is specific to cmx_3600 adapter
             timeline = otio.adapters.read_from_file(
                 file_path, adapter_name=adapter_name, rate=frame_rate

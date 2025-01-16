@@ -12,6 +12,8 @@ except ImportError:
     import mock
 
 from sg_otio.media_uploader import MediaUploader
+# Uncomment for test_media_cutter_errors below
+# from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 from .python.sg_test import SGBaseTest
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,7 @@ class TestMediaUploader(SGBaseTest):
 #        * FROM CLIP NAME: red_v01.mov
 #        """
 #        movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
-#        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+#        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
 #        media_cutter = MediaCutter(timeline, movie_filepath)
 #        # Mocked resutls for extract: process exit code and output lines
 #        _mock_extract = [

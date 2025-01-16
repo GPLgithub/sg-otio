@@ -20,6 +20,7 @@ from sg_otio.utils import get_read_url, get_write_url
 from sg_otio.constants import _DIFF_TYPES, _ALT_SHOT_FIELDS
 from sg_otio.constants import _TC2FRAME_ABSOLUTE_MODE, _TC2FRAME_AUTOMATIC_MODE, _TC2FRAME_RELATIVE_MODE
 from sg_otio.sg_settings import SGSettings, SGShotFieldsConfig
+from sg_otio.constants import _SG_OTIO_CMX_3600_ADAPTER
 
 
 try:
@@ -360,7 +361,7 @@ class TestCutDiff(SGBaseTest):
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: SHOT_001
         """
-        edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         track = edl_timeline.tracks[0]
         track_diff = SGTrackDiff(
             self.mock_sg,
@@ -586,7 +587,7 @@ class TestCutDiff(SGBaseTest):
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: test_same_cut_SHOT_001
         """
-        timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         track = timeline.tracks[0]
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             otio.adapters.write_to_file(timeline, self._SG_SEQ_URL, "ShotGrid")
@@ -606,7 +607,7 @@ class TestCutDiff(SGBaseTest):
             self.assertIn("test_same_cut_shot", sg_shot["code"])
 
         # Read back the EDL in a fresh timeline
-        edl_timeline = otio.adapters.read_from_string(edl, adapter_name="cmx_3600")
+        edl_timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         edl_track = edl_timeline.tracks[0]
         track_diff = SGTrackDiff(
             self.mock_sg,

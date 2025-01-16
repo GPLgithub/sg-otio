@@ -8,20 +8,11 @@ import sys
 import shotgun_api3
 from shotgun_api3.lib import mockgun
 
-from sg_otio.constants import _SG_OTIO_MANIFEST_PATH
-
 # Define a standard logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 sys.path.append(os.path.dirname(__file__))
-
-
-# Set the manifest path to sg-otio manifest so that our own cmx_3600 adapter takes precedence
-# over the built-in cmx_3600 adapter.
-manifest_path = os.getenv("OTIO_PLUGIN_MANIFEST_PATH")
-if not manifest_path:
-    os.environ["OTIO_PLUGIN_MANIFEST_PATH"] = _SG_OTIO_MANIFEST_PATH
 
 
 def pytest_addoption(parser):
