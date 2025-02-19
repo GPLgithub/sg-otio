@@ -1224,10 +1224,10 @@ class SGTrackDiff(object):
 
     def _get_shot_link_field(self, sg_entity_type):
         """
+        Retrieve a "link" field on Shots which accepts the given Entity type.
 
-        :returns: A SG Shot field name.
+        :returns: A SG Shot field name or ``None``.
         """
-        # Retrieve a "link" field on Shots which accepts our Entity type
         shot_schema = self._sg.schema_field_read("Shot")
         # Prefer a sg_<entity type> field if available
         type_display_name = get_entity_type_display_name(
@@ -1257,7 +1257,7 @@ class SGTrackDiff(object):
 
         logger.warning(
             "Couldn't retrieve a SG Shot field accepting %s" % (
-                self._sg_entity_type,
+                sg_entity_type,
             )
         )
         return None
