@@ -298,6 +298,26 @@ class TestCutClip(unittest.TestCase):
             clip_2.source_info,
             r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
         )
+        edl_overlap = """
+            TITLE:   OTIO_TEST
+            FCM: NON-DROP FRAME
+
+            001  ABC0100 V     C        01:00:00:00 01:00:02:00 01:00:00:00 01:00:02:00
+            * FROM CLIP NAME: shot_001_v001
+            * COMMENT: shot_001
+
+            002  ABC0200 V     C        01:00:01:00 01:00:03:00 01:00:01:00 01:00:03:00
+            * FROM CLIP NAME: shot_002_v001
+            * COMMENT: shot_002
+        """
+        with self.assertRaisesRegex(
+            EDLParseError,
+            "Overlapping record in value: 01:00:01:00",
+        ):
+            edl_timeline = otio.adapters.read_from_string(edl_overlap, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
+
+        edl_timeline = otio.adapters.read_from_string(edl_overlap, adapter_name=_SG_OTIO_CMX_3600_ADAPTER, ignore_timecode_mismatch=True)
+
 
     def test_clip_values_with_transitions(self):
         """
