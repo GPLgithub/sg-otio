@@ -291,7 +291,7 @@ class FFmpegExtractor(object):
                   and the output of the command as an array of output lines.
         """
         cmd_args = self._movie_extract_command
-        logger.info("Running %s" % " ".join(cmd_args))
+        logger.debug("Running %s" % " ".join(cmd_args))
         close_fds = True
         # Although subprocess technically supports using close_fds on
         # Windows, it cannot be used when stdin, stdout, and stderr are
