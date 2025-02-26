@@ -57,7 +57,7 @@ class TestMediaCutter(unittest.TestCase):
         movie_filepath = os.path.join(self.resources_dir, "media_cutter.mov")
         timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
         media_cutter = MediaCutter(timeline, movie_filepath)
-        # Mocked resutls for extract: process exit code and output lines
+        # Mocked results for extract: process exit code and output lines
         _mock_extract = [
             (0, ["mocked"]),
             (0, ["mocked"]),
@@ -129,9 +129,52 @@ class TestMediaCutter(unittest.TestCase):
                     "-print_format", "json",
                     media_filepath
                 ]
+                logger.info(" ".join(cmd))
                 output = json.loads(subprocess.check_output(cmd, stderr=subprocess.STDOUT))
+                logger.info(output)
+                if len(output["streams"]) == 0:
+                    raise RuntimeError("No stream in %s" % media_filepath)
                 nb_frames = int(output["streams"][0]["nb_read_frames"])
                 self.assertEqual(nb_frames, clip.visible_range().duration.to_frames())
+        # Do the same test but with the prores media and direct stream copy
+        timeline = otio.adapters.read_from_string(edl, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
+        movie_filepath = os.path.join(self.resources_dir, "media_cutter_prores.mov")
+        media_cutter = MediaCutter(timeline, movie_filepath, use_stream_copy=True)
+        media_cutter.cut_media_for_clips()
+        self.assertIsNotNone(media_cutter._media_dir)
+        self.assertTrue(os.path.isdir(media_cutter._media_dir))
+        logger.info("Generated %s" % os.listdir(media_cutter._media_dir))
+        # Note that pink_v01 already exists in SG, and blue_v01 already has a media ref,
+        # so they won't be extracted, and media refs from cmx have empty names.
+        media_names = ["green_tape", "pink_tape", "green_tape", "red_tape", "", "red_tape"]
+        file_names = ["green_tape.mov", "pink_tape.mov", "green_tape_001.mov", "red_tape.mov", "foo.mov", "red_tape_001.mov"]
+        for i, clip in enumerate(timeline.find_clips()):
+            self.assertFalse(clip.media_reference.is_missing_reference)
+            self.assertEqual(clip.media_reference.name, media_names[i])
+            self.assertEqual(os.path.basename(clip.media_reference.target_url), file_names[i])
+            # Fourth entry is a dummy reference to "foo.mov"
+            if ffprobe and i != 4:
+                media_filepath = clip.media_reference.target_url.replace("file://", "")
+                self.assertEqual(media_cutter._media_dir, os.path.dirname(media_filepath))
+                self.assertTrue(os.path.isdir(media_cutter._media_dir))
+                self.assertTrue(os.path.isfile(media_filepath), msg="{} does not exist".format(media_filepath))
+                # ffprobe  -count_frames -show_entries stream=nb_read_frames -v error  -print_format csv
+                cmd = [
+                    "ffprobe",
+                    "-count_frames",
+                    "-show_entries", "stream=nb_read_frames",
+                    "-v", "error",
+                    "-print_format", "json",
+                    media_filepath
+                ]
+                logger.info(" ".join(cmd))
+                output = json.loads(subprocess.check_output(cmd, stderr=subprocess.STDOUT))
+                logger.info(output)
+                if len(output["streams"]) == 0:
+                    raise RuntimeError("No stream in %s" % media_filepath)
+                nb_frames = int(output["streams"][0]["nb_read_frames"])
+                self.assertEqual(nb_frames, clip.visible_range().duration.to_frames())
+        # Do the same test but with the prores media and stream direct copy
 
     def test_media_cutter_with_edl_compute_version_names(self):
         """

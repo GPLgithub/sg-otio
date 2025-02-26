@@ -27,7 +27,7 @@ class MediaCutter(object):
     These extractions are done in parallel.
     """
 
-    def __init__(self, timeline, movie):
+    def __init__(self, timeline, movie, use_stream_copy=False):
         """
         Initialize the Media Cutter.
 
@@ -45,6 +45,7 @@ class MediaCutter(object):
             raise RuntimeError("ffmpeg cannot be found.")
         self._video_track = timeline.video_tracks()[0]
         self._media_filenames = []
+        self._use_stream_copy = use_stream_copy
 
     @property
     def ffmpeg(self):
@@ -176,7 +177,8 @@ class MediaCutter(object):
             media_filename,
             clip_range_in_track.start_time.to_seconds(),
             clip_range_in_track.end_time_exclusive().to_seconds(),
-            clip_range_in_track.duration.to_frames()
+            clip_range_in_track.duration.to_frames(),
+            use_stream_copy=self._use_stream_copy,
         )
         future = executor.submit(
             extractor,
@@ -190,7 +192,7 @@ class FFmpegExtractor(object):
     """
     ffmpeg = None
 
-    def __init__(self, input_media, output_media, start_time, end_time, nb_frames):
+    def __init__(self, input_media, output_media, start_time, end_time, nb_frames, use_stream_copy=False):
         """
         Initialize the FFmpeg extractor.
 
@@ -206,6 +208,7 @@ class FFmpegExtractor(object):
         self._end_time = end_time
         self._progress = 0
         self._progress_max = nb_frames
+        self._use_stream_copy = use_stream_copy
 
     def __call__(self):
         """
@@ -263,6 +266,12 @@ class FFmpegExtractor(object):
         # until the timestamps reach position."
         # Since we stream copy, we don't want to preserve the part between the input start point
         # and the stipulated start time.
+        # Set options according to stream copy value
+        options = [
+            ["-pix_fmt", "yuv420p"],
+            ["-c:v", "copy", "-c:a", "copy"],
+        ][1 if self._use_stream_copy else 0]
+
         return [
             self.ffmpeg,
             # These settings allow getting only progress stats or errors in the output.
@@ -270,6 +279,7 @@ class FFmpegExtractor(object):
             "-i", self._input_media,
             "-ss", str(self._start_time),
             "-to", str(self._end_time),
+            *options,
             self._output_media
         ]
 

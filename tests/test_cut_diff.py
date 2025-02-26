@@ -1747,6 +1747,19 @@ class TestCutDiff(SGBaseTest):
             sg_entity=self.sg_sequences[0]
         )
         self.assertEqual(track_diff.sg_link, self.sg_sequences[0])
+        # Check invalid value
+        with self.assertRaisesRegex(ValueError, "Unable to retrieve a SG field to link Shots to Delivery"):
+            track_diff = self._get_track_diff(
+                edl_track,
+                None,
+                self._mock_compute_clip_shot_name,
+                sg_entity={
+                    "title": "Delivery_6666",
+                    "project": self.mock_project,
+                    "type": "Delivery",
+                    "id": 6666,
+                }
+            )
         with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
             mock_cut_url = get_read_url(
                 self.mock_sg.base_url,
