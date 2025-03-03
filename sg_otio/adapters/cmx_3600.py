@@ -220,6 +220,7 @@ class EDLParser:
                     # transition into account
                     prev_clip = track.find_clips()[-1]
                     _extend_source_range_duration(prev_clip, -overlap)
+                    _extend_source_range_duration(track, -overlap)
                     # Add a transition for the overlap
                     transition_name = '{} from {} to {}'.format(
                         schema.TransitionTypes.SMPTE_Dissolve,

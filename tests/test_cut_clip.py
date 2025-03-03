@@ -310,6 +310,19 @@ class TestCutClip(unittest.TestCase):
             002  reel_2 V     C        03:00:01:00 03:00:03:00 01:00:01:00 01:00:03:00
             * FROM CLIP NAME: shot_002_v001
             * COMMENT: shot_002
+
+            003  reel_3 V     C        02:00:00:00 02:00:02:00 01:00:03:00 01:00:05:00
+            * FROM CLIP NAME: shot_003_v001
+            * COMMENT: shot_003
+
+            004  reel_4 V     C        03:00:01:00 03:00:01:00 01:00:04:00 01:00:04:00
+            * COMMENT: shot_004
+            005  reel_4 V     D    024 03:00:01:00 03:00:02:00 01:00:04:00 01:00:05:00
+            * FROM CLIP NAME: shot_003_v001
+            * TO CLIP NAME: shot_004_v001
+            006  reel_4 V     C        03:00:02:00 03:00:03:00 01:00:05:00 01:00:06:00
+            * COMMENT: shot_004
+            * FROM CLIP NAME: shot_004_v001
         """
         with self.assertRaisesRegex(
             EDLParseError,
@@ -320,7 +333,7 @@ class TestCutClip(unittest.TestCase):
         edl_timeline = otio.adapters.read_from_string(edl_overlap, adapter_name=_SG_OTIO_CMX_3600_ADAPTER, ignore_timecode_mismatch=True)
         video_track = edl_timeline.tracks[0]
         clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.find_clips())]
-        self.assertEqual(len(clips), 2)
+        self.assertEqual(len(clips), 6)
         clip_1 = clips[0]
         # Duration before the transition
         self.assertEqual(clip_1.duration().to_frames(), 24)
@@ -367,6 +380,15 @@ class TestCutClip(unittest.TestCase):
         self.assertTrue(
             "WARNING: potential dissolve detected from 24 frames overlap" in clip_2.metadata["cmx_3600"]["comments"]
         )
+        # Check values against edits mimicking the dissolve
+        clip_3 = clips[2]
+        self.assertEqual(clip_1.duration().to_frames(), clip_3.duration().to_frames())
+        self.assertEqual(clip_1.visible_duration.to_frames(), clip_3.visible_duration.to_frames())
+        self.assertEqual(clip_1.working_duration.to_frames(), clip_3.working_duration.to_frames())
+        self.assertEqual(clip_1.source_in.to_timecode(), clip_3.source_in.to_timecode())
+        self.assertEqual(clip_1.source_out.to_timecode(), clip_3.source_out.to_timecode())
+        self.assertEqual(clip_1.cut_in.to_frames(), clip_3.cut_in.to_frames())
+        self.assertEqual(clip_1.cut_out.to_frames(), clip_3.cut_out.to_frames())
 
     def test_clip_values_with_transitions(self):
         """
