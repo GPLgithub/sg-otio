@@ -298,15 +298,16 @@ class TestCutClip(unittest.TestCase):
             clip_2.source_info,
             r"002\s+reel_2\s+V\s+C\s+00:00:00:00 00:00:01:00 02:00:01:00 02:00:02:00"
         )
+        # An overlap caused by exporting "cut" values for dissolves effect
         edl_overlap = """
             TITLE:   OTIO_TEST
             FCM: NON-DROP FRAME
 
-            001  ABC0100 V     C        01:00:00:00 01:00:02:00 01:00:00:00 01:00:02:00
+            001  reel_1 V     C        02:00:00:00 02:00:02:00 01:00:00:00 01:00:02:00
             * FROM CLIP NAME: shot_001_v001
             * COMMENT: shot_001
 
-            002  ABC0200 V     C        01:00:01:00 01:00:03:00 01:00:01:00 01:00:03:00
+            002  reel_2 V     C        03:00:01:00 03:00:03:00 01:00:01:00 01:00:03:00
             * FROM CLIP NAME: shot_002_v001
             * COMMENT: shot_002
         """
@@ -317,7 +318,55 @@ class TestCutClip(unittest.TestCase):
             edl_timeline = otio.adapters.read_from_string(edl_overlap, adapter_name=_SG_OTIO_CMX_3600_ADAPTER)
 
         edl_timeline = otio.adapters.read_from_string(edl_overlap, adapter_name=_SG_OTIO_CMX_3600_ADAPTER, ignore_timecode_mismatch=True)
-
+        video_track = edl_timeline.tracks[0]
+        clips = [SGCutClip(c, index=i + 1) for i, c in enumerate(video_track.find_clips())]
+        self.assertEqual(len(clips), 2)
+        clip_1 = clips[0]
+        # Duration before the transition
+        self.assertEqual(clip_1.duration().to_frames(), 24)
+        # Full range needed for the clip and the transition
+        self.assertEqual(clip_1.visible_duration.to_frames(), 48)
+        self.assertEqual(clip_1.working_duration.to_frames(), 10 + 48 + 20)
+        self.assertEqual(clip_1.source_in.to_timecode(), "02:00:00:00")
+        self.assertEqual(clip_1.source_out.to_timecode(), "02:00:02:00")
+        self.assertEqual(clip_1.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
+        self.assertEqual(clip_1.cut_out.to_frames(), clip_1.cut_in.to_frames() + 48 - 1)
+        self.assertEqual(clip_1.record_in.to_timecode(), "01:00:00:00")
+        self.assertEqual(clip_1.record_out.to_timecode(), "01:00:02:00")
+        self.assertEqual(clip_1.edit_in.to_frames(), 1)
+        self.assertEqual(clip_1.edit_out.to_frames(), 48)
+        self.assertFalse(clip_1.has_retime)
+        self.assertTrue(clip_1.has_effects)
+        self.assertEqual(clip_1.effects_str, "After: SMPTE_Dissolve (24 frames)")
+        self.assertRegex(
+            clip_1.source_info,
+            r"001\s+reel_1\s+V\s+C\s+02:00:00:00 02:00:02:00 01:00:00:00 01:00:02:00"
+        )
+        clip_2 = clips[1]
+        # The duration includes the transition
+        self.assertEqual(clip_2.duration().to_frames(), 48)
+        # Full range needed for the clip and the transition
+        self.assertEqual(clip_2.visible_duration.to_frames(), 48)
+        self.assertEqual(clip_2.working_duration.to_frames(), 10 + 48 + 20)
+        self.assertEqual(clip_2.source_in.to_timecode(), "03:00:01:00")
+        self.assertEqual(clip_2.source_out.to_timecode(), "03:00:03:00")
+        self.assertEqual(clip_2.cut_in.to_frames(), sg_settings.default_head_in + sg_settings.default_head_duration)
+        self.assertEqual(clip_2.cut_out.to_frames(), clip_2.cut_in.to_frames() + 48 - 1)
+        self.assertEqual(clip_2.record_in.to_timecode(), "01:00:01:00")
+        self.assertEqual(clip_2.record_out.to_timecode(), "01:00:03:00")
+        self.assertEqual(clip_2.edit_in.to_frames(), 25)
+        self.assertEqual(clip_2.edit_out.to_frames(), 72)
+        self.assertTrue(not clip_2.has_retime)
+        self.assertEqual(clip_2.retime_str, "")
+        self.assertTrue(clip_2.has_effects)
+        self.assertEqual(clip_2.effects_str, "Before: SMPTE_Dissolve (0 frames)")
+        self.assertRegex(
+            clip_2.source_info,
+            r"002\s+reel_2\s+V\s+C\s+03:00:01:00 03:00:03:00 01:00:01:00 01:00:03:00"
+        )
+        self.assertTrue(
+            "WARNING: potential dissolve detected from 24 frames overlap" in clip_2.metadata["cmx_3600"]["comments"]
+        )
 
     def test_clip_values_with_transitions(self):
         """
