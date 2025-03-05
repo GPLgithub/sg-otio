@@ -172,7 +172,6 @@ class EDLParser:
                 clip.metadata['cmx_3600']['comments'].append(
                     "WARNING: %s motion effect added to fix source/record duration mismatch" % time_scalar
                 )
-
             else:
                 raise EDLParseError(
                     "Source and record duration don't match: {} != {}"
@@ -203,9 +202,46 @@ class EDLParser:
             track_end = track.duration() - track.source_range.start_time
             if record_in < track_end:
                 if self.ignore_timecode_mismatch:
-                    # shift it over
-                    record_in = track_end
-                    record_out = record_in + rec_duration
+                    # This seems to be caused by dissolves being
+                    # exported as "cut" values
+                    if len(track) < 1:
+                        # In theory shouldn't happen but, just in case...
+                        raise EDLParseError(
+                            "Can't fix overlap problem at the very beginning of a track"
+                        )
+                    # Add a dissolve on the fly
+                    overlap = track_end - record_in
+                    clip.metadata.setdefault("cmx_3600", {})
+                    clip.metadata['cmx_3600'].setdefault("comments", [])
+                    clip.metadata['cmx_3600']['comments'].append(
+                        "WARNING: potential dissolve detected from %s frames overlap" % overlap.to_frames()
+                    )
+                    # Correct the previous clip to take the
+                    # transition into account
+                    prev_clip = track.find_clips()[-1]
+                    _extend_source_range_duration(prev_clip, -overlap)
+                    _extend_source_range_duration(track, -overlap)
+                    # Add a transition for the overlap
+                    transition_name = '{} from {} to {}'.format(
+                        schema.TransitionTypes.SMPTE_Dissolve,
+                        prev_clip.name,
+                        clip.name,
+                    )
+                    track_transition = schema.Transition(
+                        name=transition_name,
+                        transition_type=schema.TransitionTypes.SMPTE_Dissolve,
+                        metadata={
+                            'cmx_3600': {
+                                'transition': schema.TransitionTypes.SMPTE_Dissolve,
+                                'transition_duration': overlap,
+                            }
+                        },
+                    )
+                    track_transition.in_offset = opentime.RationalTime(
+                        0,
+                        edl_rate,
+                    )
+                    track_transition.out_offset = overlap
                 else:
                     raise EDLParseError(
                         "Overlapping record in value: {} for clip {}".format(
