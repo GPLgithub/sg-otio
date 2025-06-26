@@ -201,9 +201,10 @@ class ShotgridAdapterTest(SGBaseTest):
         # Check the track metadata
         for k, v in self.mock_cut.items():
             if k == "entity":
-                # Just check the type and id
+                # Just check the type and id and project
                 self.assertEqual(track.metadata["sg"][k]["type"], v["type"])
                 self.assertEqual(track.metadata["sg"][k]["id"], v["id"])
+                self.assertEqual(track.metadata["sg"][k]["project"]["id"], v["project"]["id"])
             else:
                 self.assertEqual(track.metadata["sg"][k], v)
         # Check the track clips
@@ -224,6 +225,45 @@ class ShotgridAdapterTest(SGBaseTest):
                     self.fps
                 )
             )
+        # Check that errors are correctly raised
+        SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+            self.mock_sg.base_url,
+            self._SESSION_TOKEN,
+            6666666,
+        )
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            with self.assertRaisesRegex(ValueError, "No Cut found with ID 6666666"):
+                timeline = otio.adapters.read_from_file(
+                    SG_CUT_URL,
+                    "ShotGrid",
+                )
+        # Cut with an invalid Sequence
+        mock_cut = {
+            "type": "Cut",
+            "id": 101,
+            "code": "Cut01",
+            "project": self.mock_project,
+            "fps": self.fps,
+            "timecode_start_text": "01:00:00:00",
+            "timecode_end_text": "01:04:00:00",  # 5760 frames at 24 fps.
+            "revision_number": 1,
+            "entity": {"type": "Sequence", "id": 6666666},
+            "sg_status_list": "ip",
+            "image": None,
+            "description": "Mocked Cut",
+        }
+        self.add_to_sg_mock_db(mock_cut)
+        SG_CUT_URL = "{}/Cut?session_token={}&id={}".format(
+            self.mock_sg.base_url,
+            self._SESSION_TOKEN,
+            101,
+        )
+        with mock.patch.object(shotgun_api3, "Shotgun", return_value=self.mock_sg):
+            with self.assertRaisesRegex(ValueError, "Unable to find Sequence 6666666"):
+                timeline = otio.adapters.read_from_file(
+                    SG_CUT_URL,
+                    "ShotGrid",
+                )
 
     def test_read_raises_error_if_overlap(self):
         """
