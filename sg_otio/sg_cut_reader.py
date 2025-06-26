@@ -49,7 +49,25 @@ class SGCutReader(object):
         # TODO: check if we should just return a track or a timeline?
         timeline = otio.schema.Timeline(name=cut["code"])
         track = otio.schema.Track(name=cut["code"])
+
+        # Consolidate the linked entity, if one.
+        linked_entity_type = None
+        if cut["entity"]:
+            linked_entity_type = cut["entity"]["type"]
+            # Consolidate the linked entity, ensured it
+            # has all the values we need
+            sg_link = self._sg.find_one(
+                linked_entity_type,
+                [["id", "is", cut["entity"]["id"]]],
+                ["project"],
+            )
+            if not sg_link:
+                raise ValueError("Unable to find %s %s" % (linked_entity_type, cut["entity"]["id"]))
+            cut["entity"].update(sg_link)
+        # Store the SG data in metadata so it can be
+        # later leveraged.
         track.metadata["sg"] = cut
+
         # TODO: check what should be done if these values are not set
         if cut["timecode_end_text"] and cut["timecode_start_text"]:
             start_time = otio.opentime.from_timecode(cut["timecode_start_text"], cut["fps"])
@@ -62,9 +80,6 @@ class SGCutReader(object):
         timeline.tracks.append(track)
 
         # Retrieve all the Shot fields we need to retrieve from CutItems
-        linked_entity_type = None
-        if cut["entity"]:
-            linked_entity_type = cut["entity"]["type"]
         sg_shot_fields = SGShotFieldsConfig(
             self._sg, linked_entity_type
         ).all

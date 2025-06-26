@@ -201,9 +201,10 @@ class ShotgridAdapterTest(SGBaseTest):
         # Check the track metadata
         for k, v in self.mock_cut.items():
             if k == "entity":
-                # Just check the type and id
+                # Just check the type and id and project
                 self.assertEqual(track.metadata["sg"][k]["type"], v["type"])
                 self.assertEqual(track.metadata["sg"][k]["id"], v["id"])
+                self.assertEqual(track.metadata["sg"][k]["project"]["id"], v["project"]["id"])
             else:
                 self.assertEqual(track.metadata["sg"][k], v)
         # Check the track clips
